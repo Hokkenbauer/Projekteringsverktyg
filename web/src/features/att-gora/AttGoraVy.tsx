@@ -12,9 +12,10 @@ type Props = {
   onAndra: (rad: AttGora, falt: "text" | "klar", varde: string) => void;
   onNy: () => void;
   onTaBort: (ids: string[]) => void;
+  lasläge?: boolean;
 };
 
-export function AttGoraVy({ rader, blinkar, onAndra, onNy, onTaBort }: Props) {
+export function AttGoraVy({ rader, blinkar, onAndra, onNy, onTaBort, lasläge }: Props) {
   return (
     <>
       <div className="brodsmula">Att göra</div>
@@ -28,6 +29,7 @@ export function AttGoraVy({ rader, blinkar, onAndra, onNy, onTaBort }: Props) {
         onNy={onNy}
         onTaBort={onTaBort}
         blinkar={blinkar}
+        lasläge={lasläge}
       />
     </>
   );

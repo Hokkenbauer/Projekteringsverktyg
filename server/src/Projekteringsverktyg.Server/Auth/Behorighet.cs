@@ -45,8 +45,11 @@ public sealed class Behorighet(PvDbContext db)
         return post;
     }
 
-    public async Task<bool> HarRoll(ClaimsPrincipal user, params string[] roller) =>
-        roller.Contains((await AktuellAsync(user)).Roll);
+    public async Task<bool> HarRoll(ClaimsPrincipal user, params string[] roller)
+    {
+        var roll = (await AktuellAsync(user)).Roll;
+        return Array.IndexOf(roller, roll) >= 0;
+    }
 
     public async Task<bool> KanLasa(ClaimsPrincipal user, Guid projektId)
     {

@@ -27,11 +27,15 @@ type Props<T extends Rad> = {
   onTaBort?: (ids: string[]) => void;
   blinkar?: Blink[];
   verktyg?: ReactNode;
+  /** Läsläge: inga ändringar, inga knappar för ny rad eller borttagning. */
+  lasläge?: boolean;
 };
 
 export function DataGrid<T extends Rad>({
-  rader, kolumner, sokPlatshallare, onAndra, onNy, onTaBort, blinkar = [], verktyg,
+  rader, kolumner, sokPlatshallare, onAndra, onNy: nyIn, onTaBort: taBortIn, blinkar = [], verktyg, lasläge = false,
 }: Props<T>) {
+  const onNy = lasläge ? undefined : nyIn;
+  const onTaBort = lasläge ? undefined : taBortIn;
   const [sok, setSok] = useState("");
   const [sortering, setSortering] = useState<{ nyckel: string; riktning: 1 | -1 } | null>(null);
   const [markerade, setMarkerade] = useState<Set<string>>(new Set());
@@ -129,6 +133,7 @@ export function DataGrid<T extends Rad>({
                       kolumn={k}
                       varde={String(r[k.nyckel] ?? "")}
                       blink={blink}
+                      lasläge={lasläge}
                       onSpara={(v) => onAndra(r, k.nyckel, v)}
                     />
                   );
@@ -142,8 +147,8 @@ export function DataGrid<T extends Rad>({
   );
 }
 
-function Cell<T>({ kolumn, varde, blink, onSpara }: {
-  kolumn: Kolumn<T>; varde: string; blink?: Blink; onSpara: (v: string) => void;
+function Cell<T>({ kolumn, varde, blink, onSpara, lasläge }: {
+  kolumn: Kolumn<T>; varde: string; blink?: Blink; onSpara: (v: string) => void; lasläge: boolean;
 }) {
   const [utkast, setUtkast] = useState(varde);
   const fokus = useRef(false);
@@ -160,7 +165,7 @@ function Cell<T>({ kolumn, varde, blink, onSpara }: {
   if (kolumn.typ === "kryss") {
     return (
       <td className={["kryss", klass].filter(Boolean).join(" ")} style={stil} key={blink?.tid}>
-        <input type="checkbox" aria-label={kolumn.rubrik} checked={varde === "true"} onChange={(e) => onSpara(String(e.target.checked))} />
+        <input type="checkbox" aria-label={kolumn.rubrik} checked={varde === "true"} disabled={lasläge} onChange={(e) => onSpara(String(e.target.checked))} />
       </td>
     );
   }
@@ -170,7 +175,7 @@ function Cell<T>({ kolumn, varde, blink, onSpara }: {
     const alternativ = varde && !val.includes(varde) ? [varde, ...val] : val;
     return (
       <td className={klass} style={stil} key={blink?.tid}>
-        <select aria-label={kolumn.rubrik} value={varde} onChange={(e) => onSpara(e.target.value)}>
+        <select aria-label={kolumn.rubrik} value={varde} disabled={lasläge} onChange={(e) => onSpara(e.target.value)}>
           <option value="" />
           {alternativ.map((o) => <option key={o} value={o}>{o}</option>)}
         </select>
@@ -181,7 +186,7 @@ function Cell<T>({ kolumn, varde, blink, onSpara }: {
   return (
     <td className={klass} style={stil} key={blink?.tid}>
       <input
-        type="text" aria-label={kolumn.rubrik} spellCheck={false} value={utkast}
+        type="text" aria-label={kolumn.rubrik} spellCheck={false} value={utkast} readOnly={lasläge}
         onFocus={() => { fokus.current = true; }}
         onChange={(e) => setUtkast(e.target.value)}
         onBlur={() => {

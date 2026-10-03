@@ -28,9 +28,10 @@ type Props = {
   onAndra: (k: Komponent, falt: keyof Komponent & string, varde: string) => void;
   onNy: () => void;
   onTaBort: (ids: string[]) => void;
+  lasläge?: boolean;
 };
 
-export function KomponenterVy({ komponenter, blinkar, onAndra, onNy, onTaBort }: Props) {
+export function KomponenterVy({ komponenter, blinkar, onAndra, onNy, onTaBort, lasläge }: Props) {
   return (
     <>
       <div className="brodsmula">Komponenter &amp; Listor</div>
@@ -47,6 +48,7 @@ export function KomponenterVy({ komponenter, blinkar, onAndra, onNy, onTaBort }:
         onNy={onNy}
         onTaBort={onTaBort}
         blinkar={blinkar}
+        lasläge={lasläge}
       />
     </>
   );

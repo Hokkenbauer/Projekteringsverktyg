@@ -7,6 +7,8 @@ import { NAVIGERING, hittaFlik } from "../../shell/navigering";
 import { AnteckningarVy } from "../att-gora/AnteckningarVy";
 import { AttGoraVy } from "../att-gora/AttGoraVy";
 import { KomponenterVy } from "../komponenter/KomponenterVy";
+import { ProjektStatusVy } from "../status/ProjektStatusVy";
+import { MedlemmarVy } from "./MedlemmarVy";
 import { LoggVy, Oversikt } from "./Oversikt";
 
 const FARGER = ["#2B6CB0", "#B7791F", "#2F855A", "#9B2C6E", "#6B46C1", "#C05621", "#2C7A7B"];
@@ -29,6 +31,7 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
   const [komponenter, setKomponenter] = useState<Komponent[]>([]);
   const [logg, setLogg] = useState<Logg[]>([]);
   const [loggVersion, setLoggVersion] = useState(0);
+  const [statusVersion, setStatusVersion] = useState(0);
   const [attGora, setAttGora] = useState<AttGora[]>([]);
   const [anteckningar, setAnteckningar] = useState<Anteckningar | null>(null);
   const [narvaro, setNarvaro] = useState<Narvarande[]>([]);
@@ -111,6 +114,8 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
       }
     } else if (h.lista === "anteckningar" && h.avId !== mig.id) {
       setAnteckningar(h.rad as Anteckningar);
+    } else if (h.lista === "projektStatus" && h.avId !== mig.id) {
+      setStatusVersion((v) => v + 1);
     }
     hamtaLoggSnart();
   }, [laggAttGora, blinka, hamtaLoggSnart, mig.id]);
@@ -264,14 +269,16 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
         {fel && <p className="felruta">Projektet kunde inte hämtas: {fel}</p>}
 
         {flik === "komponenter" && (
-          <KomponenterVy komponenter={komponenter} blinkar={blinkar} onAndra={andra} onNy={ny} onTaBort={taBort} />
+          <KomponenterVy komponenter={komponenter} blinkar={blinkar} onAndra={andra} onNy={ny} onTaBort={taBort} lasläge={!mig.rattigheter.skriva} />
         )}
         {flik === "oversikt" && projekt && (
           <Oversikt projekt={projekt} komponenter={komponenter} attGora={attGora} anteckningar={anteckningar} logg={logg} narvaro={narvaro} onFlik={onFlik} />
         )}
         {flik === "andringslogg" && <LoggVy projektId={projektId} komponenter={komponenter} uppdaterad={loggVersion} />}
-        {flik === "att-gora" && <AttGoraVy rader={attGora} blinkar={blinkar} onAndra={andraAttGora} onNy={nyAttGora} onTaBort={taBortAttGora} />}
-        {flik === "anteckningar" && anteckningar && <AnteckningarVy key={projektId} anteckningar={anteckningar} onSpara={sparaAnteckningar} />}
+        {flik === "att-gora" && <AttGoraVy rader={attGora} blinkar={blinkar} onAndra={andraAttGora} onNy={nyAttGora} onTaBort={taBortAttGora} lasläge={!mig.rattigheter.skriva} />}
+        {flik === "projektstatus" && <ProjektStatusVy projektId={projektId} rattigheter={mig.rattigheter} uppdaterad={statusVersion} visaMeddelande={visaMeddelande} />}
+        {flik === "medlemmar" && <MedlemmarVy projektId={projektId} rattigheter={mig.rattigheter} visaMeddelande={visaMeddelande} />}
+        {flik === "anteckningar" && anteckningar && <AnteckningarVy key={projektId} anteckningar={anteckningar} onSpara={sparaAnteckningar} lasläge={!mig.rattigheter.skriva} />}
         {vald && !vald.flik.klar && (
           <>
             <div className="brodsmula">{vald.grupp.namn}</div>

@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { api, skicka } from "../../lib/api";
 import type { Projekt } from "../../lib/typer";
 
-export function ProjektLista({ onOppna }: { onOppna: (id: string) => void }) {
+export function ProjektLista({ onOppna, kanSkapa }: { onOppna: (id: string) => void; kanSkapa: boolean }) {
   const [projekt, setProjekt] = useState<Projekt[] | null>(null);
   const [fel, setFel] = useState<string | null>(null);
   const [nytt, setNytt] = useState({ namn: "", nummer: "", kund: "" });
@@ -32,7 +32,7 @@ export function ProjektLista({ onOppna }: { onOppna: (id: string) => void }) {
       <h1>Projekt</h1>
       {fel && <p className="felruta">Det gick inte att hämta projekten: {fel}</p>}
 
-      <section className="panel">
+      {kanSkapa && <section className="panel">
         <h2>Nytt projekt</h2>
         <form className="nytt-projekt" onSubmit={skapa}>
           <label>Projektnamn<input required value={nytt.namn} onChange={(e) => setNytt({ ...nytt, namn: e.target.value })} placeholder="Kv. Lärkan 4 – Ombyggnad ventilation" /></label>
@@ -40,12 +40,12 @@ export function ProjektLista({ onOppna }: { onOppna: (id: string) => void }) {
           <label>Kund<input value={nytt.kund} onChange={(e) => setNytt({ ...nytt, kund: e.target.value })} /></label>
           <button className="knapp primar" disabled={sparar || !nytt.namn.trim()}>{sparar ? "Skapar…" : "Skapa projekt"}</button>
         </form>
-      </section>
+      </section>}
 
       <section className="panel">
         <h2>Alla projekt</h2>
         {projekt === null && !fel && <p className="dampad">Hämtar…</p>}
-        {projekt?.length === 0 && <p className="dampad">Inga projekt än. Skapa det första ovan.</p>}
+        {projekt?.length === 0 && <p className="dampad">{kanSkapa ? "Inga projekt än. Skapa det första ovan." : "Du är inte medlem i något projekt än. Be en projektledare lägga till dig."}</p>}
         {!!projekt?.length && (
           <ul className="projektlista">
             {projekt.map((p) => (

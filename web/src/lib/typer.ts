@@ -1,6 +1,37 @@
 /** Typer som speglar serverns DTO:er. */
 
-export type Mig = { id: string; namn: string; tema: TemaNamn };
+export type Rattigheter = {
+  skapaProjekt: boolean;
+  hanteraAnvandare: boolean;
+  hanteraMedlemmar: boolean;
+  redigeraStatusRubriker: boolean;
+  redigeraUnderrubriker: boolean;
+  redigeraKataloger: boolean;
+  seAnslutningsinformation: boolean;
+  skriva: boolean;
+};
+
+export type Roll = "Admin" | "Projektledare" | "System" | "Tekniker" | "Lasare";
+export const ROLLER: { id: Roll; namn: string }[] = [
+  { id: "Admin", namn: "Admin" },
+  { id: "Projektledare", namn: "Projektledare" },
+  { id: "System", namn: "System" },
+  { id: "Tekniker", namn: "Tekniker" },
+  { id: "Lasare", namn: "Läsare" },
+];
+export const rollNamn = (r: string) => ROLLER.find((x) => x.id === r)?.namn ?? r;
+
+export type Mig = { id: string; namn: string; tema: TemaNamn; roll: Roll; rattigheter: Rattigheter };
+
+export type AnvandarInfo = { id: string; namn: string; epost: string; roll: Roll; senastInloggad: string };
+export type Medlem = { anvandarId: string; namn: string; epost: string; roll: Roll; tillagd: string; tillagdAv: string };
+
+export type StatusRubrik = { id: string; namn: string; ordning: number };
+export type StatusUppgift = {
+  id: string; rubrikId: string; text: string; ordning: number; klar: boolean;
+  kommentar: string; utfordAv: string; klarDatum: string | null; version: number;
+};
+export type ProjektStatus = { rubriker: StatusRubrik[]; uppgifter: StatusUppgift[] };
 
 export type TemaNamn = "system" | "natt" | "dag" | "grafit" | "fjall";
 
@@ -67,7 +98,7 @@ export type AttGora = {
 export type Anteckningar = { text: string; andrad: string | null; andradAv: string };
 
 export type ListaHandelse = {
-  lista: "attGora" | "anteckningar";
+  lista: "attGora" | "anteckningar" | "projektStatus";
   typ: "skapad" | "andrad" | "borttagen";
   rad: unknown;
   avId: string;

@@ -4,12 +4,15 @@ import { devAnvandare, loggaIn, sattDevAnvandare, type AppConfig, type Inloggnin
 import type { Mig, TemaNamn } from "./lib/typer";
 import { Arbetsyta } from "./features/projekt/Arbetsyta";
 import { ProjektLista } from "./features/projekt/ProjektLista";
+import { AdminVy } from "./features/admin/AdminVy";
+import { rollNamn } from "./lib/typer";
 import { TEMAN, kommihagTema, tillampaTema } from "./shell/tema";
 
-type Vag = { typ: "lista" } | { typ: "projekt"; id: string; flik: string };
+type Vag = { typ: "lista" } | { typ: "admin" } | { typ: "projekt"; id: string; flik: string };
 
 /** Adressen i webbläsaren: #/ = projektlistan, #/p/<id>/<flik> = ett projekt. */
 function lasVag(): Vag {
+  if (location.hash.startsWith("#/admin")) return { typ: "admin" };
   const m = location.hash.match(/^#\/p\/([0-9a-f-]{36})(?:\/([\w-]+))?/i);
   return m ? { typ: "projekt", id: m[1]!, flik: m[2] ?? "komponenter" } : { typ: "lista" };
 }
@@ -81,6 +84,7 @@ export function App() {
       <header className="topprad">
         <a className="varumarke" href="#/"><span className="logga">PV</span>Projekteringsverktyg</a>
         <span className="flex" />
+        {mig.rattigheter.hanteraAnvandare && <a className="knapp" href="#/admin">Användare och roller</a>}
         {inloggning.utvecklingslage ? (
           <label className="kontroll">
             Utvecklingsläge, inloggad som
@@ -90,7 +94,7 @@ export function App() {
             />
           </label>
         ) : (
-          <span className="kontroll">{mig.namn}</span>
+          <span className="kontroll">{mig.namn} · {rollNamn(mig.roll)}</span>
         )}
         <label className="kontroll">
           Tema
@@ -101,8 +105,10 @@ export function App() {
         {!inloggning.utvecklingslage && <button className="knapp" onClick={inloggning.loggaUt}>Logga ut</button>}
       </header>
 
-      {vag.typ === "lista" ? (
-        <ProjektLista onOppna={(id) => { location.hash = `#/p/${id}/oversikt`; }} />
+      {vag.typ === "admin" && mig.rattigheter.hanteraAnvandare ? (
+        <AdminVy mig={mig} visaMeddelande={setMeddelande} />
+      ) : vag.typ !== "projekt" ? (
+        <ProjektLista kanSkapa={mig.rattigheter.skapaProjekt} onOppna={(id) => { location.hash = `#/p/${id}/oversikt`; }} />
       ) : (
         <Arbetsyta
           key={vag.id}

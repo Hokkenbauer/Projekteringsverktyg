@@ -4,13 +4,14 @@ import type { Anteckningar } from "../../lib/typer";
 type Props = {
   anteckningar: Anteckningar | null;
   onSpara: (text: string) => Promise<void>;
+  lasläge?: boolean;
 };
 
 const tid = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString("sv-SE", { dateStyle: "short", timeStyle: "short" }) : "";
 
 /** Fritt textfält, ungefär som Notepad++. Sparas automatiskt en stund efter att man slutat skriva. */
-export function AnteckningarVy({ anteckningar, onSpara }: Props) {
+export function AnteckningarVy({ anteckningar, onSpara, lasläge = false }: Props) {
   const [text, setText] = useState(anteckningar?.text ?? "");
   const [status, setStatus] = useState<"sparat" | "osparat" | "sparar" | "fel">("sparat");
   const senastSparat = useRef(anteckningar?.text ?? "");
@@ -54,6 +55,7 @@ export function AnteckningarVy({ anteckningar, onSpara }: Props) {
         className="anteckningar"
         aria-label="Anteckningar"
         spellCheck
+        readOnly={lasläge}
         value={text}
         onChange={(e) => andra(e.target.value)}
         onBlur={() => { if (status === "osparat") { window.clearTimeout(timer.current); void spara(text); } }}
