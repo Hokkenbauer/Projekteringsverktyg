@@ -19,6 +19,8 @@
 set -euo pipefail
 
 GITHUB_REPO="Hokkenbauer/Projekteringsverktyg"   # exakt som på GitHub, skiftlägeskänsligt
+# GitHub skickar ägare och repo med sina interna nummer i inloggningen mot Azure.
+GITHUB_SUBJEKT_REPO="Hokkenbauer@42859987/Projekteringsverktyg@1403519769"
 RG="projekteringsverktyg-test"
 LOCATION="swedencentral"
 DB_LOCATION="${DB_LOCATION:-$LOCATION}"    # kör med DB_LOCATION=northeurope om databasen nekas i Sweden Central
@@ -289,7 +291,7 @@ if ! az ad app federated-credential list --id "$DEPLOY_ID" --query "[?name=='$FE
   az ad app federated-credential create --id "$DEPLOY_ID" --parameters "{
     \"name\": \"$FED_NAMN\",
     \"issuer\": \"https://token.actions.githubusercontent.com\",
-    \"subject\": \"repo:${GITHUB_REPO}:environment:${MILJO}\",
+    \"subject\": \"repo:${GITHUB_SUBJEKT_REPO}:environment:${MILJO}\",
     \"audiences\": [\"api://AzureADTokenExchange\"]
   }" --output none
 fi
