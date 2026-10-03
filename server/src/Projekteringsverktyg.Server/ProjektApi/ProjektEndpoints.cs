@@ -17,6 +17,21 @@ public sealed record AndringsloggDto(
 
 public static class ProjektEndpoints
 {
+    private static IQueryable<AndringsloggPost> Filtrera(PvDbContext db, Guid projektId, Guid? entitetId, string? sok)
+    {
+        var q = db.Andringslogg.Where(a => a.ProjektId == projektId);
+        if (entitetId is { } e) q = q.Where(a => a.EntitetId == e);
+        if (!string.IsNullOrWhiteSpace(sok))
+        {
+            var monster = $"%{sok.Trim()}%";
+            q = q.Where(a => EF.Functions.ILike(a.Beskrivning, monster)
+                          || EF.Functions.ILike(a.AnvandarNamn, monster)
+                          || (a.Fore != null && EF.Functions.ILike(a.Fore, monster))
+                          || (a.Efter != null && EF.Functions.ILike(a.Efter, monster)));
+        }
+        return q;
+    }
+
     public static IEndpointRouteBuilder MapProjektEndpoints(this IEndpointRouteBuilder app)
     {
         var g = app.MapGroup("/api/projekt");
@@ -56,15 +71,29 @@ public static class ProjektEndpoints
                 new ProjektDto(p.Id, p.Namn, p.Nummer, p.Kund, p.Ansvarig, p.Skapad, p.SkapadAv, 0));
         });
 
-        g.MapGet("/{id:guid}/andringslogg", async (Guid id, int? antal, PvDbContext db) =>
+        g.MapGet("/{id:guid}/andringslogg", async (Guid id, int? antal, Guid? entitetId, string? sok, PvDbContext db) =>
         {
-            var n = Math.Clamp(antal ?? 50, 1, 500);
-            return await db.Andringslogg
-                .Where(a => a.ProjektId == id)
+            var n = Math.Clamp(antal ?? 100, 1, 2000);
+            return await Filtrera(db, id, entitetId, sok)
                 .OrderByDescending(a => a.Id)
                 .Take(n)
                 .Select(a => new AndringsloggDto(a.Id, a.Tidpunkt, a.AnvandarNamn, a.Entitet, a.EntitetId, a.Beskrivning, a.Falt, a.Fore, a.Efter))
                 .ToListAsync();
+        });
+
+        g.MapGet("/{id:guid}/andringslogg/excel", async (Guid id, Guid? entitetId, string? sok, PvDbContext db) =>
+        {
+            var projekt = await db.Projekt.FirstOrDefaultAsync(p => p.Id == id);
+            if (projekt is null) return Results.NotFound();
+            var rader = await Filtrera(db, id, entitetId, sok).OrderByDescending(a => a.Id).Take(20000).ToListAsync();
+
+            var kolumner = new[] { "Tidpunkt", "Användare", "Händelse", "Fält", "Före", "Efter" };
+            var data = rader.Select(r => new object?[]
+            {
+                r.Tidpunkt.ToOffset(Export.Excel.Svensk(r.Tidpunkt)).DateTime, r.AnvandarNamn, r.Beskrivning, r.Falt, r.Fore, r.Efter,
+            });
+            var fil = Export.Excel.Tabell("Ändringslogg", $"Ändringslogg – {projekt.Namn}", kolumner, data);
+            return Results.File(fil, Export.Excel.MimeTyp, Export.Excel.Filnamn($"Ändringslogg {projekt.Nummer} {projekt.Namn}"));
         });
 
         return app;

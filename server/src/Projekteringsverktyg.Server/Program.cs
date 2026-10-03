@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Identity.Web;
 using Projekteringsverktyg.Server.AnvandarApi;
+using Projekteringsverktyg.Server.AttGoraApi;
 using Projekteringsverktyg.Server.Auth;
 using Projekteringsverktyg.Server.Data;
 using Projekteringsverktyg.Server.KomponentApi;
@@ -75,11 +76,11 @@ builder.Services.AddProblemDetails();
 
 var app = builder.Build();
 
-// Skapar tabellerna första gången. Byts mot EF-migreringar innan produktion (se README).
+// Uppdaterar databasens struktur (kör nya filer i Data/Migreringar).
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<PvDbContext>();
-    await db.Database.EnsureCreatedAsync();
+    await Migrering.KorAsync(db, app.Logger);
 }
 
 if (!app.Environment.IsDevelopment())
@@ -111,6 +112,7 @@ app.MapGet("/api/config", () => Results.Ok(new
 app.MapAnvandarEndpoints();
 app.MapProjektEndpoints();
 app.MapKomponentEndpoints();
+app.MapAttGoraEndpoints();
 app.MapHub<ProjektHub>("/hubs/projekt");
 
 // Alla andra adresser hör till webbappen (React sköter sin egen navigering).

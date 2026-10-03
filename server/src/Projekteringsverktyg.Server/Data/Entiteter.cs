@@ -11,7 +11,25 @@ public class Projekt
     public DateTimeOffset Skapad { get; set; } = DateTimeOffset.UtcNow;
     public string SkapadAv { get; set; } = "";
 
+    /// <summary>Fritt textfält (Att göra → Anteckningar).</summary>
+    public string Anteckningar { get; set; } = "";
+    public DateTimeOffset? AnteckningarAndrad { get; set; }
+    public string AnteckningarAndradAv { get; set; } = "";
+
     public List<Komponent> Komponenter { get; set; } = new();
+}
+
+/// <summary>En rad i projektets Att göra-lista.</summary>
+public class AttGoraPost
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid ProjektId { get; set; }
+    public string Text { get; set; } = "";
+    public bool Klar { get; set; }
+    public int Ordning { get; set; }
+    public int Version { get; set; } = 1;
+    public DateTimeOffset Andrad { get; set; } = DateTimeOffset.UtcNow;
+    public string AndradAv { get; set; } = "";
 }
 
 /// <summary>

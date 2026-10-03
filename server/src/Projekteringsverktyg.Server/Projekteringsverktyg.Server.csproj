@@ -14,6 +14,13 @@
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.*" />
     <!-- Inloggning: Microsoft Entra ID (jobbkonton i Microsoft 365) -->
     <PackageReference Include="Microsoft.Identity.Web" Version="3.*" />
+    <!-- Excel-export. MIT-licens, samma bibliotek som i dagens program. -->
+    <PackageReference Include="ClosedXML" Version="0.*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Databasmigreringar, körs vid start i nummerordning (se Data/Migrering.cs). -->
+    <EmbeddedResource Include="Data/Migreringar/*.sql" />
   </ItemGroup>
 
   <ItemGroup>

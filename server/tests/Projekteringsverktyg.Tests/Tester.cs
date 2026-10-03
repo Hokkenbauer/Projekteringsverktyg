@@ -72,3 +72,22 @@ public class NarvaroRegisterTester
         Assert.Empty(reg.I(andra));
     }
 }
+
+public class MigreringTester
+{
+    [Theory]
+    [InlineData("Projekteringsverktyg.Server.Data.Migreringar.001_grund.sql", "001_grund.sql")]
+    [InlineData("Projekteringsverktyg.Server.Data.Migreringar._002_att_gora_anteckningar.sql", "_002_att_gora_anteckningar.sql")]
+    public void Filnamn_tas_ut_ur_resursnamnet(string resurs, string forvantat) =>
+        Assert.Equal(forvantat, Projekteringsverktyg.Server.Data.Migrering.FilNamn(resurs));
+
+    [Fact]
+    public void Alla_migreringar_finns_inbaddade_i_nummerordning()
+    {
+        var namn = typeof(Projekteringsverktyg.Server.Data.Migrering).Assembly.GetManifestResourceNames()
+            .Where(n => n.EndsWith(".sql")).Select(Projekteringsverktyg.Server.Data.Migrering.FilNamn).OrderBy(n => n, StringComparer.Ordinal).ToList();
+        Assert.Contains("001_grund.sql", namn);
+        Assert.Contains("002_att_gora_anteckningar.sql", namn);
+        Assert.Equal("001_grund.sql", namn[0]);
+    }
+}

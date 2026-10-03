@@ -8,6 +8,7 @@ public class PvDbContext(DbContextOptions<PvDbContext> options) : DbContext(opti
     public DbSet<Komponent> Komponenter => Set<Komponent>();
     public DbSet<AndringsloggPost> Andringslogg => Set<AndringsloggPost>();
     public DbSet<AnvandarInstallning> AnvandarInstallningar => Set<AnvandarInstallning>();
+    public DbSet<AttGoraPost> AttGora => Set<AttGoraPost>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -35,6 +36,14 @@ public class PvDbContext(DbContextOptions<PvDbContext> options) : DbContext(opti
             e.HasKey(a => a.Id);
             e.HasIndex(a => new { a.ProjektId, a.Tidpunkt });
             e.HasIndex(a => a.EntitetId);
+        });
+
+        b.Entity<AttGoraPost>(e =>
+        {
+            e.ToTable("att_gora");
+            e.HasKey(a => a.Id);
+            e.HasIndex(a => a.ProjektId);
+            e.Property(a => a.Version).IsConcurrencyToken();
         });
 
         b.Entity<AnvandarInstallning>(e =>
