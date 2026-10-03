@@ -157,3 +157,25 @@ table.grid { border-collapse: collapse; width: 100%; min-width: 900px; }
   .grid td.blinkar { animation: none; }
   .chevron { transition: none; }
 }
+
+/* Kryssruta i tabellmotorn */
+.grid td.kryss { text-align: center; width: 70px; }
+.grid td.kryss input { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+
+/* Anteckningar */
+.anteckningar { width: 100%; min-height: 60vh; resize: vertical; background: var(--yta); color: var(--text); border: 1px solid var(--linje); border-radius: var(--r); padding: 14px 16px; font-family: var(--font-mono); font-size: 13.5px; line-height: 1.6; tab-size: 4; }
+.anteckningar:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.sparstatus { font-size: 12px; color: var(--dampad); margin: 6px 0 0; }
+
+/* Översikt: minilistor */
+.tva { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin-bottom: 16px; }
+.minilista { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 13.5px; }
+.minilista li { display: flex; gap: 8px; align-items: baseline; }
+.minilista li.klar span { text-decoration: line-through; color: var(--dampad); }
+.utdrag { white-space: pre-wrap; font-family: var(--font-mono); font-size: 12.5px; color: var(--text); max-height: 180px; overflow: hidden; margin: 0; mask-image: linear-gradient(to bottom, #000 70%, transparent); }
+.tal.ejbyggt b { color: var(--dampad); font-size: 18px; }
+
+/* Ändringslogg: filter */
+.filterrad { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+.filterrad select, .filterrad input { background: var(--yta); border: 1px solid var(--linje); border-radius: var(--r); padding: 7px 10px; color: var(--text); }
+.filterrad input { flex: 1 1 220px; max-width: 320px; }

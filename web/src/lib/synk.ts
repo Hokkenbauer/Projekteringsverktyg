@@ -1,11 +1,12 @@
 import { HubConnectionBuilder, HubConnectionState, LogLevel, type HubConnection } from "@microsoft/signalr";
-import type { KomponentHandelse, Narvarande } from "./typer";
+import type { KomponentHandelse, ListaHandelse, Narvarande } from "./typer";
 
 export type SynkHandelser = {
   komponentSkapad: (h: KomponentHandelse) => void;
   komponentAndrad: (h: KomponentHandelse) => void;
   komponentBorttagen: (h: KomponentHandelse) => void;
   narvaro: (lista: Narvarande[]) => void;
+  listaAndrad: (h: ListaHandelse) => void;
   ateransluten: () => void;
   status: (s: "ansluten" | "ateransluter" | "frankopplad") => void;
 };
@@ -26,6 +27,7 @@ export function anslutTillProjekt(
   anslutning.on("KomponentAndrad", h.komponentAndrad);
   anslutning.on("KomponentBorttagen", h.komponentBorttagen);
   anslutning.on("Narvaro", h.narvaro);
+  anslutning.on("ListaAndrad", h.listaAndrad);
 
   anslutning.onreconnecting(() => h.status("ateransluter"));
   anslutning.onreconnected(async () => {

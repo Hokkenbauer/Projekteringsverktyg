@@ -17,8 +17,8 @@ export const NAVIGERING: Grupp[] = [
   {
     namn: "Att göra",
     flikar: [
-      { id: "att-gora", namn: "Lista", fas: 2 },
-      { id: "anteckningar", namn: "Anteckningar", fas: 2 },
+      { id: "att-gora", namn: "Lista", fas: 1, klar: true },
+      { id: "anteckningar", namn: "Anteckningar", fas: 1, klar: true },
     ],
   },
   {
@@ -56,7 +56,7 @@ export const NAVIGERING: Grupp[] = [
       { id: "anmarkningsbilaga", namn: "Anmärkningsbilaga", fas: 3 },
       { id: "ip-lista", namn: "IP-lista", fas: 3 },
       { id: "matplan", namn: "Mätplan", fas: 3 },
-      { id: "kontroller", namn: "Kontroller", fas: 3 },
+      { id: "kontroller", namn: "Projektspecifika kontroller", fas: 3 },
       { id: "anslutningsinformation", namn: "Anslutningsinformation", fas: 3 },
     ],
   },
@@ -68,10 +68,11 @@ export const NAVIGERING: Grupp[] = [
       { id: "projekteringsegenkontroll", namn: "Projekteringsegenkontroll", fas: 5 },
       { id: "riskbedomning", namn: "Riskbedömning", fas: 5 },
       { id: "byggvarubedomning", namn: "Byggvarubedömning", fas: 5 },
+      { id: "sunda-hus", namn: "Sunda Hus", fas: 5 },
       { id: "teknisk-beskrivning", namn: "Teknisk beskrivning", fas: 5 },
-      { id: "kravstallning", namn: "Kravställning", fas: 5 },
+      { id: "kravstallning", namn: "Listad kravställning", fas: 5 },
       { id: "kalkylmangder", namn: "Kalkylmängder", fas: 5 },
-      { id: "projekteringsritning", namn: "Projekteringsritning", fas: 2 },
+      { id: "placeringsritningar", namn: "Placeringsritningar", fas: 2 },
       { id: "projekteringsintyg", namn: "Projekteringsintyg", fas: 5 },
     ],
   },
@@ -80,7 +81,7 @@ export const NAVIGERING: Grupp[] = [
     flikar: [
       { id: "projektinformation", namn: "Projektinformation", fas: 3 },
       { id: "signaturlista", namn: "Signaturlista", fas: 3 },
-      { id: "installningar", namn: "Inställningar", fas: 3 },
+      { id: "anlaggningsinstallningar", namn: "Anläggningsinställningar", fas: 3 },
     ],
   },
   {

@@ -43,3 +43,23 @@ function safeJson(text: string): unknown {
 }
 
 export const skicka = (data: unknown) => JSON.stringify(data);
+
+/** Hämtar en fil från API:t (med inloggning) och sparar den på datorn. */
+export async function laddaNer(sokvag: string, reservnamn: string): Promise<void> {
+  const headers = new Headers();
+  if (tokenKalla) headers.set("Authorization", `Bearer ${await tokenKalla()}`);
+  const svar = await fetch(sokvag, { headers });
+  if (!svar.ok) throw new ApiFel(svar.status, null, `Fel ${svar.status} vid nedladdning`);
+  const dispo = svar.headers.get("Content-Disposition") ?? "";
+  const utf8 = dispo.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+  const vanligt = dispo.match(/filename="?([^";]+)"?/i)?.[1];
+  const namn = utf8 ? decodeURIComponent(utf8) : vanligt ?? reservnamn;
+  const url = URL.createObjectURL(await svar.blob());
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = namn;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}

@@ -8,7 +8,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNod
 export type Kolumn<T> = {
   nyckel: keyof T & string;
   rubrik: string;
-  typ: "text" | "val";
+  typ: "text" | "val" | "kryss";
   val?: string[];
   mono?: boolean;
   bredd?: number;
@@ -156,6 +156,14 @@ function Cell<T>({ kolumn, varde, blink, onSpara }: {
 
   const stil = blink ? ({ "--blink": blink.farg } as CSSProperties) : undefined;
   const klass = [kolumn.mono ? "mono" : "", blink ? "blinkar" : ""].join(" ").trim() || undefined;
+
+  if (kolumn.typ === "kryss") {
+    return (
+      <td className={["kryss", klass].filter(Boolean).join(" ")} style={stil} key={blink?.tid}>
+        <input type="checkbox" aria-label={kolumn.rubrik} checked={varde === "true"} onChange={(e) => onSpara(String(e.target.checked))} />
+      </td>
+    );
+  }
 
   if (kolumn.typ === "val") {
     const val = kolumn.val ?? [];

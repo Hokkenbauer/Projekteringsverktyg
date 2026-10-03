@@ -2,8 +2,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Blink } from "../../grid/DataGrid";
 import { api, ApiFel, skicka } from "../../lib/api";
 import { anslutTillProjekt } from "../../lib/synk";
-import type { Komponent, KomponentHandelse, Logg, Mig, Narvarande, Projekt } from "../../lib/typer";
+import type { Anteckningar, AttGora, Komponent, KomponentHandelse, ListaHandelse, Logg, Mig, Narvarande, Projekt } from "../../lib/typer";
 import { NAVIGERING, hittaFlik } from "../../shell/navigering";
+import { AnteckningarVy } from "../att-gora/AnteckningarVy";
+import { AttGoraVy } from "../att-gora/AttGoraVy";
 import { KomponenterVy } from "../komponenter/KomponenterVy";
 import { LoggVy, Oversikt } from "./Oversikt";
 
@@ -26,6 +28,9 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
   const [projekt, setProjekt] = useState<Projekt | null>(null);
   const [komponenter, setKomponenter] = useState<Komponent[]>([]);
   const [logg, setLogg] = useState<Logg[]>([]);
+  const [loggVersion, setLoggVersion] = useState(0);
+  const [attGora, setAttGora] = useState<AttGora[]>([]);
+  const [anteckningar, setAnteckningar] = useState<Anteckningar | null>(null);
   const [narvaro, setNarvaro] = useState<Narvarande[]>([]);
   const [status, setStatus] = useState<"ansluten" | "ateransluter" | "frankopplad">("ateransluter");
   const [blinkar, setBlinkar] = useState<Blink[]>([]);
@@ -36,12 +41,16 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
 
   const hamtaAllt = useCallback(async () => {
     try {
-      const [p, k] = await Promise.all([
+      const [p, k, a, t] = await Promise.all([
         api<Projekt>(`/api/projekt/${projektId}`),
         api<Komponent[]>(`/api/projekt/${projektId}/komponenter`),
+        api<AttGora[]>(`/api/projekt/${projektId}/att-gora`),
+        api<Anteckningar>(`/api/projekt/${projektId}/anteckningar`),
       ]);
       setProjekt(p);
       setKomponenter(k);
+      setAttGora(a);
+      setAnteckningar(t);
       setFel(null);
     } catch (e) {
       setFel((e as Error).message);
@@ -50,7 +59,8 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
 
   const hamtaLogg = useCallback(async () => {
     try {
-      setLogg(await api<Logg[]>(`/api/projekt/${projektId}/andringslogg?antal=100`));
+      setLogg(await api<Logg[]>(`/api/projekt/${projektId}/andringslogg?antal=20`));
+      setLoggVersion((v) => v + 1);
     } catch {
       /* loggen är inte kritisk */
     }
@@ -80,6 +90,31 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
     });
   }, []);
 
+  const laggAttGora = useCallback((a: AttGora) => {
+    setAttGora((lista) => {
+      const i = lista.findIndex((x) => x.id === a.id);
+      if (i === -1) return [...lista, a];
+      if (lista[i]!.version > a.version) return lista;
+      const kopia = [...lista];
+      kopia[i] = a;
+      return kopia;
+    });
+  }, []);
+
+  const listaAndrad = useCallback((h: ListaHandelse) => {
+    if (h.lista === "attGora") {
+      const rad = h.rad as AttGora;
+      if (h.typ === "borttagen") setAttGora((l) => l.filter((x) => x.id !== rad.id));
+      else {
+        laggAttGora(rad);
+        if (h.typ === "andrad" && h.avId !== mig.id) blinka(rad.id, "text", fargFor(h.avId));
+      }
+    } else if (h.lista === "anteckningar" && h.avId !== mig.id) {
+      setAnteckningar(h.rad as Anteckningar);
+    }
+    hamtaLoggSnart();
+  }, [laggAttGora, blinka, hamtaLoggSnart, mig.id]);
+
   useEffect(() => {
     void hamtaAllt();
     void hamtaLogg();
@@ -95,11 +130,46 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
         hamtaLoggSnart();
       },
       narvaro: setNarvaro,
+      listaAndrad,
       ateransluten: () => { void hamtaAllt(); void hamtaLogg(); },
       status: setStatus,
     });
     return () => { koppla(); window.clearTimeout(loggTimer.current); };
-  }, [projektId, hamtaToken, mig.id, hamtaAllt, hamtaLogg, hamtaLoggSnart, lagg, blinka]);
+  }, [projektId, hamtaToken, mig.id, hamtaAllt, hamtaLogg, hamtaLoggSnart, lagg, blinka, listaAndrad]);
+
+  // ---- Att göra ----
+  const andraAttGora = async (rad: AttGora, falt: "text" | "klar", varde: string) => {
+    const fore = rad;
+    laggAttGora({ ...rad, [falt]: falt === "klar" ? varde === "true" : varde });
+    try {
+      laggAttGora(await api<AttGora>(`/api/projekt/${projektId}/att-gora/${rad.id}`, {
+        method: "PATCH", body: skicka({ falt, varde, version: rad.version }),
+      }));
+    } catch (e) {
+      setAttGora((l) => l.map((x) => (x.id === fore.id ? fore : x)));
+      visaMeddelande(e instanceof ApiFel && e.status === 409
+        ? "Någon annan ändrade raden samtidigt. Gör om din ändring."
+        : `Ändringen kunde inte sparas: ${(e as Error).message}`);
+      if (e instanceof ApiFel && e.status === 409) void hamtaAllt();
+    }
+  };
+  const nyAttGora = async () => {
+    try {
+      laggAttGora(await api<AttGora>(`/api/projekt/${projektId}/att-gora`, { method: "POST", body: skicka({ text: "" }) }));
+    } catch (e) {
+      visaMeddelande(`Raden kunde inte skapas: ${(e as Error).message}`);
+    }
+  };
+  const taBortAttGora = async (ids: string[]) => {
+    const res = await Promise.allSettled(ids.map((id) => api(`/api/projekt/${projektId}/att-gora/${id}`, { method: "DELETE" })));
+    setAttGora((l) => l.filter((x) => !ids.includes(x.id)));
+    if (res.some((r) => r.status === "rejected")) { visaMeddelande("Några rader kunde inte tas bort."); void hamtaAllt(); }
+  };
+
+  // ---- Anteckningar ----
+  const sparaAnteckningar = async (text: string) => {
+    setAnteckningar(await api<Anteckningar>(`/api/projekt/${projektId}/anteckningar`, { method: "PUT", body: skicka({ text }) }));
+  };
 
   const andra = async (k: Komponent, falt: keyof Komponent & string, varde: string) => {
     const fore = k;
@@ -196,8 +266,12 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
         {flik === "komponenter" && (
           <KomponenterVy komponenter={komponenter} blinkar={blinkar} onAndra={andra} onNy={ny} onTaBort={taBort} />
         )}
-        {flik === "oversikt" && projekt && <Oversikt projekt={projekt} komponenter={komponenter} logg={logg} narvaro={narvaro} onFlik={onFlik} />}
-        {flik === "andringslogg" && <LoggVy logg={logg} />}
+        {flik === "oversikt" && projekt && (
+          <Oversikt projekt={projekt} komponenter={komponenter} attGora={attGora} anteckningar={anteckningar} logg={logg} narvaro={narvaro} onFlik={onFlik} />
+        )}
+        {flik === "andringslogg" && <LoggVy projektId={projektId} komponenter={komponenter} uppdaterad={loggVersion} />}
+        {flik === "att-gora" && <AttGoraVy rader={attGora} blinkar={blinkar} onAndra={andraAttGora} onNy={nyAttGora} onTaBort={taBortAttGora} />}
+        {flik === "anteckningar" && anteckningar && <AnteckningarVy key={projektId} anteckningar={anteckningar} onSpara={sparaAnteckningar} />}
         {vald && !vald.flik.klar && (
           <>
             <div className="brodsmula">{vald.grupp.namn}</div>

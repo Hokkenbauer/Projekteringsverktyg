@@ -52,3 +52,24 @@ export type Logg = {
   fore: string | null;
   efter: string | null;
 };
+
+export type AttGora = {
+  id: string;
+  projektId: string;
+  text: string;
+  klar: boolean;
+  ordning: number;
+  version: number;
+  andrad: string;
+  andradAv: string;
+};
+
+export type Anteckningar = { text: string; andrad: string | null; andradAv: string };
+
+export type ListaHandelse = {
+  lista: "attGora" | "anteckningar";
+  typ: "skapad" | "andrad" | "borttagen";
+  rad: unknown;
+  avId: string;
+  avNamn: string;
+};
