@@ -1,0 +1,110 @@
+/**
+ * Appens flikar, samma grupper som i dagens program.
+ * `klar` = fliken finns i den nya appen. Övriga visar vilken fas de byggs i.
+ * Lägg till eller flytta flikar HÄR, inget annat behöver ändras för navigeringen.
+ */
+export type Flik = { id: string; namn: string; fas: number; klar?: boolean };
+export type Grupp = { namn: string; flikar: Flik[] };
+
+export const NAVIGERING: Grupp[] = [
+  {
+    namn: "Projekt",
+    flikar: [
+      { id: "oversikt", namn: "Översikt", fas: 1, klar: true },
+      { id: "projektfiler", namn: "Projektfiler", fas: 1 },
+    ],
+  },
+  {
+    namn: "Att göra",
+    flikar: [
+      { id: "att-gora", namn: "Lista", fas: 2 },
+      { id: "anteckningar", namn: "Anteckningar", fas: 2 },
+    ],
+  },
+  {
+    namn: "Status",
+    flikar: [
+      { id: "projektstatus", namn: "Projekt Status", fas: 2 },
+      { id: "andringslogg", namn: "Ändringslogg", fas: 1, klar: true },
+    ],
+  },
+  {
+    namn: "Komponenter & Listor",
+    flikar: [
+      { id: "komponenter", namn: "Komponenter", fas: 1, klar: true },
+      { id: "skyltlista", namn: "Skyltlista", fas: 2 },
+      { id: "installationslista", namn: "Installationslista", fas: 2 },
+      { id: "signallista", namn: "Signallista (I/O)", fas: 2 },
+      { id: "brandspjallstabell", namn: "Brandspjällstabell", fas: 2 },
+    ],
+  },
+  {
+    namn: "Konstruktion",
+    flikar: [
+      { id: "apparatskap", namn: "Apparatskåp", fas: 4 },
+      { id: "modulbelaggning", namn: "Modulbeläggning", fas: 4 },
+      { id: "kraftberakning", namn: "Kraftberäkning", fas: 4 },
+      { id: "modbus", namn: "Modbus", fas: 4 },
+      { id: "modbus-rtu", namn: "Modbus RTU", fas: 4 },
+      { id: "bestallningslista", namn: "Beställningslista", fas: 4 },
+    ],
+  },
+  {
+    namn: "Driftsättning",
+    flikar: [
+      { id: "egenkontroll", namn: "Egenkontroll", fas: 3 },
+      { id: "anmarkningsbilaga", namn: "Anmärkningsbilaga", fas: 3 },
+      { id: "ip-lista", namn: "IP-lista", fas: 3 },
+      { id: "matplan", namn: "Mätplan", fas: 3 },
+      { id: "kontroller", namn: "Kontroller", fas: 3 },
+      { id: "anslutningsinformation", namn: "Anslutningsinformation", fas: 3 },
+    ],
+  },
+  {
+    namn: "Projektering",
+    flikar: [
+      { id: "projekteringsstod", namn: "Projekteringsstöd", fas: 5 },
+      { id: "funktionstexter", namn: "Funktionstexter", fas: 5 },
+      { id: "projekteringsegenkontroll", namn: "Projekteringsegenkontroll", fas: 5 },
+      { id: "riskbedomning", namn: "Riskbedömning", fas: 5 },
+      { id: "byggvarubedomning", namn: "Byggvarubedömning", fas: 5 },
+      { id: "teknisk-beskrivning", namn: "Teknisk beskrivning", fas: 5 },
+      { id: "kravstallning", namn: "Kravställning", fas: 5 },
+      { id: "kalkylmangder", namn: "Kalkylmängder", fas: 5 },
+      { id: "projekteringsritning", namn: "Projekteringsritning", fas: 2 },
+      { id: "projekteringsintyg", namn: "Projekteringsintyg", fas: 5 },
+    ],
+  },
+  {
+    namn: "Dokumentation",
+    flikar: [
+      { id: "projektinformation", namn: "Projektinformation", fas: 3 },
+      { id: "signaturlista", namn: "Signaturlista", fas: 3 },
+      { id: "installningar", namn: "Inställningar", fas: 3 },
+    ],
+  },
+  {
+    namn: "Service",
+    flikar: [
+      { id: "servicerapport", namn: "Servicerapport", fas: 6 },
+      { id: "planerade-tillfallen", namn: "Planerade tillfällen", fas: 6 },
+      { id: "serviceinformation", namn: "Serviceinformation", fas: 6 },
+      { id: "servicekontroller", namn: "Kontroller (service)", fas: 6 },
+    ],
+  },
+  {
+    namn: "Verktyg",
+    flikar: [
+      { id: "html-verktyg", namn: "HTML-verktyg", fas: 6 },
+      { id: "support", namn: "Support", fas: 6 },
+    ],
+  },
+];
+
+export function hittaFlik(id: string): { grupp: Grupp; flik: Flik } | null {
+  for (const grupp of NAVIGERING) {
+    const flik = grupp.flikar.find((f) => f.id === id);
+    if (flik) return { grupp, flik };
+  }
+  return null;
+}
