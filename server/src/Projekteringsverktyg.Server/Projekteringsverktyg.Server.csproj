@@ -16,6 +16,9 @@
     <PackageReference Include="Microsoft.Identity.Web" Version="3.*" />
     <!-- Excel-export. MIT-licens, samma bibliotek som i dagens program. -->
     <PackageReference Include="ClosedXML" Version="0.*" />
+    <!-- Projektfiler i Azure Blob Storage, inloggning med appens hanterade identitet -->
+    <PackageReference Include="Azure.Storage.Blobs" Version="12.*" />
+    <PackageReference Include="Azure.Identity" Version="1.*" />
   </ItemGroup>
 
   <ItemGroup>

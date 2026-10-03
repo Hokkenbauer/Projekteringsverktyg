@@ -135,3 +135,41 @@ public class StatusUppgift
     public DateTimeOffset Andrad { get; set; } = DateTimeOffset.UtcNow;
     public string AndradAv { get; set; } = "";
 }
+
+/// <summary>En rad i en lista från den gemensamma listmotorn (se ListApi/Listdefinitioner.cs).</summary>
+public class ListRad
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid ProjektId { get; set; }
+    public string Lista { get; set; } = "";
+    public Guid? KomponentId { get; set; }
+    /// <summary>Listans egna fält som JSON-objekt med textvärden.</summary>
+    public string Data { get; set; } = "{}";
+    public int Ordning { get; set; }
+    public int Version { get; set; } = 1;
+    public DateTimeOffset Andrad { get; set; } = DateTimeOffset.UtcNow;
+    public string AndradAv { get; set; } = "";
+}
+
+public class ProjektText
+{
+    public Guid ProjektId { get; set; }
+    public string Nyckel { get; set; } = "";
+    public string Text { get; set; } = "";
+    public DateTimeOffset? Andrad { get; set; }
+    public string AndradAv { get; set; } = "";
+}
+
+public class ProjektFil
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid ProjektId { get; set; }
+    public string Mapp { get; set; } = "";
+    public string Namn { get; set; } = "";
+    public int Version { get; set; }
+    public long Storlek { get; set; }
+    public string Typ { get; set; } = "";
+    public string BlobNamn { get; set; } = "";
+    public DateTimeOffset Uppladdad { get; set; } = DateTimeOffset.UtcNow;
+    public string UppladdadAv { get; set; } = "";
+}

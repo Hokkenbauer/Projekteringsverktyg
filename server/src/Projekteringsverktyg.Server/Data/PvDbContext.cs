@@ -13,6 +13,9 @@ public class PvDbContext(DbContextOptions<PvDbContext> options) : DbContext(opti
     public DbSet<ProjektMedlem> Medlemmar => Set<ProjektMedlem>();
     public DbSet<StatusRubrik> StatusRubriker => Set<StatusRubrik>();
     public DbSet<StatusUppgift> StatusUppgifter => Set<StatusUppgift>();
+    public DbSet<ListRad> ListRader => Set<ListRad>();
+    public DbSet<ProjektText> Texter => Set<ProjektText>();
+    public DbSet<ProjektFil> Filer => Set<ProjektFil>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -74,6 +77,27 @@ public class PvDbContext(DbContextOptions<PvDbContext> options) : DbContext(opti
             e.HasKey(u => u.Id);
             e.HasIndex(u => u.ProjektId);
             e.Property(u => u.Version).IsConcurrencyToken();
+        });
+
+        b.Entity<ListRad>(e =>
+        {
+            e.ToTable("listrad");
+            e.HasKey(r => r.Id);
+            e.HasIndex(r => new { r.ProjektId, r.Lista });
+            e.Property(r => r.Version).IsConcurrencyToken();
+        });
+
+        b.Entity<ProjektText>(e =>
+        {
+            e.ToTable("projekttext");
+            e.HasKey(t => new { t.ProjektId, t.Nyckel });
+        });
+
+        b.Entity<ProjektFil>(e =>
+        {
+            e.ToTable("projektfil");
+            e.HasKey(f => f.Id);
+            e.HasIndex(f => new { f.ProjektId, f.Mapp, f.Namn });
         });
 
         b.Entity<AnvandarInstallning>(e =>

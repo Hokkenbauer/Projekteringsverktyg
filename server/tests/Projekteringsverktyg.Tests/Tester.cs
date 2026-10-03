@@ -111,3 +111,66 @@ public class RollTester
         Assert.Contains("\"hanteraAnvandare\":false", json);
     }
 }
+
+public class ListmotorTester
+{
+    [Theory]
+    [InlineData("Erik Engström", "EE")]
+    [InlineData("Anna Maria Svensson", "AMS")]
+    [InlineData("admin", "ADM")]
+    [InlineData("", "")]
+    public void Initialer_blir_signatur(string namn, string forvantat) =>
+        Assert.Equal(forvantat, Projekteringsverktyg.Server.ListApi.ListEndpoints.Initialer(namn));
+
+    [Fact]
+    public void Kryss_fyller_och_tommer_datum_och_signatur()
+    {
+        var def = Projekteringsverktyg.Server.ListApi.Listdefinitioner.Hitta("egenkontroll")!;
+        var kol = def.Kolumn("kontrollerad")!;
+        var data = new Dictionary<string, string>();
+        var dag = new DateOnly(2026, 10, 4);
+
+        Projekteringsverktyg.Server.ListApi.ListEndpoints.Satt(kol, data, "true", "Erik Engström", dag);
+        Assert.Equal("true", data["kontrollerad"]);
+        Assert.Equal("2026-10-04", data["datum"]);
+        Assert.Equal("EE", data["sign"]);
+
+        Projekteringsverktyg.Server.ListApi.ListEndpoints.Satt(kol, data, "false", "Erik Engström", dag);
+        Assert.Equal("", data["kontrollerad"]);
+        Assert.Equal("", data["datum"]);
+        Assert.Equal("", data["sign"]);
+    }
+
+    [Fact]
+    public void Alla_listor_har_unika_id_och_kolumner()
+    {
+        var alla = Projekteringsverktyg.Server.ListApi.Listdefinitioner.Alla;
+        Assert.Equal(alla.Count, alla.Select(d => d.Id).Distinct().Count());
+        foreach (var d in alla)
+        {
+            Assert.Equal(d.Kolumner.Count, d.Kolumner.Select(k => k.Nyckel).Distinct().Count());
+            foreach (var k in d.Kolumner.Where(k => k.Typ == "komponent"))
+                Assert.True(KomponentFalt.ArTillatet(k.KomponentFalt!), $"{d.Id}.{k.Nyckel}");
+            foreach (var k in d.Kolumner.Where(k => k.SatterDatum is not null || k.SatterSign is not null))
+            {
+                Assert.NotNull(d.Kolumn(k.SatterDatum ?? k.Nyckel));
+                Assert.NotNull(d.Kolumn(k.SatterSign ?? k.Nyckel));
+            }
+        }
+    }
+
+    [Fact]
+    public void Brandspjall_visar_bara_brandspjall()
+    {
+        var def = Projekteringsverktyg.Server.ListApi.Listdefinitioner.Hitta("brandspjall")!;
+        Assert.True(Projekteringsverktyg.Server.ListApi.Listdefinitioner.Omfattar(def, "Brandspjäll"));
+        Assert.False(Projekteringsverktyg.Server.ListApi.Listdefinitioner.Omfattar(def, "Spjällmotor"));
+    }
+
+    [Theory]
+    [InlineData("../../hemligt.txt", "hemligt.txt")]
+    [InlineData("C:\\mapp\\ritning.pdf", "ritning.pdf")]
+    [InlineData("..", "fil")]
+    public void Filnamn_rensas(string namn, string forvantat) =>
+        Assert.Equal(forvantat, Projekteringsverktyg.Server.FilApi.FilEndpoints.RentNamn(namn));
+}

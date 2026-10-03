@@ -7,6 +7,8 @@ using Projekteringsverktyg.Server.AnvandarApi;
 using Projekteringsverktyg.Server.AttGoraApi;
 using Projekteringsverktyg.Server.Auth;
 using Projekteringsverktyg.Server.Data;
+using Projekteringsverktyg.Server.FilApi;
+using Projekteringsverktyg.Server.ListApi;
 using Projekteringsverktyg.Server.KomponentApi;
 using Projekteringsverktyg.Server.ProjektApi;
 using Projekteringsverktyg.Server.StatusApi;
@@ -76,6 +78,19 @@ builder.Services.AddSingleton<NarvaroRegister>();
 builder.Services.AddScoped<Behorighet>();
 builder.Services.AddProblemDetails();
 
+// ---------------------------------------------------------------------------
+// Projektfiler: Blob Storage i Azure, annars en mapp på disken.
+// Uppladdningar får vara upp till 200 MB per fil.
+// ---------------------------------------------------------------------------
+var blobUrl = builder.Configuration["Lagring:BlobUrl"];
+if (!string.IsNullOrWhiteSpace(blobUrl))
+    builder.Services.AddSingleton<IFilLagring>(new BlobLagring(blobUrl));
+else
+    builder.Services.AddSingleton<IFilLagring>(new DiskLagring(
+        builder.Configuration["Lagring:Mapp"] ?? Path.Combine(builder.Environment.ContentRootPath, "projektfiler-lokalt")));
+builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = 2 * FilEndpoints.MaxStorlek);
+builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(o => o.MultipartBodyLengthLimit = 2 * FilEndpoints.MaxStorlek);
+
 var app = builder.Build();
 
 // Uppdaterar databasens struktur (kör nya filer i Data/Migreringar).
@@ -117,6 +132,9 @@ app.MapKomponentEndpoints();
 app.MapAttGoraEndpoints();
 app.MapRollEndpoints();
 app.MapStatusEndpoints();
+app.MapListEndpoints();
+app.MapTextEndpoints();
+app.MapFilEndpoints();
 app.MapHub<ProjektHub>("/hubs/projekt");
 
 // Alla andra adresser hör till webbappen (React sköter sin egen navigering).
