@@ -1,0 +1,1641 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Resursplanering</title>
+<style>
+:root{
+  --bg:#15132a;
+  --panel:#1e1b3a;
+  --panel-alt:#252245;
+  --panel-alt2:#2c2952;
+  --border:#34305c;
+  --text:#eceafc;
+  --text-dim:#a6a1cc;
+  --text-dim2:#7d78a8;
+  --accent:#ff2e88;
+  --accent-dim:#ff2e8833;
+  --accent2:#7c5cff;
+  --radius:8px;
+  --shadow:0 8px 24px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box;}
+html,body{height:100%;}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font:14px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+#app{display:flex;flex-direction:column;height:100vh;}
+button{font:inherit;cursor:pointer;}
+input,select,textarea{font:inherit;color:var(--text);background:var(--panel-alt2);border:1px solid var(--border);border-radius:6px;padding:5px 8px;}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--accent2);outline-offset:0;}
+button.btn{
+  background:var(--panel-alt2);
+  border:1px solid var(--border);
+  color:var(--text);
+  border-radius:6px;
+  padding:6px 12px;
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  white-space:nowrap;
+}
+button.btn:hover{background:#332f5e;}
+button.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600;}
+button.btn.primary:hover{background:#ff4f9a;}
+button.btn.ghost{background:transparent;border-color:transparent;}
+button.btn.ghost:hover{background:var(--panel-alt2);}
+button.btn.small{padding:3px 8px;font-size:12px;}
+button.icon-btn{background:transparent;border:none;color:var(--text-dim);border-radius:6px;padding:5px;display:inline-flex;align-items:center;justify-content:center;}
+button.icon-btn:hover{background:var(--panel-alt2);color:var(--text);}
+svg{display:block;}
+a{color:inherit;}
+::-webkit-scrollbar{height:10px;width:10px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:#3a366a;border-radius:6px;}
+
+/* ---- Topbar ---- */
+#topbar{
+  display:flex;flex-direction:column;gap:0;
+  background:var(--panel);
+  border-bottom:1px solid var(--border);
+  flex-shrink:0;
+}
+.topbar-row1{display:flex;align-items:center;gap:14px;padding:10px 16px 4px;}
+.title-input{
+  background:transparent;border:1px solid transparent;color:var(--text);
+  font-size:18px;font-weight:700;padding:4px 8px;border-radius:6px;min-width:120px;
+}
+.title-input:hover, .title-input:focus{border-color:var(--border);background:var(--panel-alt);}
+.topbar-spacer{flex:1;}
+.save-indicator{font-size:12px;color:var(--text-dim2);white-space:nowrap;}
+.save-indicator.dirty{color:#f0b429;}
+.save-indicator.ok{color:#34d399;}
+.tabs{display:flex;align-items:center;gap:2px;padding:0 12px;overflow-x:auto;}
+.tab{
+  padding:9px 14px;border-radius:8px 8px 0 0;color:var(--text-dim);
+  border-bottom:3px solid transparent;white-space:nowrap;
+}
+.tab:hover{color:var(--text);background:var(--panel-alt);}
+.tab.active{color:var(--text);border-bottom-color:var(--accent);font-weight:600;background:var(--panel-alt);}
+
+#toolbar{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  padding:8px 16px;background:var(--panel);border-bottom:1px solid var(--border);flex-shrink:0;
+}
+#toolbar .sep{width:1px;align-self:stretch;background:var(--border);margin:0 4px;}
+#toolbar input.search{width:180px;}
+.toolbar-label{font-size:12px;color:var(--text-dim2);margin-right:-4px;}
+
+#main{flex:1;overflow:auto;padding:18px;}
+
+/* ---- Table view ---- */
+.project-group{
+  background:var(--panel);border:1px solid var(--border);border-radius:10px;
+  margin-bottom:18px;overflow:hidden;
+}
+.project-head{
+  display:flex;align-items:center;gap:10px;padding:12px 14px;
+  border-left:5px solid var(--accent);
+  cursor:pointer;background:var(--panel-alt);
+}
+.project-head .chev{transition:transform .15s;color:var(--text-dim);flex-shrink:0;}
+.project-head.collapsed .chev{transform:rotate(-90deg);}
+.project-name{
+  font-weight:700;color:var(--accent);font-size:15px;background:transparent;border:1px solid transparent;
+  padding:2px 6px;border-radius:6px;min-width:60px;
+}
+.project-name:hover,.project-name:focus{border-color:var(--border);background:var(--panel-alt2);}
+.project-count{font-size:12px;color:var(--text-dim2);white-space:nowrap;}
+.project-head .spacer{flex:1;}
+.project-span-bar{display:flex;height:8px;width:160px;border-radius:4px;overflow:hidden;background:var(--panel-alt2);flex-shrink:0;}
+.project-span-bar div{height:100%;}
+.project-range-text{font-size:12px;color:var(--text-dim);white-space:nowrap;min-width:150px;text-align:right;}
+
+.col-headers,.item-row,.subitem-row,.add-row{
+  display:grid;
+  grid-template-columns: minmax(220px,2.4fr) 150px 170px 210px 150px 80px;
+  align-items:center;
+  border-top:1px solid var(--border);
+}
+.col-headers{padding:8px 14px;font-size:12px;color:var(--text-dim2);text-transform:uppercase;letter-spacing:.03em;background:var(--panel);}
+.item-row{padding:8px 14px;background:var(--panel);}
+.item-row:hover{background:#211e3f;}
+.subitem-row{padding:6px 14px 6px 40px;background:#1a1833;font-size:13px;}
+.subitem-row:hover{background:#211e3f;}
+.add-row{padding:8px 14px;color:var(--text-dim2);background:var(--panel);}
+.add-row button{color:var(--text-dim2);}
+.add-row button:hover{color:var(--text);}
+.cell{display:flex;align-items:center;gap:8px;min-width:0;padding-right:8px;}
+.cell.name-cell{gap:6px;}
+.name-text{
+  background:transparent;border:1px solid transparent;color:var(--text);border-radius:6px;
+  padding:3px 6px;min-width:20px;flex:1;
+}
+.name-text:hover,.name-text:focus{border-color:var(--border);background:var(--panel-alt2);}
+.row-check{accent-color:var(--accent);width:15px;height:15px;flex-shrink:0;}
+.chev-btn{color:var(--text-dim2);flex-shrink:0;width:16px;text-align:center;}
+.chev-btn.invisible{visibility:hidden;}
+
+.avatars{display:flex;gap:-4px;}
+.avatar{
+  width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-size:10px;font-weight:700;color:#1a1830;border:2px solid var(--panel);margin-left:-8px;flex-shrink:0;
+}
+.avatar:first-child{margin-left:0;}
+.avatar-add{
+  width:26px;height:26px;border-radius:50%;border:1.5px dashed var(--text-dim2);color:var(--text-dim2);
+  display:flex;align-items:center;justify-content:center;font-size:14px;background:transparent;flex-shrink:0;
+}
+.avatar-add:hover{border-color:var(--text);color:var(--text);}
+
+.status-pill{
+  display:inline-flex;align-items:center;justify-content:center;padding:5px 10px;border-radius:5px;
+  font-size:12px;font-weight:700;color:#1a1830;width:100%;text-align:center;min-height:26px;
+}
+.date-pill{
+  display:inline-flex;align-items:center;justify-content:center;padding:5px 10px;border-radius:16px;
+  font-size:12px;font-weight:600;background:var(--accent);color:#fff;white-space:nowrap;min-width:60px;text-align:center;
+}
+.date-pill.empty{background:var(--panel-alt2);color:var(--text-dim2);border:1px dashed var(--border);}
+.headcount-input{width:56px;text-align:center;background:transparent;border:1px solid transparent;}
+.headcount-input:hover,.headcount-input:focus{background:var(--panel-alt2);border-color:var(--border);}
+.row-actions{display:flex;justify-content:flex-end;gap:2px;}
+
+/* ---- Popovers / modals ---- */
+.overlay{position:fixed;inset:0;background:rgba(10,8,25,.55);display:flex;align-items:center;justify-content:center;z-index:200;}
+.popover{
+  position:absolute;z-index:150;background:var(--panel-alt);border:1px solid var(--border);
+  border-radius:8px;box-shadow:var(--shadow);padding:10px;min-width:200px;
+}
+.popover h4{margin:0 0 8px;font-size:12px;color:var(--text-dim2);text-transform:uppercase;}
+.popover .opt-row{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;}
+.popover .opt-row:hover{background:var(--panel-alt2);}
+.popover .opt-row input{margin:0;}
+.modal{
+  background:var(--panel);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);
+  width:min(640px,92vw);max-height:86vh;overflow:auto;padding:0;
+}
+.modal-head{display:flex;align-items:center;padding:16px 20px;border-bottom:1px solid var(--border);}
+.modal-head h3{margin:0;flex:1;font-size:16px;}
+.modal-body{padding:16px 20px;}
+.modal-foot{display:flex;justify-content:flex-end;gap:8px;padding:14px 20px;border-top:1px solid var(--border);}
+.settings-tabs{display:flex;gap:4px;padding:0 20px;border-bottom:1px solid var(--border);}
+.settings-tab{padding:10px 12px;color:var(--text-dim);border-bottom:2px solid transparent;}
+.settings-tab.active{color:var(--text);border-color:var(--accent);font-weight:600;}
+.res-row,.status-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);}
+.res-row:last-child,.status-row:last-child{border-bottom:none;}
+.swatch{width:22px;height:22px;border-radius:50%;border:2px solid transparent;flex-shrink:0;}
+.swatch.selected{border-color:#fff;}
+.palette{display:flex;gap:6px;flex-wrap:wrap;max-width:220px;}
+.hint{color:var(--text-dim2);font-size:12px;line-height:1.5;}
+.field{margin-bottom:12px;}
+.field label{display:block;font-size:12px;color:var(--text-dim2);margin-bottom:4px;}
+.field input,.field select,.field textarea{width:100%;}
+
+/* ---- Empty state ---- */
+.empty-state{text-align:center;color:var(--text-dim2);padding:60px 20px;}
+.empty-state button{margin-top:10px;}
+
+/* ---- Gantt ---- */
+/* Single scrolling container: both the horizontal scrollbar and the sticky
+   header row / sticky name column stay inside the viewport (max-height),
+   using nested position:sticky instead of a separate fixed-height pane. */
+.gantt-wrap{position:relative;background:var(--panel);border:1px solid var(--border);border-radius:10px;overflow:auto;max-height:calc(100vh - 230px);}
+.gantt-row{display:flex;}
+.gantt-row.header-row{position:sticky;top:0;z-index:6;}
+.gantt-namecell{
+  width:260px;flex-shrink:0;box-sizing:border-box;position:sticky;left:0;z-index:3;
+  display:flex;align-items:center;gap:6px;height:36px;padding:0 10px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);
+  font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:var(--panel);
+}
+.gantt-namecell.header-corner{height:44px;z-index:7;font-size:12px;color:var(--text-dim);justify-content:flex-start;}
+.gantt-namecell.group{font-weight:700;background:var(--panel-alt);}
+.gantt-namecell .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.gantt-namecell.sub{padding-left:26px;color:var(--text-dim);font-size:12px;}
+.gantt-headercols{height:44px;display:flex;flex-shrink:0;}
+.gantt-headercols .col{border-right:1px solid var(--border);border-bottom:1px solid var(--border);box-sizing:border-box;display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--text-dim);flex-shrink:0;background:var(--panel);}
+.gantt-gridcell{height:36px;border-bottom:1px solid var(--border);position:relative;flex-shrink:0;}
+.gantt-gridcell.group{background:var(--panel-alt);}
+.gantt-rows-body{position:relative;z-index:2;}
+.gantt-grid-overlay{position:absolute;top:0;left:260px;height:100%;pointer-events:none;z-index:1;}
+.gantt-vline{position:absolute;top:0;bottom:0;width:1px;background:var(--border);opacity:.6;}
+.gantt-bar{
+  position:absolute;top:7px;height:22px;border-radius:5px;display:flex;align-items:center;
+  padding:0 8px;font-size:11px;font-weight:600;color:#1a1830;white-space:nowrap;overflow:hidden;
+  box-shadow:0 1px 3px rgba(0,0,0,.3);
+}
+.gantt-bar.grouprange{top:14px;height:5px;border-radius:3px;opacity:.85;}
+.gantt-bar.baseline{top:2px;height:6px;border-radius:3px;background:transparent!important;border:1.5px dashed var(--text-dim2);color:transparent;}
+.gantt-toolbar-extra{display:flex;align-items:center;gap:8px;}
+
+/* ---- Meetings / Notes ---- */
+.side-select{min-width:220px;}
+.meeting-card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:12px;}
+.meeting-card .mhead{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
+.meeting-card .mhead input{background:var(--panel-alt2);}
+.meeting-card .mdate{font-weight:700;color:var(--accent);}
+.notes-box{width:100%;min-height:50vh;resize:vertical;background:var(--panel);border:1px solid var(--border);}
+
+.toast{
+  position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#2c2952;border:1px solid var(--border);
+  color:var(--text);padding:10px 16px;border-radius:8px;box-shadow:var(--shadow);z-index:400;font-size:13px;
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="topbar">
+    <div class="topbar-row1">
+      <input id="titleInput" class="title-input" value="Byggprojekt – översikt">
+      <div class="topbar-spacer"></div>
+      <span id="saveIndicator" class="save-indicator">–</span>
+      <button class="btn small" id="btnConnectFile" title="Välj vilken fil på din dator (t.ex. i OneDrive) som ska uppdateras när du sparar">Anslut fil</button>
+      <button class="btn primary small" id="btnSaveFile">💾 Spara</button>
+      <button class="icon-btn" id="btnSettings" title="Inställningar">⚙️</button>
+    </div>
+    <nav class="tabs" id="tabs"></nav>
+  </header>
+  <div id="toolbar"></div>
+  <main id="main"></main>
+</div>
+<div id="modal-root"></div>
+<script id="app-data" type="application/json">{"version": 1, "resources": [{"id": "res1", "name": "Resurs 1", "initials": "R1", "color": "#ff6b6b"}, {"id": "res2", "name": "Resurs 2", "initials": "R2", "color": "#f0932b"}, {"id": "res3", "name": "Resurs 3", "initials": "R3", "color": "#f6c445"}, {"id": "res4", "name": "Resurs 4", "initials": "R4", "color": "#a3d94c"}, {"id": "res5", "name": "Resurs 5", "initials": "R5", "color": "#34d399"}, {"id": "res6", "name": "Resurs 6", "initials": "R6", "color": "#22c1c3"}, {"id": "res7", "name": "Resurs 7", "initials": "R7", "color": "#4c9df6"}, {"id": "res8", "name": "Resurs 8", "initials": "R8", "color": "#7c5cff"}, {"id": "res9", "name": "Resurs 9", "initials": "R9", "color": "#c084fc"}, {"id": "res10", "name": "Resurs 10", "initials": "R10", "color": "#f472b6"}, {"id": "k_pl", "name": "HE – Projektledare", "initials": "PL", "color": "#ff2e88"}, {"id": "k_proj", "name": "Projektör SÖ", "initials": "PJ", "color": "#4c9df6"}, {"id": "k_prog", "name": "Programmerare", "initials": "PG", "color": "#7c5cff"}, {"id": "k_drift", "name": "Driftsättare", "initials": "DS", "color": "#34d399"}, {"id": "k_mont", "name": "Montörer (elektriker)", "initials": "MO", "color": "#f0932b"}], "statuses": [{"id": "s_ej", "name": "Ej påbörjat", "color": "#f2727f"}, {"id": "s_pagar", "name": "Pågår", "color": "#6fa8f5"}, {"id": "s_avslut", "name": "Avslutande fas", "color": "#a78bfa"}, {"id": "s_godkant", "name": "Godkänt", "color": "#a3d94c"}, {"id": "s_underent", "name": "Underentreprenör", "color": "#f0b429"}, {"id": "s_invantar", "name": "Inväntar", "color": "#ec4899"}, {"id": "s_klar", "name": "Klar", "color": "#34d399"}, {"id": "s_krit", "name": "Kritisk hålltid", "color": "#ff2e88"}, {"id": "s_forut", "name": "Förutsättning (TE-tidplan)", "color": "#8895f7"}], "taskTemplates": ["Projektering", "Konstruktion", "Installation yttre", "Programmering", "Installation teknik", "Driftsättning", "Samordnad provning", "Besiktning"], "projects": [{"id": "kgxy9edd1m2ta9", "name": "Karlsängskolan", "color": "#f0932b", "collapsed": false, "notes": "RESURSPLANERING SÖE (HECO) – KARLSÄNGSKOLAN, NORA\nRev 2026-10-02 (v3): omarbetad mot kalkylerade timmar. Timmar visas i Gantt = vardagar × 8 h × antal på plats, eller manuellt angivna timmar. Underlag till TE:s produktionstidplan.\n\nKALKYLRAMAR\n- Montör (installation): 1 500 h för hela projektet.\n- Programmering: 152 h.\n- Driftsättning: 170 h, i ett svep (inte etappvis).\n- Projektledning (288 h = 36 dagar, manuellt angivna timmar): 1 dag/vecka på plats från installationsstart 2027-08-20 till slutbesiktning 2028-05-09 (≈ 36 dagar). Byggmöten (varannan vecka) samma dag.\n\nFÖRDELNING MONTÖRSTIMMAR (summa 1 496 h ≈ kalkyl 1 500 h; heldagar ger 4 h kvar)\n- Etablering 16 h (2 montörer, 1 dag)\n- Infällt i väggar, rör/dosor före skivning: 3 × 40 h = 120 h (1 montör, 1 vecka per etapp)\n- Teknikutrymmen: UC 1090 240 h, fläktrum 1 64 h, fläktrum 2 64 h = 368 h (2 montörer)\n- Kabel och fältbuss i undertak: 3 × 128 h = 384 h (2 montörer, 8 dagar per etapp)\n- Montering och inkoppling fältutrustning: 3 × 112 h = 336 h (2 montörer, 7 dagar per etapp)\n- Hus 2 (AS004, KF109/KF110) 40 h, utebelysning 24 h\n- Skyltning och märkning 64 h (parallellt med driftsättning)\n- Åtgärd besiktningsanmärkningar / reserv 64 h\n- Etapp 2: urkoppling 16 h, LB04/LB05 summalarm 40 h, utebelysning skolgård 24 h = 80 h\n- Normalt 2 montörer, topp 4 under v6–7 2028 (etapp 3 + Hus 2 + utebelysning).\n\nPROGRAMMERING (152 h): DUC/HMI 112 h (dec 2027), ÖS-punktlista/EDE/underlag bilder 40 h (v5 2028). Klart före driftsättning.\n\nDRIFTSÄTTNING (170 h, ett svep)\n- Driftsättning av alla system inkl. egenkontroll och punkttest mot ÖS: 128 h, 2 driftsättare 2028-02-17–02-28.\n- Stöd vid VE:s luftinjustering 16 h, samordnad provning 24 h. Summa 168 h (kalkyl 170 h).\n- Förutsättning: all installation klar utom skyltning och märkning (2028-02-16).\n\nKRITISKA HÅLLTIDER – FÖRUTSÄTTNINGAR FÖR ATT VI SKA KUNNA INSTALLERA\n- VE och RE ska vara klara med de komponenter vi ansluter (ventiler, pumpar, dykrör/givarstosar, VAV-don, spjäll, shuntar, prefab styr) innan vi går in:\n  UC 1090 2027-09-24 · fläktrum 1 och 2 2027-10-15 · etapp 1 2027-10-29 · etapp 2 2027-12-10 · etapp 3 2028-01-21 · Hus 2/utebelysning 2028-02-04.\n- Undertak får inte monteras innan vår kabel är dragen: etapp 1 efter 2027-11-10, etapp 2 efter 2027-12-22, etapp 3 efter 2028-02-02.\n- Målning klar före montering av fältutrustning: etapp 1 2027-12-03, etapp 2 2028-01-14, etapp 3 2028-02-04.\n- Väggar öppna för infällda rör/dosor: etapp 1 v34, etapp 2 v40, etapp 3 v46 2027.\n\nKRITISKA HÅLLTIDER – SÖE\n- Bygghandling fastställd 2027-03-26, AS001 på plats i UC 2027-09-24.\n- Installation komplett (exkl. märkning) 2028-02-16 → driftsättning 2028-02-17–02-28 → klart för luftinjustering 2028-03-01.\n- Samordnad provning klar 2028-03-29, relationshandlingar 2028-04-25, slutbesiktning 2028-05-09.\n\nETAPPER (montageordning stomme enligt TE)\n- Etapp 1 blå: norra längan (axel 4–10 / G–H) och östra längan (axel 7–10 / C–H).\n- Etapp 2 gul: västra längan (axel 1–3 / A–H).\n- Etapp 3 grön: södra längan (axel 4–10 / A–C) och inre del axel 4–5.\n\nFRÅGOR TILL TE\n- Värme för uttorkning: eftersom driftsättning sker i ett svep i februari 2028 finns ingen styrd värme från DUC under invändig komplettering. Byggvärme/provisorisk drift av VP/FJV behöver lösas av RE eller TE (lokal handstyrning).\n- AF:s färdigställandetid 2028-02-28 (AFD.45) mot TE:s tidplan 2028-05-09: driftsättningen blir klar 2028-02-28, men injustering, samordnad provning och besiktning ryms inte före AF-datumet.\n- Byggström och permanent matning till apparatskåp (EE) före v39 2027.\n- Vilken etapp UC och fläktrum ligger i, och tidpunkt för komplementbyggnaderna Hus 2–6.\n- Semester 2027 v28–31 och jul/nyår (24/12–6/1) är räknade som stopp.\n\nTIMMAR I VERKTYGET\n- Rader utan kalkylerade timmar (TE-aktiviteter, projektering, inköp, relationshandlingar) har timmar satta till 0 så att de inte räknas. Fyll i timmar via datumrutan (fältet 'Timmar') när kalkylen för dem är känd.\n", "meetings": [{"id": "kgzl67e9u90klv", "date": "2026-10-02", "title": "Underlag produktionstidplan till TE (begärt senast fredag 2/10)", "attendees": "HE, TE produktionsledning", "notes": "Lämna schematisk tidplan, aktiviteter per etapp, kritiska hålltider och resurser. Därefter riktade arbetsmöten för samordning."}], "items": [{"id": "kg0wmx07exumtc", "name": "Förutsättningar enl. TE:s grovtidplan 2026-02-04", "statusId": "s_forut", "resourceIds": [], "start": "2026-11-23", "end": "2028-05-09", "headcount": null, "collapsed": false, "subItems": [{"id": "kgf5aickrlsfdy", "name": "Stomme etapp 1→2→3 (blå, gul, grön)", "statusId": "s_forut", "resourceIds": [], "start": "2026-11-23", "end": "2027-03-05", "headcount": null, "collapsed": false, "subItems": [], "hours": 0}, {"id": "kgigq2fl137gai", "name": "Tätt hus", "statusId": "s_forut", "resourceIds": [], "start": "2027-07-02", "end": "2027-07-02", "headcount": null, "collapsed": false, "subItems": []}, {"id": "kgybrgrub439h8", "name": "Semester 2027 (v28–31)", "statusId": "s_forut", "resourceIds": [], "start": "2027-07-12", "end": "2027-08-08", "headcount": null, "collapsed": false, "subItems": [], "hours": 0}, {"id": "kgrz3ub0gle1bi", "name": "Rumsbildning", "statusId": "s_forut", "resourceIds": [], "start": "2027-07-02", "end": "2027-12-16", "headcount": null, "collapsed": false, "subItems": [], "hours": 0}, {"id": "kgj9ecjuxeuqxz", "name": "Invändig komplettering", "statusId": "s_forut", "resourceIds": [], "start": "2027-11-15", "end": "2028-02-09", "headcount": null, "collapsed": false, "subItems": [], "hours": 0}, {"id": "kgwrsce0b21qnx", "name": "Slutskede", "statusId": "s_forut", "resourceIds": [], "start": "2028-02-10", "end": "2028-05-08", "headcount": null, "collapsed": false, "subItems": [], "hours": 0}, {"id": "kg77kdpopkt3w9", "name": "AF: etapp 1 klar för slutbesiktning (AFD.45)", "statusId": "s_forut", "resourceIds": [], "start": "2028-02-28", "end": "2028-02-28", "headcount": null, "collapsed": false, "subItems": []}, {"id": "kgjf4220xrn2md", "name": "Godkänd slutbesiktning etapp 1 (TE-tidplan)", "statusId": "s_forut", "resourceIds": [], "start": "2028-05-09", "end": "2028-05-09", "headcount": null, "collapsed": false, "subItems": []}]}, {"id": "kg36jimnhviiri", "name": "Projektering SÖ", "statusId": "s_pagar", "resourceIds": ["k_proj", "k_pl"], "start": "2026-10-05", "end": "2027-03-26", "headcount": null, "collapsed": false, "subItems": [{"id": "kghpipxha3w6zv", "name": "Driftkort, systemhandling, mätplan (AK → GH)", "statusId": "s_pagar", "resourceIds": ["k_proj"], "start": "2026-10-05", "end": "2026-12-18", "headcount": null, "collapsed": false, "subItems": [], "hours": 0}, {"id": "kgexxa6ho04381", "name": "Beställarens granskning (10 arbetsdagar, AFD.24)", "statusId": "s_ej", "resourceIds": ["k_pl"], "start": "2027-01-11", "end": "2027-01-22", "headcount": null, "collapsed": false, "subItems": [], "hours": 0}, {"id": "kgbavcm529zqnm", "name": "Apparatskåpsritningar, I/O- och kabellistor", "statusId": "s_ej", "resourceIds": ["k_proj"], "start": "2027-01-11", "end": "2027-02-26", "headcount": null, "collapsed": false, "subItems": [], "hours": 0}, {"id": "kgxwdvx6i970qj", "name": "Revidering → bygghandling fastställd", "statusId": "s_ej", "resourceIds": ["k_proj", "k_pl"], "start": "2027-03-01", "end": "2027-03-26", "headcount": null, "collapsed": false, "subItems": [], "hours": 0}]}, {"id": "kgxkjd461vk8gt", "name": "Inköp och tillverkning", "statusId": "s_ej", "resourceIds": ["k_pl"], "start": "2027-03-29", "end": "2027-06-18", "headcount": null, "collapsed": false, "subItems": [{"id": "kgczhn1kg81oae", "name": "Beställning DUC/apparatskåp AS001–AS004", "statusId": "s_ej", "resourceIds": ["k_pl"], "start": "2027-03-29", "end": "2027-04-09", "headcount": null, "collapsed": false, "subItems": [], "hours": 0}, {"id": "kgzc7mny2xt2fi", "name": "Tillverkning och FAT apparatskåp", "statusId": "s_ej", "resourceIds": ["k_proj"], "start": "2027-04-12", "end": "2027-06-18", "headcount": null, "collapsed": false, "subItems": [], "hours": 0}]}, {"id": "kg30lbtw1bea4h", "name": "Kritiska hålltider – förutsättningar VE/RE/TE före vår installation", "statusId": "s_krit", "resourceIds": [], "start": "2027-09-24", "end": "2028-03-17", "headcount": null, "collapsed": false, "subItems": [{"id": "kggkxvw9d9jrqd", "name": "VE/RE klart UC 1090: pumpar, ventiler, dykrör, givarstosar, FJV/VP", "statusId": "s_krit", "resourceIds": [], "start": "2027-09-24", "end": "2027-09-24", "headcount": null, "collapsed": false, "subItems": []}, {"id": "kgexge9fxwuf5b", "name": "VE/RE klart fläktrum 1 och 2: LB01–LB03 med prefab styr, shuntgrupper", "statusId": "s_krit", "resourceIds": [], "start": "2027-10-15", "end": "2027-10-15", "headcount": null, "collapsed": false, "subItems": []}, {"id": "kgwaivo91thezm", "name": "VE/RE klart etapp 1 (blå): VAV-don, spjäll, bafflar/radiatorventiler", "statusId": "s_krit", "resourceIds": [], "start": "2027-10-29", "end": "2027-10-29", "headcount": null, "collapsed": false, "subItems": []}, {"id": "kg74v625200baj", "name": "VE/RE klart etapp 2 (gul)", "statusId": "s_krit", "resourceIds": [], "start": "2027-12-10", "end": "2027-12-10", "headcount": null, "collapsed": false, "subItems": []}, {"id": "kgfexd6d05p8h6", "name": "VE/RE klart etapp 3 (grön)", "statusId": "s_krit", "resourceIds": [], "start": "2028-01-21", "end": "2028-01-21", "headcount": null, "collapsed": false, "subItems": []}, {"id": "kg9lpz8ovx219g", "name": "VE/RE klart Hus 2 (KF109/KF110) och utebelysning (EE)", "statusId": "s_krit", "resourceIds": [], "start": "2028-02-04", "end": "2028-02-04", "headcount": null, "collapsed": false, "subItems": []}, {"id": "kg5m38safeu4z3", "name": "VE: luftinjustering (kräver att SÖE driftsatt)", "statusId": "s_forut", "resourceIds": [], "start": "2028-03-01", "end": "2028-03-17", "headcount": null, "collapsed": false, "subItems": [], "hours": 0}, {"id": "kg6rk9bphva087", "name": "Målning klar för montering fältutrustning etapp 1 / 2 / 3: 2027-12-03 / 2028-01-14 / 2028-02-04", "statusId": "s_krit", "resourceIds": [], "start": "2027-12-03", "end": "2027-12-03", "headcount": null, "collapsed": false, "subItems": []}]}, {"id": "kgvtf6tfc9n2ec", "name": "Etablering", "statusId": "s_ej", "resourceIds": ["k_pl", "k_mont"], "start": "2027-08-20", "end": "2027-08-20", "headcount": 2, "collapsed": false, "subItems": [{"id": "kgdbuskxaba0tz", "name": "Etablering, startmöte arbetsplats, materialmottagning", "statusId": "s_ej", "resourceIds": ["k_mont"], "start": "2027-08-20", "end": "2027-08-20", "headcount": 2, "collapsed": false, "subItems": []}]}, {"id": "kglv3zouu3c2v9", "name": "Installation – infällt i väggar (rör/dosor före skivning)", "statusId": "s_ej", "resourceIds": ["k_mont"], "start": "2027-08-23", "end": "2027-11-19", "headcount": 1, "collapsed": false, "subItems": [{"id": "kglu4ife96yzag", "name": "Etapp 1 (blå)", "statusId": "s_ej", "resourceIds": ["k_mont"], "start": "2027-08-23", "end": "2027-08-27", "headcount": 1, "collapsed": false, "subItems": []}, {"id": "kgnnyi9s535qma", "name": "Etapp 2 (gul)", "statusId": "s_ej", "resourceIds": ["k_mont"], "start": "2027-10-04", "end": "2027-10-08", "headcount": 1, "collapsed": false, "subItems": []}, {"id": "kgq22kwkhbadpo", "name": "Etapp 3 (grön)", "statusId": "s_ej", "resourceIds": ["k_mont"], "start": "2027-11-15", "end": "2027-11-19", "headcount": 1, "collapsed": false, "subItems": []}]}, {"id": "kgivxmob3ozz76", "name": "Installation – teknikutrymmen (efter VE/RE)", "statusId": "s_ej", "resourceIds": ["k_mont"], "start": "2027-09-27", "end": "2027-10-28", "headcount": 2, "collapsed": false, "subItems": [{"id": "kgf033zmvpabzc", "name": "UC 1090: AS001, kabel till VP/FJV/VS/KB/VV, M-bus", "statusId": "s_ej", "resourceIds": ["k_mont"], "start": "2027-09-27", "end": "2027-10-15", "headcount": 2, "collapsed": false, "subItems": []}, {"id": "kgo6ggxfrzmmcj", "name": "Fläktrum 1 (1175): AS002, shunt LB01, CF101/KF106", "statusId": "s_ej", "resourceIds": ["k_mont"], "start": "2027-10-18", "end": "2027-10-21", "headcount": 2, "collapsed": false, "subItems": []}, {"id": "kg6r6rrxnjr5xp", "name": "Fläktrum 2 (1247): AS003, shuntar LB02/LB03, zonbatteri aula", "statusId": "s_ej", "resourceIds": ["k_mont"], "start": "2027-10-25", "end": "2027-10-28", "headcount": 2, "collapsed": false, "subItems": []}]}, {"id": "kg0pgjvp1xxdjj", "name": "Installation – kabel och fältbuss i undertak (efter VE/RE, före undertak)", "statusId": "s_ej", "resourceIds": ["k_mont"], "start": "2027-11-01", "end": "2028-02-02", "headcount": 2, "collapsed": false, "subItems": [{"id": "kg36adpqvwz69v", "name": "Etapp 1 (blå)", "statusId": "s_ej", "resourceIds": ["k_mont"], "start": "2027-11-01", "end": "2027-11-10", "headcount": 2, "collapsed": false, "subItems": []}, {"id": "kg8nwtsdpzwjn0", "name": "Etapp 2 (gul)", "statusId": "s_ej", "resourceIds": ["k_mont"], "start": "2027-12-13", "end": "2027-12-22", "headcount": 2, "collapsed": false, "subItems": []}, {"id": "kgrg9wkst1cuns", "name": "Etapp 3 (grön)", "statusId": "s_ej", "resourceIds": ["k_mont"], "start": "2028-01-24", "end": "2028-02-02", "headcount": 2, "collapsed": false, "subItems": []}]}, {"id": "kgo32cwgm60x2g", "name": "Installation – montering och inkoppling fältutrustning (efter målning)", "statusId": "s_ej", "resourceIds": ["k_mont"], "start": "2027-12-06", "end": "2028-02-16", "headcount": 2, "collapsed": false, "subItems": [{"id": "kg1xr99zm7ro20", "name": "Etapp 1 (blå): givare, rumsenheter, VAV, ställdon", "statusId": "s_ej", "resourceIds": ["k_mont"], "start": "2027-12-06", "end": "2027-12-14", "headcount": 2, "collapsed": false, "subItems": []}, {"id": "kgn6mbxmx1dulm", "name": "Etapp 2 (gul)", "statusId": "s_ej", "resourceIds": ["k_mont"], "start": "2028-01-17", "end": "2028-01-25", "headcount": 2, "collapsed": false, "subItems": []}, {"id": "kgo9s0ddkzb1zi", "name": "Etapp 3 (grön)", "statusId": "s_ej", "resourceIds": ["k_mont"], "start": "2028-02-07", "end": "2028-02-15", "headcount": 2, "collapsed": false, "subItems": []}, {"id": "kgcsc0sf241g4n", "name": "Hus 2: AS004, KF109/KF110", "statusId": "s_ej", "resourceIds": ["k_mont"], "start": "2028-02-07", "end": "2028-02-11", "headcount": 1, "collapsed": false, "subItems": []}, {"id": "kga3e9shc44i28", "name": "Utebelysning, astrour, tidsstyrda uttag", "statusId": "s_ej", "resourceIds": ["k_mont"], "start": "2028-02-14", "end": "2028-02-16", "headcount": 1, "collapsed": false, "subItems": []}]}, {"id": "kg14kr1v82rz33", "name": "Programmering (kalkyl 152 h)", "statusId": "s_ej", "resourceIds": ["k_prog"], "start": "2027-12-06", "end": "2028-02-04", "headcount": 1, "collapsed": false, "subItems": [{"id": "kg8cshtlt6r9d7", "name": "DUC/HMI-program, larm, tidkanaler", "statusId": "s_ej", "resourceIds": ["k_prog"], "start": "2027-12-06", "end": "2027-12-23", "headcount": 1, "collapsed": false, "subItems": []}, {"id": "kgt2um62sebueq", "name": "ÖS (Desigo CC): punktlista, EDE, underlag bilder", "statusId": "s_ej", "resourceIds": ["k_prog"], "start": "2028-01-31", "end": "2028-02-04", "headcount": 1, "collapsed": false, "subItems": []}]}, {"id": "kgoq857mxv3i69", "name": "Driftsättning – ett svep (kalkyl 170 h)", "statusId": "s_ej", "resourceIds": ["k_drift", "k_prog"], "start": "2028-02-17", "end": "2028-03-29", "headcount": 2, "collapsed": false, "subItems": [{"id": "kgnxfxp1xvejxt", "name": "Driftsättning alla system inkl. egenkontroll och punkttest mot ÖS", "statusId": "s_ej", "resourceIds": ["k_drift"], "start": "2028-02-17", "end": "2028-02-28", "headcount": 2, "collapsed": false, "subItems": []}, {"id": "kg1ktwy0v2x0tn", "name": "Stöd vid luftinjustering (VE)", "statusId": "s_ej", "resourceIds": ["k_drift"], "start": "2028-03-13", "end": "2028-03-14", "headcount": 1, "collapsed": false, "subItems": []}, {"id": "kggu9lnqi4yduq", "name": "Samordnad provning", "statusId": "s_ej", "resourceIds": ["k_drift"], "start": "2028-03-27", "end": "2028-03-29", "headcount": 1, "collapsed": false, "subItems": []}]}, {"id": "kgaeavvyeo2li0", "name": "Skyltning och märkning (efter installation, parallellt med driftsättning)", "statusId": "s_ej", "resourceIds": ["k_mont"], "start": "2028-02-17", "end": "2028-02-28", "headcount": 1, "collapsed": false, "subItems": [{"id": "kg0xkzipaihlxb", "name": "Skyltning och märkning (ingår ej i krav före driftsättning)", "statusId": "s_ej", "resourceIds": ["k_mont"], "start": "2028-02-17", "end": "2028-02-28", "headcount": 1, "collapsed": false, "subItems": []}]}, {"id": "kghdsf6ap7bvvt", "name": "Relationshandlingar och dokumentation", "statusId": "s_ej", "resourceIds": ["k_proj"], "start": "2027-08-20", "end": "2028-04-21", "headcount": null, "collapsed": false, "subItems": [{"id": "kg5o0ahtul6doz", "name": "Löpande rödpenna på ritningsomgång (AF)", "statusId": "s_ej", "resourceIds": ["k_mont"], "start": "2027-08-20", "end": "2028-03-10", "headcount": null, "collapsed": false, "subItems": [], "hours": 0}, {"id": "kg11kbf8kim52u", "name": "Upprätta relationshandlingar (driftkort, scheman, I/O, mätplan)", "statusId": "s_ej", "resourceIds": ["k_proj"], "start": "2028-03-06", "end": "2028-04-21", "headcount": null, "collapsed": false, "subItems": [], "hours": 0}, {"id": "kghewsqfgdxkz6", "name": "Drift- och underhållsinstruktioner, egenkontroller", "statusId": "s_ej", "resourceIds": ["k_proj", "k_drift"], "start": "2028-03-20", "end": "2028-04-21", "headcount": null, "collapsed": false, "subItems": [], "hours": 0}, {"id": "kgndpwe280qdvx", "name": "Information till drift- och underhållspersonal", "statusId": "s_ej", "resourceIds": ["k_pl", "k_drift"], "start": "2028-04-10", "end": "2028-04-12", "headcount": null, "collapsed": false, "subItems": [], "hours": 0}]}, {"id": "kgiiae339yttwr", "name": "Åtgärder och reserv", "statusId": "s_ej", "resourceIds": ["k_mont"], "start": "2028-04-17", "end": "2028-04-26", "headcount": 1, "collapsed": false, "subItems": [{"id": "kgdv9j315yte9o", "name": "Åtgärd besiktningsanmärkningar / reserv", "statusId": "s_ej", "resourceIds": ["k_mont"], "start": "2028-04-17", "end": "2028-04-26", "headcount": 1, "collapsed": false, "subItems": []}]}, {"id": "kgywvw44i99zkl", "name": "Kritiska hålltider – SÖE", "statusId": "s_krit", "resourceIds": [], "start": "2027-03-26", "end": "2028-05-09", "headcount": null, "collapsed": false, "subItems": [{"id": "kgq46lc0889ujn", "name": "Bygghandling SÖ fastställd", "statusId": "s_krit", "resourceIds": [], "start": "2027-03-26", "end": "2027-03-26", "headcount": null, "collapsed": false, "subItems": []}, {"id": "kgzcsatf8yt0xu", "name": "Apparatskåp AS001 på plats (UC)", "statusId": "s_krit", "resourceIds": [], "start": "2027-09-24", "end": "2027-09-24", "headcount": null, "collapsed": false, "subItems": []}, {"id": "kgljdwnubfbd3g", "name": "SÖE: infällt i väggar klart etapp 1 / 2 / 3 (före skivning): 2027-08-27 / 10-08 / 11-19", "statusId": "s_krit", "resourceIds": [], "start": "2027-08-27", "end": "2027-08-27", "headcount": null, "collapsed": false, "subItems": []}, {"id": "kg0vdzcvl9m8k4", "name": "SÖE: kabel i undertak klart etapp 1 (före undertak)", "statusId": "s_krit", "resourceIds": [], "start": "2027-11-10", "end": "2027-11-10", "headcount": null, "collapsed": false, "subItems": []}, {"id": "kgp9i1ctr6dgbb", "name": "SÖE: kabel i undertak klart etapp 2", "statusId": "s_krit", "resourceIds": [], "start": "2027-12-22", "end": "2027-12-22", "headcount": null, "collapsed": false, "subItems": []}, {"id": "kgoa0tphfc685r", "name": "SÖE: kabel i undertak klart etapp 3", "statusId": "s_krit", "resourceIds": [], "start": "2028-02-02", "end": "2028-02-02", "headcount": null, "collapsed": false, "subItems": []}, {"id": "kg2x65kr1kd41p", "name": "Installation komplett (exkl. skyltning/märkning) → start driftsättning", "statusId": "s_krit", "resourceIds": [], "start": "2028-02-16", "end": "2028-02-16", "headcount": null, "collapsed": false, "subItems": []}, {"id": "kge3fth2f76i9m", "name": "Driftsättning klar → klart för luftinjustering (VE)", "statusId": "s_krit", "resourceIds": [], "start": "2028-02-28", "end": "2028-02-28", "headcount": null, "collapsed": false, "subItems": []}, {"id": "kg62mzedn0m8lx", "name": "Samordnad provning klar", "statusId": "s_krit", "resourceIds": [], "start": "2028-03-29", "end": "2028-03-29", "headcount": null, "collapsed": false, "subItems": []}, {"id": "kgzy155rse37v6", "name": "Relationshandlingar levererade (2 v före slutbesiktning)", "statusId": "s_krit", "resourceIds": [], "start": "2028-04-25", "end": "2028-04-25", "headcount": null, "collapsed": false, "subItems": []}, {"id": "kgdarv31lrltbw", "name": "Slutbesiktning etapp 1", "statusId": "s_krit", "resourceIds": [], "start": "2028-05-09", "end": "2028-05-09", "headcount": null, "collapsed": false, "subItems": []}]}, {"id": "kgz517em0cr8lq", "name": "Projektledning", "statusId": "s_pagar", "resourceIds": ["k_pl"], "start": "2026-10-05", "end": "2028-05-09", "headcount": null, "collapsed": false, "subItems": [{"id": "kgx36py7ltg7h6", "name": "Projekteringsskede: projekteringsmöten 2 ggr/mån (AFD.332)", "statusId": "s_pagar", "resourceIds": ["k_pl"], "start": "2026-10-05", "end": "2027-06-30", "headcount": null, "collapsed": false, "subItems": [], "hours": 0}, {"id": "kgmj4c6ay7usov", "name": "På plats 1 dag/vecka från installationsstart (≈ 36 dagar)", "statusId": "s_ej", "resourceIds": ["k_pl"], "start": "2027-08-20", "end": "2028-05-09", "headcount": null, "collapsed": false, "subItems": [], "hours": 288}, {"id": "kgwew8n0zaxv4t", "name": "Byggmöten varannan vecka (AFD.333, samma dag)", "statusId": "s_ej", "resourceIds": ["k_pl"], "start": "2027-08-20", "end": "2028-05-09", "headcount": null, "collapsed": false, "subItems": [], "hours": 0}]}, {"id": "kgahmhbhzmmrnt", "name": "Etapp 2 – rivning bef. skola, skyddsrum, skolgård", "statusId": "s_ej", "resourceIds": ["k_pl", "k_mont"], "start": "2028-09-04", "end": "2029-10-01", "headcount": 1, "collapsed": false, "subItems": [{"id": "kgx8ialas1m1td", "name": "Urkoppling ev. befintlig styr före rivning", "statusId": "s_ej", "resourceIds": ["k_mont"], "start": "2028-09-04", "end": "2028-09-05", "headcount": 1, "collapsed": false, "subItems": []}, {"id": "kgv50zunkh6v91", "name": "Hus 5/6: LB04/LB05 summalarm, kabel, funktionskontroll", "statusId": "s_ej", "resourceIds": ["k_mont"], "start": "2029-03-05", "end": "2029-03-09", "headcount": 1, "collapsed": false, "subItems": []}, {"id": "kg4m2gk1sholh4", "name": "Utebelysning skolgård, slutlig inkoppling", "statusId": "s_ej", "resourceIds": ["k_mont"], "start": "2029-05-07", "end": "2029-05-09", "headcount": 1, "collapsed": false, "subItems": []}, {"id": "kgkyctypqida4o", "name": "Relationshandlingar etapp 2", "statusId": "s_ej", "resourceIds": ["k_proj"], "start": "2029-08-20", "end": "2029-09-14", "headcount": null, "collapsed": false, "subItems": [], "hours": 0}, {"id": "kg81gark51b6cm", "name": "Projektledning etapp 2 (ca 1 dag/månad)", "statusId": "s_ej", "resourceIds": ["k_pl"], "start": "2029-03-01", "end": "2029-09-28", "headcount": null, "collapsed": false, "subItems": [], "hours": 56}, {"id": "kgmddxnfopacsf", "name": "Slutbesiktning etapp 2 (AF 2029-09-31 → 2029-10-01)", "statusId": "s_krit", "resourceIds": [], "start": "2029-10-01", "end": "2029-10-01", "headcount": null, "collapsed": false, "subItems": []}]}]}], "ui": {"activeTab": "table", "groupBy": "project", "search": "", "filterResource": "", "filterStatus": "", "ganttZoom": "quarter", "ganttBaselines": {}, "meetingsProjectId": null, "notesProjectId": null}}</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script>
+(function(){
+"use strict";
+
+/* ======================= UTIL ======================= */
+function uid(){ return 'id'+Date.now().toString(36)+Math.random().toString(36).slice(2,9); }
+function debounce(fn,ms){ let t; return function(...a){ clearTimeout(t); t=setTimeout(()=>fn.apply(this,a),ms); }; }
+function clamp(n,min,max){ return Math.max(min,Math.min(max,n)); }
+const MONTHS = ['jan','feb','mar','apr','maj','jun','jul','aug','sep','okt','nov','dec'];
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+function addDays(iso,n){ const d=new Date(iso+'T00:00:00'); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); }
+function daysBetween(a,b){ return Math.round((new Date(b+'T00:00:00')-new Date(a+'T00:00:00'))/86400000); }
+// Work hours: Mon-Fri counted at 8h/day, inclusive of both start and end dates. Weekends contribute 0.
+function workHours(startIso,endIso){
+  if(!startIso || !endIso) return 0;
+  let d = new Date(startIso+'T00:00:00');
+  const endD = new Date(endIso+'T00:00:00');
+  let hours = 0;
+  while(d <= endD){
+    const day = d.getDay();
+    if(day>=1 && day<=5) hours += 8;
+    d.setDate(d.getDate()+1);
+  }
+  return hours;
+}
+// Arbetstimmar för ett objekt: manuellt angivna timmar om satta, annars summan av underobjekt,
+// annars vardagar × 8 h × antal på plats (minst 1). Milstolpar (start = slut utan antal) ger 0 h.
+function itemHours(it){
+  if(!it) return 0;
+  if(it.hours!=null && it.hours!=='' && !isNaN(Number(it.hours))) return Number(it.hours);
+  if(it.subItems && it.subItems.length) return it.subItems.reduce((a,si)=>a+itemHours(si),0);
+  if(!it.start || !it.end) return 0;
+  if(it.start===it.end && !(it.headcount>0)) return 0; // milstolpe
+  return workHours(it.start,it.end) * (it.headcount && it.headcount>0 ? it.headcount : 1);
+}
+function fmtDate(iso){
+  if(!iso) return '';
+  const d=new Date(iso+'T00:00:00');
+  return d.getDate()+' '+MONTHS[d.getMonth()]+' \''+String(d.getFullYear()).slice(2);
+}
+function fmtRange(a,b){
+  if(!a && !b) return '';
+  if(a && !b) return fmtDate(a)+' →';
+  if(!a && b) return '→ '+fmtDate(b);
+  return fmtDate(a)+' – '+fmtDate(b);
+}
+function escapeHtml(s){
+  return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function h(strings,...vals){ // tiny tagged template passthrough (kept simple)
+  return strings.reduce((acc,s,i)=> acc+s+(vals[i]!==undefined?vals[i]:''),'');
+}
+
+const PALETTE = ['#ff6b6b','#f0932b','#f6c445','#a3d94c','#34d399','#22c1c3','#4c9df6','#7c5cff','#c084fc','#f472b6','#ff2e88','#8895f7'];
+const PROJECT_COLORS = ['#ff2e88','#34d399','#4c9df6','#f6c445','#c084fc','#ff6b6b','#22c1c3','#f0932b'];
+const DEFAULT_TASK_TEMPLATES = ['Projektering','Konstruktion','Installation yttre','Programmering','Installation teknik','Driftsättning','Samordnad provning','Besiktning'];
+const DEFAULT_STATUSES = [
+  {id:'s_ej', name:'Ej påbörjat', color:'#f2727f'},
+  {id:'s_pagar', name:'Pågår', color:'#6fa8f5'},
+  {id:'s_avslut', name:'Avslutande fas', color:'#a78bfa'},
+  {id:'s_godkant', name:'Godkänt', color:'#a3d94c'},
+  {id:'s_underent', name:'Underentreprenör', color:'#f0b429'},
+  {id:'s_invantar', name:'Inväntar', color:'#ec4899'},
+  {id:'s_klar', name:'Klar', color:'#34d399'}
+];
+
+function defaultState(){
+  const resources = [];
+  for(let i=1;i<=10;i++){
+    resources.push({id:'res'+i, name:'Resurs '+i, initials:'R'+i, color:PALETTE[(i-1)%PALETTE.length]});
+  }
+  const statuses = DEFAULT_STATUSES.map(s=>({...s}));
+  const t = todayISO();
+  function mkItem(name,statusId,startOff,endOff,resIds,headcount,sub){
+    return {id:uid(), name, statusId, resourceIds:resIds||[], start:addDays(t,startOff), end:addDays(t,endOff), headcount:headcount==null?null:headcount, collapsed:true, subItems:sub||[]};
+  }
+  const projects = [
+    {
+      id:uid(), name:'Nynäshamn', color:PROJECT_COLORS[0], collapsed:false, notes:'', meetings:[],
+      items:[
+        mkItem('Programmering','s_pagar',-5,10,['res1','res2'],null,[
+          mkItem('PLC-program','s_pagar',-5,3,['res1'],null),
+          mkItem('HMI-gränssnitt','s_ej',2,10,['res2'],null)
+        ]),
+        mkItem('Driftsättning','s_ej',12,20,['res3'],2),
+        mkItem('Samordnad provning','s_avslut',21,25,['res1','res3'],3),
+        mkItem('Besiktning','s_avslut',26,28,['res4'],1)
+      ]
+    },
+    {
+      id:uid(), name:'Granbacken/Skärplinge Tierp', color:PROJECT_COLORS[1], collapsed:true, notes:'', meetings:[],
+      items:[
+        mkItem('Projektering','s_klar',-30,-15,['res5'],null),
+        mkItem('Installation yttre','s_pagar',-10,15,['res6','res7'],4),
+        mkItem('Programmering','s_ej',16,26,['res2'],null)
+      ]
+    },
+    {
+      id:uid(), name:'Forssjö Katrineholm', color:PROJECT_COLORS[2], collapsed:false, notes:'', meetings:[],
+      items:[
+        mkItem('Projektering','s_godkant',-40,-25,['res5'],null),
+        mkItem('Konstruktion','s_godkant',-24,-10,['res6'],null),
+        mkItem('Installation','s_underent',-9,18,['res8'],5),
+        mkItem('Programmering','s_pagar',5,22,['res1','res2'],null,[
+          mkItem('Kommunikation','s_pagar',5,14,['res1'],null),
+          mkItem('Larm & driftlogik','s_ej',12,22,['res2'],null)
+        ]),
+        mkItem('Driftsättning','s_invantar',23,30,['res3'],2),
+        mkItem('Samordnad provning','s_avslut',31,34,['res3','res4'],3),
+        mkItem('Besiktning','s_avslut',35,37,['res4'],1)
+      ]
+    }
+  ];
+  return {
+    version:1,
+    resources, statuses, taskTemplates:[...DEFAULT_TASK_TEMPLATES],
+    projects,
+    ui:{ activeTab:'table', groupBy:'project', search:'', filterResource:'', filterStatus:'', ganttZoom:'month', ganttBaselines:{}, meetingsProjectId:null, notesProjectId:null }
+  };
+}
+
+/* ======================= STATE ======================= */
+let state = null;
+let dirty = false;
+let fileHandle = null;
+
+function loadInitialState(){
+  const el = document.getElementById('app-data');
+  let parsed = null;
+  try{
+    const raw = el ? el.textContent.trim() : '';
+    if(raw && raw !== '__APP_DATA__'){ parsed = JSON.parse(raw); }
+  }catch(e){ console.warn('Kunde inte läsa inbäddad data', e); }
+  if(!parsed){
+    try{
+      const cached = localStorage.getItem('resursplanering_state');
+      if(cached) parsed = JSON.parse(cached);
+    }catch(e){}
+  }
+  if(!parsed) parsed = defaultState();
+  // fill gaps for forward-compat
+  parsed.ui = Object.assign({activeTab:'table', groupBy:'project', search:'', filterResource:'', filterStatus:'', ganttZoom:'month', ganttBaselines:{}, meetingsProjectId:null, notesProjectId:null}, parsed.ui||{});
+  parsed.taskTemplates = parsed.taskTemplates && parsed.taskTemplates.length ? parsed.taskTemplates : [...DEFAULT_TASK_TEMPLATES];
+  parsed.projects.forEach(p=>{ p.meetings = p.meetings||[]; p.notes = p.notes||''; p.items.forEach(it=>{ it.subItems = it.subItems||[]; }); });
+  state = parsed;
+}
+
+function markDirty(){ dirty = true; updateSaveIndicator(); saveLocalCache(); }
+const saveLocalCache = debounce(function(){
+  try{ localStorage.setItem('resursplanering_state', JSON.stringify(state)); }catch(e){}
+},400);
+
+function updateSaveIndicator(){
+  const el = document.getElementById('saveIndicator');
+  if(!el) return;
+  if(dirty){ el.textContent='Osparade ändringar'; el.className='save-indicator dirty'; }
+  else { el.textContent='Sparad'; el.className='save-indicator ok'; }
+}
+
+function getResource(id){ return state.resources.find(r=>r.id===id); }
+function getStatus(id){ return state.statuses.find(s=>s.id===id) || {name:'–',color:'#555'}; }
+function getProject(id){ return state.projects.find(p=>p.id===id); }
+
+/* ======================= FILE SAVE / LOAD ======================= */
+const DB_NAME='resursplanering_db', STORE='handles';
+function idbOpen(){
+  return new Promise((resolve,reject)=>{
+    if(!('indexedDB' in window)) return reject('no idb');
+    const req = indexedDB.open(DB_NAME,1);
+    req.onupgradeneeded = ()=>{ req.result.createObjectStore(STORE); };
+    req.onsuccess = ()=>resolve(req.result);
+    req.onerror = ()=>reject(req.error);
+  });
+}
+async function idbSet(key,val){
+  // Best-effort only: this just remembers the file handle for next time you open the tool.
+  // A failure here (blocked storage, non-cloneable handle, quota, …) must never block an actual save.
+  try{
+    const db = await idbOpen();
+    await new Promise((res,rej)=>{
+      try{
+        const tx = db.transaction(STORE,'readwrite');
+        tx.objectStore(STORE).put(val,key);
+        tx.oncomplete = ()=>res();
+        tx.onerror = ()=>rej(tx.error);
+      }catch(e){ rej(e); }
+    });
+  }catch(e){ console.warn('Kunde inte spara filkopplingen för nästa gång (påverkar inte sparandet nu):', e); }
+}
+async function idbGet(key){
+  try{
+    const db = await idbOpen();
+    return await new Promise((res,rej)=>{
+      try{
+        const tx = db.transaction(STORE,'readonly');
+        const r = tx.objectStore(STORE).get(key);
+        r.onsuccess = ()=>res(r.result);
+        r.onerror = ()=>rej(r.error);
+      }catch(e){ rej(e); }
+    });
+  }catch(e){ return null; }
+}
+
+async function verifyPermission(handle, readWrite){
+  const opts = readWrite ? {mode:'readwrite'} : {};
+  try{
+    if((await handle.queryPermission(opts))==='granted') return true;
+    if((await handle.requestPermission(opts))==='granted') return true;
+  }catch(e){ console.warn('verifyPermission fel:', e); }
+  return false;
+}
+
+function updateConnectButton(){
+  const btn = document.getElementById('btnConnectFile');
+  if(!btn) return;
+  btn.textContent = fileHandle ? ('📎 '+fileHandle.name) : 'Anslut fil';
+  btn.title = fileHandle ? ('Kopplad till '+fileHandle.name+'. Klicka för att byta fil.') : 'Välj vilken fil på din dator (t.ex. i OneDrive) som ska uppdateras när du sparar';
+}
+
+// Opens the file picker so the user selects the *same* file this tool lives in on disk,
+// so future "Spara" clicks can overwrite it directly instead of downloading a copy.
+async function pickFileHandle(){
+  if(!window.showOpenFilePicker) return null;
+  try{
+    const [handle] = await window.showOpenFilePicker({ types:[{description:'HTML-fil', accept:{'text/html':['.html','.htm']}}] });
+    const ok = await verifyPermission(handle,true);
+    if(!ok){ alert('Du behöver ge behörighet att skriva till filen för att detta ska fungera.'); return null; }
+    fileHandle = handle;
+    await idbSet('fileHandle', handle);
+    updateConnectButton();
+    return handle;
+  }catch(e){ return null; /* user cancelled the picker */ }
+}
+
+async function connectFile(){
+  if(!window.showOpenFilePicker){
+    toast('Din webbläsare (t.ex. Firefox/Safari) stödjer inte att spara direkt till fil. Använd Chrome eller Edge, eller använd "Spara" för att ladda ner en uppdaterad kopia som du själv ersätter filen med i OneDrive.');
+    return;
+  }
+  const handle = await pickFileHandle();
+  if(handle) toast('Ansluten till '+handle.name+'. Klicka "Spara" för att uppdatera filen direkt.');
+}
+
+async function tryRestoreFileHandle(){
+  try{
+    const handle = await idbGet('fileHandle');
+    if(handle){
+      fileHandle = handle;
+      updateConnectButton();
+    }
+  }catch(e){}
+}
+
+function serializeDocument(){
+  let json = JSON.stringify(state);
+  json = json.replace(/<\//g,'<\\/');
+  const el = document.getElementById('app-data');
+  el.textContent = json;
+  return '<!doctype html>\n'+document.documentElement.outerHTML;
+}
+
+function downloadHtmlFallback(html){
+  const blob = new Blob([html], {type:'text/html'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (fileHandle && fileHandle.name) ? fileHandle.name : 'resursplanering.html';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 3000);
+}
+
+async function saveToFile(){
+  closeAllTransient();
+  const html = serializeDocument();
+
+  if(!window.showOpenFilePicker){
+    // Browser has no File System Access API at all (e.g. Firefox/Safari) -> only option is download+replace.
+    downloadHtmlFallback(html);
+    dirty = false; updateSaveIndicator();
+    alert('Din webbläsare tillåter inte att en webbsida skriver direkt till en fil på din dator, så en uppdaterad kopia laddades ner istället. Ersätt filen i din OneDrive-mapp med den nedladdade filen (samma filnamn skriver över den gamla). Vill du slippa detta steg, öppna filen i Chrome eller Edge istället.');
+    return;
+  }
+
+  let handle = fileHandle;
+  if(!handle){
+    // Not connected yet this session -> ask the user to pick the same file, right now, as part of Spara.
+    handle = await pickFileHandle();
+  }
+  if(!handle){
+    downloadHtmlFallback(html);
+    dirty = false; updateSaveIndicator();
+    toast('Ingen fil vald – en kopia laddades ner istället. Nästa gång du klickar Spara kan du välja samma fil i din OneDrive-mapp för att skriva direkt till den.');
+    return;
+  }
+
+  try{
+    const granted = await verifyPermission(handle,true);
+    if(!granted) throw new Error('Behörighet att skriva nekades.');
+    const writable = await handle.createWritable();
+    await writable.write(html);
+    await writable.close();
+    dirty = false; updateSaveIndicator();
+    toast('Sparad till '+handle.name);
+  }catch(e){
+    console.error('Kunde inte skriva till filen:', e);
+    downloadHtmlFallback(html);
+    dirty = false; updateSaveIndicator();
+    alert('Kunde inte skriva direkt till "'+handle.name+'" (felmeddelande: '+(e && e.message ? e.message : e)+').\n\nEn uppdaterad kopia laddades ner istället – ersätt filen i din OneDrive-mapp med den. Vanliga orsaker: filen är öppen/låst av OneDrive just nu, filen är flyttad/borttagen, eller så nekades behörigheten.\n\nDu kan klicka "Anslut fil" och välja filen på nytt för att försöka igen.');
+    fileHandle = null; updateConnectButton();
+  }
+}
+
+function closeAllTransient(){
+  document.querySelectorAll('.popover').forEach(p=>p.remove());
+  const mr = document.getElementById('modal-root'); if(mr) mr.innerHTML='';
+}
+
+/* ======================= TOAST ======================= */
+let toastTimer=null;
+function toast(msg){
+  let t = document.getElementById('toastEl');
+  if(!t){ t=document.createElement('div'); t.id='toastEl'; t.className='toast'; document.body.appendChild(t); }
+  t.textContent = msg; t.style.display='block';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>{ t.style.display='none'; }, 3200);
+}
+
+/* ======================= RENDER: SHELL ======================= */
+const TABS = [
+  {id:'table', label:'Huvudtabell'},
+  {id:'gantt', label:'Gantt'},
+  {id:'timeline', label:'Tidslinje'},
+  {id:'meetings', label:'Status Meetings'},
+  {id:'notes', label:'Anteckningar'}
+];
+
+function renderTabs(){
+  const el = document.getElementById('tabs');
+  el.innerHTML = TABS.map(t=>`<div class="tab ${state.ui.activeTab===t.id?'active':''}" data-tab="${t.id}">${t.label}</div>`).join('');
+  el.querySelectorAll('.tab').forEach(node=>{
+    node.addEventListener('click', ()=>{ state.ui.activeTab = node.dataset.tab; markDirty(); renderAll(); });
+  });
+}
+
+function renderAll(){
+  renderTabs();
+  renderToolbar();
+  renderMain();
+}
+
+function renderToolbar(){
+  const el = document.getElementById('toolbar');
+  const tab = state.ui.activeTab;
+  if(tab==='table'){
+    el.innerHTML = `
+      <button class="btn primary" id="tb-newproject">+ Nytt projekt</button>
+      <button class="btn" id="tb-newitem">+ Nytt objekt</button>
+      <div class="sep"></div>
+      <input class="search" id="tb-search" placeholder="🔎 Sök" value="${escapeHtml(state.ui.search)}">
+      <select id="tb-person"><option value="">👤 Person: Alla</option>${state.resources.map(r=>`<option value="${r.id}" ${state.ui.filterResource===r.id?'selected':''}>${escapeHtml(r.name)}</option>`).join('')}</select>
+      <select id="tb-status"><option value="">🚦 Status: Alla</option>${state.statuses.map(s=>`<option value="${s.id}" ${state.ui.filterStatus===s.id?'selected':''}>${escapeHtml(s.name)}</option>`).join('')}</select>
+      <div class="sep"></div>
+      <span class="toolbar-label">Gruppera efter</span>
+      <select id="tb-groupby">
+        <option value="project" ${state.ui.groupBy==='project'?'selected':''}>Projekt</option>
+        <option value="status" ${state.ui.groupBy==='status'?'selected':''}>Status</option>
+        <option value="resource" ${state.ui.groupBy==='resource'?'selected':''}>Resurs</option>
+      </select>
+    `;
+    document.getElementById('tb-newproject').onclick = addProject;
+    document.getElementById('tb-newitem').onclick = ()=>{ if(state.projects.length){ openAddItemMenu(state.projects[0].id, document.getElementById('tb-newitem')); } else { toast('Skapa ett projekt först.'); } };
+    document.getElementById('tb-search').oninput = debounce(e=>{ state.ui.search=e.target.value; markDirty(); renderMain(); },150);
+    document.getElementById('tb-person').onchange = e=>{ state.ui.filterResource=e.target.value; markDirty(); renderMain(); };
+    document.getElementById('tb-status').onchange = e=>{ state.ui.filterStatus=e.target.value; markDirty(); renderMain(); };
+    document.getElementById('tb-groupby').onchange = e=>{ state.ui.groupBy=e.target.value; markDirty(); renderMain(); };
+  } else if(tab==='gantt' || tab==='timeline'){
+    el.innerHTML = `
+      <button class="btn" id="tb-baseline-set">📌 Sätt baslinje</button>
+      <button class="btn" id="tb-baseline-clear">✖ Ta bort baslinje</button>
+      <div class="sep"></div>
+      <button class="btn" id="tb-autofit">↔ Autoanpassa</button>
+      <select id="tb-zoom">
+        <option value="week" ${state.ui.ganttZoom==='week'?'selected':''}>Veckor</option>
+        <option value="month" ${state.ui.ganttZoom==='month'?'selected':''}>Månader</option>
+        <option value="quarter" ${state.ui.ganttZoom==='quarter'?'selected':''}>Kvartal</option>
+      </select>
+      <div class="sep"></div>
+      <button class="btn primary" id="tb-export-xlsx">⇩ Excel (.xlsx)</button>
+      <button class="btn primary" id="tb-export-pdf">⇩ PDF</button>
+    `;
+    document.getElementById('tb-baseline-set').onclick = ()=>{ setBaseline(); };
+    document.getElementById('tb-baseline-clear').onclick = ()=>{ state.ui.ganttBaselines={}; markDirty(); renderMain(); };
+    document.getElementById('tb-autofit').onclick = ()=>{ renderMain(); toast('Anpassat efter data.'); };
+    document.getElementById('tb-zoom').onchange = e=>{ state.ui.ganttZoom=e.target.value; markDirty(); renderMain(); };
+    document.getElementById('tb-export-xlsx').onclick = exportExcel;
+    document.getElementById('tb-export-pdf').onclick = exportPdf;
+  } else if(tab==='meetings'){
+    el.innerHTML = `
+      <span class="toolbar-label">Projekt</span>
+      <select id="tb-meeting-project" class="side-select">${state.projects.map(p=>`<option value="${p.id}" ${state.ui.meetingsProjectId===p.id?'selected':''}>${escapeHtml(p.name)}</option>`).join('')}</select>
+      <button class="btn primary" id="tb-new-meeting">+ Nytt möte</button>
+    `;
+    if(!state.ui.meetingsProjectId && state.projects.length) state.ui.meetingsProjectId = state.projects[0].id;
+    const sel = document.getElementById('tb-meeting-project');
+    if(sel){ sel.onchange = e=>{ state.ui.meetingsProjectId=e.target.value; markDirty(); renderMain(); }; }
+    const btn = document.getElementById('tb-new-meeting');
+    if(btn){ btn.onclick = addMeeting; }
+  } else if(tab==='notes'){
+    el.innerHTML = `
+      <span class="toolbar-label">Projekt</span>
+      <select id="tb-notes-project" class="side-select">${state.projects.map(p=>`<option value="${p.id}" ${state.ui.notesProjectId===p.id?'selected':''}>${escapeHtml(p.name)}</option>`).join('')}</select>
+    `;
+    if(!state.ui.notesProjectId && state.projects.length) state.ui.notesProjectId = state.projects[0].id;
+    const sel = document.getElementById('tb-notes-project');
+    if(sel){ sel.onchange = e=>{ state.ui.notesProjectId=e.target.value; markDirty(); renderMain(); }; }
+  }
+}
+
+function renderMain(){
+  const el = document.getElementById('main');
+  if(!state.projects.length && state.ui.activeTab!=='notes' && state.ui.activeTab!=='meetings'){
+    el.innerHTML = `<div class="empty-state"><div style="font-size:32px;">📋</div><div>Inga projekt ännu.</div><button class="btn primary" id="empty-add">+ Nytt projekt</button></div>`;
+    document.getElementById('empty-add').onclick = addProject;
+    return;
+  }
+  if(state.ui.activeTab==='table') renderTable(el);
+  else if(state.ui.activeTab==='gantt') renderGantt(el,false);
+  else if(state.ui.activeTab==='timeline') renderGantt(el,true);
+  else if(state.ui.activeTab==='meetings') renderMeetings(el);
+  else if(state.ui.activeTab==='notes') renderNotes(el);
+}
+
+/* ======================= FILTER HELPERS ======================= */
+function itemMatchesFilter(item){
+  const s = state.ui.search.trim().toLowerCase();
+  const matchesSearch = !s || item.name.toLowerCase().includes(s) || item.subItems.some(si=>si.name.toLowerCase().includes(s));
+  const matchesResource = !state.ui.filterResource || item.resourceIds.includes(state.ui.filterResource) || item.subItems.some(si=>si.resourceIds.includes(state.ui.filterResource));
+  const matchesStatus = !state.ui.filterStatus || item.statusId===state.ui.filterStatus || item.subItems.some(si=>si.statusId===state.ui.filterStatus);
+  return matchesSearch && matchesResource && matchesStatus;
+}
+
+/* ======================= TABLE VIEW ======================= */
+function renderTable(el){
+  if(state.ui.groupBy==='project'){
+    el.innerHTML = state.projects.map(p=>renderProjectGroupHtml(p)).join('');
+  } else {
+    // group by status or resource: flatten all items (with project label) into synthetic groups
+    const buckets = new Map();
+    const key = state.ui.groupBy;
+    state.projects.forEach(p=>{
+      p.items.filter(itemMatchesFilter).forEach(it=>{
+        const keys = key==='status' ? [it.statusId] : (it.resourceIds.length? it.resourceIds : ['_none']);
+        keys.forEach(k=>{
+          if(!buckets.has(k)) buckets.set(k, []);
+          buckets.get(k).push({item:it, project:p});
+        });
+      });
+    });
+    let html = '';
+    for(const [k, rows] of buckets){
+      const label = key==='status' ? getStatus(k).name : (k==='_none' ? 'Ingen resurs' : getResource(k).name);
+      const color = key==='status' ? getStatus(k).color : (k==='_none' ? '#555' : getResource(k).color);
+      html += `<div class="project-group"><div class="project-head" style="border-left-color:${color}"><span class="project-name" style="color:${color}">${escapeHtml(label)}</span><span class="project-count">${rows.length} objekt</span></div>`;
+      html += `<div class="col-headers"><div>Objekt</div><div>Resurs</div><div>Status</div><div>Tidslinje</div><div>Antal på plats</div><div></div></div>`;
+      html += rows.map(r=>renderItemRowHtml(r.project.id, r.item, false, r.project.name)).join('');
+      html += `</div>`;
+    }
+    el.innerHTML = html || `<div class="empty-state">Inga objekt matchar filtret.</div>`;
+  }
+  bindTableEvents(el);
+}
+
+function projectRangeAndSegments(p){
+  const all = [];
+  p.items.forEach(it=>{ all.push(it); it.subItems.forEach(si=>all.push(si)); });
+  const withDates = all.filter(x=>x.start && x.end);
+  if(!withDates.length) return {min:null,max:null,segments:[]};
+  const min = withDates.reduce((a,b)=> a.start<b.start? a:b).start;
+  const max = withDates.reduce((a,b)=> a.end>b.end? a:b).end;
+  const total = Math.max(1, daysBetween(min,max));
+  const segments = withDates.map(x=>{
+    const offset = daysBetween(min,x.start)/total*100;
+    const width = Math.max(2, daysBetween(x.start,x.end)/total*100);
+    return {left:offset, width, color:getStatus(x.statusId).color};
+  });
+  return {min,max,segments};
+}
+
+function renderProjectGroupHtml(p){
+  const items = p.items.filter(itemMatchesFilter);
+  const {min,max,segments} = projectRangeAndSegments(p);
+  let html = `<div class="project-group" data-project="${p.id}">`;
+  html += `<div class="project-head ${p.collapsed?'collapsed':''}" data-toggle-project="${p.id}" style="border-left-color:${p.color}">`;
+  html += `<span class="chev">▾</span>`;
+  html += `<input class="project-name" data-rename-project="${p.id}" value="${escapeHtml(p.name)}" style="color:${p.color}" onclick="event.stopPropagation()">`;
+  html += `<span class="project-count">${p.items.length} objekt</span>`;
+  html += `<span class="spacer"></span>`;
+  if(segments.length){
+    html += `<div class="project-span-bar">${segments.map(s=>`<div style="margin-left:${s.left}%;width:${s.width}%;background:${s.color};position:relative;left:0"></div>`).join('')}</div>`;
+    html += `<div class="project-range-text">${fmtRange(min,max)}</div>`;
+  } else {
+    html += `<div class="project-range-text">Inga datum satta</div>`;
+  }
+  html += `<button class="icon-btn" data-del-project="${p.id}" title="Ta bort projekt" onclick="event.stopPropagation()">🗑</button>`;
+  html += `</div>`;
+  if(!p.collapsed){
+    html += `<div class="col-headers"><div>Objekt</div><div>Resurs</div><div>Status</div><div>Tidslinje</div><div>Antal på plats</div><div></div></div>`;
+    html += items.map(it=>renderItemRowHtml(p.id, it, true)).join('');
+    html += `<div class="add-row"><button data-add-item="${p.id}">+ Lägg till objekt</button></div>`;
+  }
+  html += `</div>`;
+  return html;
+}
+
+function renderItemRowHtml(projectId, item, allowSub, projectLabel){
+  let html = `<div class="item-row" data-item="${item.id}" data-project="${projectId}">`;
+  html += `<div class="cell name-cell">`;
+  html += `<input type="checkbox" class="row-check">`;
+  html += allowSub ? `<button class="chev-btn" data-toggle-item="${item.id}">${item.subItems.length? (item.collapsed?'▸':'▾') : ''}</button>` : `<span class="chev-btn invisible"></span>`;
+  html += `<input class="name-text" data-rename-item="${item.id}" value="${escapeHtml(item.name)}">`;
+  if(projectLabel) html += `<span class="hint" style="margin-left:4px;">(${escapeHtml(projectLabel)})</span>`;
+  html += `</div>`;
+  html += renderResourceCell(item);
+  html += renderStatusCell(item);
+  html += renderDateCell(item);
+  html += `<div class="cell"><input type="number" min="0" class="headcount-input" data-headcount="${item.id}" value="${item.headcount==null?'':item.headcount}" placeholder="–"></div>`;
+  html += `<div class="row-actions"><button class="icon-btn" data-add-sub="${item.id}" title="Lägg till underobjekt">➕</button><button class="icon-btn" data-del-item="${item.id}" title="Ta bort">🗑</button></div>`;
+  html += `</div>`;
+  if(allowSub && !item.collapsed){
+    item.subItems.forEach(si=>{
+      html += `<div class="subitem-row" data-subitem="${si.id}" data-item="${item.id}">`;
+      html += `<div class="cell name-cell"><span class="chev-btn invisible"></span><input class="name-text" data-rename-sub="${si.id}" data-parent="${item.id}" value="${escapeHtml(si.name)}"></div>`;
+      html += renderResourceCell(si,true);
+      html += renderStatusCell(si,true);
+      html += renderDateCell(si,true);
+      html += `<div class="cell"><input type="number" min="0" class="headcount-input" data-headcount-sub="${si.id}" data-parent="${item.id}" value="${si.headcount==null?'':si.headcount}" placeholder="–"></div>`;
+      html += `<div class="row-actions"><button class="icon-btn" data-del-sub="${si.id}" data-parent="${item.id}" title="Ta bort">🗑</button></div>`;
+      html += `</div>`;
+    });
+  }
+  return html;
+}
+
+function renderResourceCell(row,isSub){
+  const chips = row.resourceIds.map(id=>{ const r=getResource(id); if(!r) return ''; return `<div class="avatar" style="background:${r.color}" title="${escapeHtml(r.name)}">${escapeHtml(r.initials)}</div>`; }).join('');
+  const attr = isSub? `data-assign-sub="${row.id}"` : `data-assign="${row.id}"`;
+  return `<div class="cell"><div class="avatars">${chips}</div><button class="avatar-add" ${attr} title="Tilldela resurs">+</button></div>`;
+}
+function renderStatusCell(row,isSub){
+  const st = getStatus(row.statusId);
+  const attr = isSub? `data-status-sub="${row.id}"` : `data-status="${row.id}"`;
+  return `<div class="cell"><button class="status-pill" ${attr} style="background:${st.color}">${escapeHtml(st.name)}</button></div>`;
+}
+function renderDateCell(row,isSub){
+  const attr = isSub? `data-date-sub="${row.id}"` : `data-date="${row.id}"`;
+  const label = fmtRange(row.start,row.end) || 'Sätt datum';
+  return `<div class="cell"><button class="date-pill ${row.start?'':'empty'}" ${attr}>${label}</button></div>`;
+}
+
+function findRow(id){
+  for(const p of state.projects){
+    for(const it of p.items){
+      if(it.id===id) return {row:it, project:p, parentItem:null};
+      for(const si of it.subItems){ if(si.id===id) return {row:si, project:p, parentItem:it}; }
+    }
+  }
+  return null;
+}
+
+function bindTableEvents(el){
+  el.querySelectorAll('[data-toggle-project]').forEach(node=>{
+    node.addEventListener('click', ()=>{ const p=getProject(node.dataset.toggleProject); p.collapsed=!p.collapsed; markDirty(); renderMain(); });
+  });
+  el.querySelectorAll('[data-rename-project]').forEach(node=>{
+    node.addEventListener('change', ()=>{ getProject(node.dataset.renameProject).name = node.value.trim()||'Namnlöst projekt'; markDirty(); renderMain(); });
+    node.addEventListener('click', e=>e.stopPropagation());
+  });
+  el.querySelectorAll('[data-del-project]').forEach(node=>{
+    node.addEventListener('click', ()=>{ if(confirm('Ta bort projektet och alla dess objekt?')){ state.projects = state.projects.filter(p=>p.id!==node.dataset.delProject); markDirty(); renderMain(); } });
+  });
+  el.querySelectorAll('[data-add-item]').forEach(node=>{
+    node.addEventListener('click', ()=> openAddItemMenu(node.dataset.addItem, node));
+  });
+  el.querySelectorAll('[data-toggle-item]').forEach(node=>{
+    node.addEventListener('click', ()=>{ const f=findRow(node.dataset.toggleItem); if(f){ f.row.collapsed=!f.row.collapsed; markDirty(); renderMain(); } });
+  });
+  el.querySelectorAll('[data-rename-item]').forEach(node=>{
+    node.addEventListener('change', ()=>{ findRow(node.dataset.renameItem).row.name = node.value.trim()||'Namnlöst objekt'; markDirty(); renderMain(); });
+  });
+  el.querySelectorAll('[data-rename-sub]').forEach(node=>{
+    node.addEventListener('change', ()=>{ findRow(node.dataset.renameSub).row.name = node.value.trim()||'Namnlöst underobjekt'; markDirty(); renderMain(); });
+  });
+  el.querySelectorAll('[data-del-item]').forEach(node=>{
+    node.addEventListener('click', ()=>{ if(confirm('Ta bort objektet?')){ const f=findRow(node.dataset.delItem); f.project.items = f.project.items.filter(i=>i.id!==node.dataset.delItem); markDirty(); renderMain(); } });
+  });
+  el.querySelectorAll('[data-del-sub]').forEach(node=>{
+    node.addEventListener('click', ()=>{ if(confirm('Ta bort underobjektet?')){ const parent = findRow(node.dataset.parent).row; parent.subItems = parent.subItems.filter(s=>s.id!==node.dataset.delSub); markDirty(); renderMain(); } });
+  });
+  el.querySelectorAll('[data-add-sub]').forEach(node=>{
+    node.addEventListener('click', ()=>{
+      const f = findRow(node.dataset.addSub);
+      f.row.collapsed = false;
+      f.row.subItems.push({id:uid(), name:'Nytt underobjekt', statusId:state.statuses[0].id, resourceIds:[], start:null, end:null, headcount:null});
+      markDirty(); renderMain();
+    });
+  });
+  el.querySelectorAll('[data-headcount]').forEach(node=>{
+    node.addEventListener('change', ()=>{ const f=findRow(node.dataset.headcount); f.row.headcount = node.value===''? null : Math.max(0,parseInt(node.value,10)||0); markDirty(); });
+  });
+  el.querySelectorAll('[data-headcount-sub]').forEach(node=>{
+    node.addEventListener('change', ()=>{ const f=findRow(node.dataset.headcountSub); f.row.headcount = node.value===''? null : Math.max(0,parseInt(node.value,10)||0); markDirty(); });
+  });
+  el.querySelectorAll('[data-assign]').forEach(node=> node.addEventListener('click', ()=>openAssignPopover(node.dataset.assign, node)));
+  el.querySelectorAll('[data-assign-sub]').forEach(node=> node.addEventListener('click', ()=>openAssignPopover(node.dataset.assignSub, node)));
+  el.querySelectorAll('[data-status]').forEach(node=> node.addEventListener('click', ()=>openStatusPopover(node.dataset.status, node)));
+  el.querySelectorAll('[data-status-sub]').forEach(node=> node.addEventListener('click', ()=>openStatusPopover(node.dataset.statusSub, node)));
+  el.querySelectorAll('[data-date]').forEach(node=> node.addEventListener('click', ()=>openDatePopover(node.dataset.date, node)));
+  el.querySelectorAll('[data-date-sub]').forEach(node=> node.addEventListener('click', ()=>openDatePopover(node.dataset.dateSub, node)));
+}
+
+function addProject(){
+  const name = prompt('Namn på nytt projekt:', 'Nytt projekt');
+  if(name===null) return;
+  state.projects.push({id:uid(), name:name.trim()||'Nytt projekt', color:PROJECT_COLORS[state.projects.length%PROJECT_COLORS.length], collapsed:false, notes:'', meetings:[], items:[]});
+  markDirty(); renderAll();
+}
+
+function openAddItemMenu(projectId, anchor){
+  closeAllTransient();
+  const pop = document.createElement('div');
+  pop.className = 'popover';
+  pop.innerHTML = `<h4>Lägg till objekt</h4>` + state.taskTemplates.map(t=>`<div class="opt-row" data-tpl="${escapeHtml(t)}" style="cursor:pointer">${escapeHtml(t)}</div>`).join('') + `<div class="opt-row" data-tpl="__custom__" style="cursor:pointer;color:var(--accent2)">+ Eget namn…</div>`;
+  positionPopover(pop, anchor);
+  pop.querySelectorAll('[data-tpl]').forEach(node=>{
+    node.addEventListener('click', ()=>{
+      let name = node.dataset.tpl;
+      if(name==='__custom__'){ name = prompt('Namn på objekt:',''); if(!name) { pop.remove(); return; } }
+      const p = getProject(projectId);
+      p.items.push({id:uid(), name, statusId:state.statuses[0].id, resourceIds:[], start:null, end:null, headcount:null, collapsed:true, subItems:[]});
+      markDirty(); renderAll(); pop.remove();
+    });
+  });
+}
+
+function positionPopover(pop, anchor){
+  document.body.appendChild(pop);
+  const r = anchor.getBoundingClientRect();
+  let top = r.bottom + window.scrollY + 4;
+  let left = r.left + window.scrollX;
+  document.getElementById('modal-root'); // noop keep ref
+  pop.style.top = top+'px'; pop.style.left = left+'px';
+  const rect = pop.getBoundingClientRect();
+  if(rect.right > window.innerWidth - 8){ pop.style.left = Math.max(8, window.innerWidth - rect.width - 8) + 'px'; }
+  setTimeout(()=>{
+    document.addEventListener('click', function handler(e){
+      if(!pop.contains(e.target) && e.target!==anchor){ pop.remove(); document.removeEventListener('click', handler); }
+    });
+  },0);
+}
+
+function openAssignPopover(rowId, anchor){
+  closeAllTransient();
+  const f = findRow(rowId); if(!f) return;
+  const pop = document.createElement('div'); pop.className='popover';
+  pop.innerHTML = `<h4>Tilldela resurser</h4>` + state.resources.map(r=>`
+    <label class="opt-row"><input type="checkbox" data-res="${r.id}" ${f.row.resourceIds.includes(r.id)?'checked':''}>
+    <span class="avatar" style="background:${r.color};margin:0;">${escapeHtml(r.initials)}</span> ${escapeHtml(r.name)}</label>`).join('');
+  positionPopover(pop, anchor);
+  pop.querySelectorAll('[data-res]').forEach(cb=>{
+    cb.addEventListener('change', ()=>{
+      const id = cb.dataset.res;
+      if(cb.checked){ if(!f.row.resourceIds.includes(id)) f.row.resourceIds.push(id); }
+      else { f.row.resourceIds = f.row.resourceIds.filter(x=>x!==id); }
+      markDirty(); renderMain();
+    });
+  });
+}
+
+function openStatusPopover(rowId, anchor){
+  closeAllTransient();
+  const f = findRow(rowId); if(!f) return;
+  const pop = document.createElement('div'); pop.className='popover';
+  pop.innerHTML = `<h4>Status</h4>` + state.statuses.map(s=>`<div class="opt-row" data-st="${s.id}" style="cursor:pointer"><span class="swatch" style="background:${s.color}"></span> ${escapeHtml(s.name)}</div>`).join('');
+  positionPopover(pop, anchor);
+  pop.querySelectorAll('[data-st]').forEach(node=>{
+    node.addEventListener('click', ()=>{ f.row.statusId = node.dataset.st; markDirty(); renderMain(); });
+  });
+}
+
+function openDatePopover(rowId, anchor){
+  closeAllTransient();
+  const f = findRow(rowId); if(!f) return;
+  const pop = document.createElement('div'); pop.className='popover';
+  pop.innerHTML = `<h4>Tidslinje</h4>
+    <div class="field"><label>Start</label><input type="date" id="pop-start" value="${f.row.start||''}"></div>
+    <div class="field"><label>Slut</label><input type="date" id="pop-end" value="${f.row.end||''}"></div>
+    <div class="hint" id="pop-hours">Vardagar (mån–fre) räknas som 8 arbetstimmar/dag.</div>
+    <div class="field"><label>Timmar (valfritt – ersätter beräknat värde)</label><input type="number" min="0" step="1" id="pop-hrs" value="${f.row.hours==null?'':f.row.hours}" placeholder="beräknas"></div>
+    <button class="btn primary small" id="pop-save">Spara</button> <button class="btn small" id="pop-clear">Rensa</button>`;
+  positionPopover(pop, anchor);
+  function updateHoursHint(){
+    const s = pop.querySelector('#pop-start').value, e = pop.querySelector('#pop-end').value;
+    const hintEl = pop.querySelector('#pop-hours');
+    if(s && e){
+      const a = s<=e ? s : e, b = s<=e ? e : s;
+      const hc = f.row.headcount && f.row.headcount>0 ? f.row.headcount : 1;
+      hintEl.textContent = (workHours(a,b)*hc) + ' arbetstimmar (' + (workHours(a,b)/8) + ' vardagar × 8 h × ' + hc + ' pers, ' + daysBetween(a,b) + ' kalenderdagar)';
+    } else {
+      hintEl.textContent = 'Vardagar (mån–fre) räknas som 8 arbetstimmar/dag.';
+    }
+  }
+  pop.querySelector('#pop-start').addEventListener('input', updateHoursHint);
+  pop.querySelector('#pop-end').addEventListener('input', updateHoursHint);
+  updateHoursHint();
+  pop.querySelector('#pop-save').addEventListener('click', ()=>{
+    const s = pop.querySelector('#pop-start').value, e = pop.querySelector('#pop-end').value;
+    f.row.start = s||null; f.row.end = e||null;
+    const hv = pop.querySelector('#pop-hrs').value; f.row.hours = hv==='' ? null : Number(hv);
+    if(f.row.start && f.row.end && f.row.end < f.row.start){ const tmp=f.row.start; f.row.start=f.row.end; f.row.end=tmp; }
+    markDirty(); renderAll(); pop.remove();
+  });
+  pop.querySelector('#pop-clear').addEventListener('click', ()=>{ f.row.start=null; f.row.end=null; markDirty(); renderAll(); pop.remove(); });
+}
+
+/* ======================= GANTT / TIMELINE VIEW ======================= */
+function collectAllDated(){
+  const arr = [];
+  state.projects.forEach(p=> p.items.forEach(it=>{ if(it.start&&it.end) arr.push(it); it.subItems.forEach(si=>{ if(si.start&&si.end) arr.push(si); }); }));
+  return arr;
+}
+
+function ganttRange(){
+  const arr = collectAllDated();
+  if(!arr.length){ const t=todayISO(); return {min:t, max:addDays(t,60)}; }
+  let min = arr[0].start, max = arr[0].end;
+  arr.forEach(x=>{ if(x.start<min) min=x.start; if(x.end>max) max=x.end; });
+  min = addDays(min,-3); max = addDays(max,3);
+  return {min,max};
+}
+
+function setBaseline(){
+  const map = {};
+  state.projects.forEach(p=> p.items.forEach(it=>{ if(it.start&&it.end) map[it.id]={start:it.start,end:it.end}; it.subItems.forEach(si=>{ if(si.start&&si.end) map[si.id]={start:si.start,end:si.end}; }); }));
+  state.ui.ganttBaselines = map;
+  markDirty(); renderMain();
+  toast('Baslinje satt.');
+}
+
+function renderGantt(el, simplified){
+  const {min,max} = ganttRange();
+  const totalDays = Math.max(1, daysBetween(min,max));
+  const zoom = state.ui.ganttZoom;
+  const dayWidth = zoom==='week' ? 18 : zoom==='month' ? 6 : 2.2;
+  const totalWidth = Math.max(600, totalDays*dayWidth);
+
+  // header columns
+  let headerCols = [];
+  if(zoom==='week'){
+    let cur = min;
+    while(cur<=max){ const next=addDays(cur,7); headerCols.push({label:fmtDate(cur), start:cur, end:next}); cur=next; }
+  } else if(zoom==='month'){
+    let d = new Date(min+'T00:00:00'); d.setDate(1);
+    while(d.toISOString().slice(0,10) <= max){
+      const start = d.toISOString().slice(0,10);
+      const nd = new Date(d); nd.setMonth(nd.getMonth()+1);
+      headerCols.push({label:MONTHS[d.getMonth()]+' \''+String(d.getFullYear()).slice(2), start, end:nd.toISOString().slice(0,10)});
+      d = nd;
+    }
+  } else {
+    let d = new Date(min+'T00:00:00'); d.setMonth(Math.floor(d.getMonth()/3)*3,1);
+    while(d.toISOString().slice(0,10) <= max){
+      const start = d.toISOString().slice(0,10);
+      const nd = new Date(d); nd.setMonth(nd.getMonth()+3);
+      const q = Math.floor(d.getMonth()/3)+1;
+      headerCols.push({label:'Q'+q+' '+d.getFullYear(), start, end:nd.toISOString().slice(0,10)});
+      d = nd;
+    }
+  }
+  function xFor(dateIso){ return clamp(daysBetween(min,dateIso)/totalDays*totalWidth, 0, totalWidth); }
+
+  // Header columns + vertical gridlines (gridlines drawn once in an overlay
+  // that scrolls with the chart, so they don't need to be repeated per row).
+  let xCursor = 0;
+  let gridLinesHtml = '';
+  let headerColsHtml = headerCols.map(c=>{
+    const w = Math.max(1,daysBetween(c.start, c.end<max?c.end:max)/totalDays*totalWidth);
+    xCursor += w;
+    gridLinesHtml += `<div class="gantt-vline" style="left:${xCursor}px;"></div>`;
+    return `<div class="col" style="width:${w}px">${escapeHtml(c.label)}</div>`;
+  }).join('');
+
+  const t = todayISO();
+  let todayLineHtml = '';
+  if(t>=min && t<=max){
+    const tx = xFor(t);
+    todayLineHtml = `<div style="position:absolute;left:${tx}px;top:0;bottom:0;width:0;border-left:2px dashed #ff5a5a;z-index:2;"></div>`;
+  }
+
+  let rowsHtml = '';
+  state.projects.forEach(p=>{
+    const {min:pmin, max:pmax} = projectRangeAndSegments(p);
+    let barHtml = '';
+    if(pmin){ const x1=xFor(pmin), x2=xFor(pmax); barHtml = `<div class="gantt-bar grouprange" style="left:${x1}px;width:${Math.max(3,x2-x1)}px;background:${p.color}"></div>`; }
+    rowsHtml += `<div class="gantt-row">
+      <div class="gantt-namecell group"><span class="dot" style="background:${p.color}"></span>${escapeHtml(p.name)}${pmin?` · ${fmtRange(pmin,pmax)}`:''}</div>
+      <div class="gantt-gridcell group" style="width:${totalWidth}px">${barHtml}</div>
+    </div>`;
+    if(simplified) return;
+    p.items.filter(itemMatchesFilter).forEach(it=>{
+      rowsHtml += ganttRowPairHtml(it, xFor, totalWidth, false);
+      if(!it.collapsed){
+        it.subItems.forEach(si=>{
+          rowsHtml += ganttRowPairHtml(si, xFor, totalWidth, true);
+        });
+      }
+    });
+  });
+
+  el.innerHTML = `<div class="gantt-toolbar-extra" style="margin-bottom:10px;color:var(--text-dim2);font-size:12px;">${simplified? 'Tidslinjevy – översikt per projekt.' : 'Gantt-vy – detaljerad. Klicka \"Sätt baslinje\" för att jämföra mot ursprunglig plan.'}</div>
+    <div class="gantt-wrap">
+      <div class="gantt-row header-row">
+        <div class="gantt-namecell header-corner">Objekt</div>
+        <div class="gantt-headercols" style="width:${totalWidth}px">${headerColsHtml}</div>
+      </div>
+      <div style="position:relative;">
+        <div class="gantt-grid-overlay" style="width:${totalWidth}px;">${gridLinesHtml}${todayLineHtml}</div>
+        <div class="gantt-rows-body">${rowsHtml}</div>
+      </div>
+    </div>`;
+}
+
+function ganttRowPairHtml(row, xFor, totalWidth, isSub){
+  let bar = '';
+  if(row.start && row.end){
+    const x1 = xFor(row.start), x2 = xFor(row.end);
+    const st = getStatus(row.statusId);
+    const h = itemHours(row);
+    bar = `<div class="gantt-bar" style="left:${x1}px;width:${Math.max(6,x2-x1)}px;background:${st.color}" title="${escapeHtml(row.name)}: ${fmtRange(row.start,row.end)}${h?' · '+h+' arbetstimmar':''}">${escapeHtml(row.name)}${h?' · '+h+'h':''}</div>`;
+    const bl = state.ui.ganttBaselines[row.id];
+    if(bl){ const bx1=xFor(bl.start), bx2=xFor(bl.end); bar += `<div class="gantt-bar baseline" style="left:${bx1}px;width:${Math.max(6,bx2-bx1)}px" title="Baslinje: ${fmtRange(bl.start,bl.end)}"></div>`; }
+  }
+  return `<div class="gantt-row">
+    <div class="gantt-namecell${isSub?' sub':''}">${escapeHtml(row.name)}</div>
+    <div class="gantt-gridcell" style="width:${totalWidth}px">${bar}</div>
+  </div>`;
+}
+
+/* ======================= CLASSIC GANTT (shared by exports) ======================= */
+function fmtShort(iso){ const d=new Date(iso+'T00:00:00'); return d.getDate()+' '+MONTHS[d.getMonth()]; }
+
+const NO_RES_COLOR = '#9aa3b5';
+function itemColor(it){
+  const r = (it.resourceIds||[]).map(getResource).find(Boolean);
+  return r ? r.color : NO_RES_COLOR;
+}
+function isMilestone(it){ return !!(it.start && it.end && it.start===it.end && !(it.headcount>0)); }
+function buildExportModel(){
+  const rows = []; let counter=1;
+  const legendIds = []; let legendNoRes = false;
+  function noteLegend(it){
+    if(!it.start || !it.end || isMilestone(it)) return;
+    const r = (it.resourceIds||[]).map(getResource).find(Boolean);
+    if(r){ if(!legendIds.includes(r.id)) legendIds.push(r.id); } else legendNoRes = true;
+  }
+  state.projects.forEach(p=>{
+    const {min:pmin,max:pmax} = projectRangeAndSegments(p);
+    let projectHours = 0;
+    const projectRowIdx = rows.length;
+    rows.push({num:counter++, level:0, isGroup:true, name:p.name, start:pmin, end:pmax, hours:0});
+    p.items.forEach(it=>{
+      const itHours = itemHours(it);
+      let subHoursSum = 0;
+      const itRowIdx = rows.length;
+      rows.push({num:counter++, level:1, isGroup:false, name:it.name, start:it.start, end:it.end, milestone: isMilestone(it), hours:itHours, color:itemColor(it)});
+      noteLegend(it);
+      it.subItems.forEach(si=>{
+        const siHours = itemHours(si);
+        subHoursSum += siHours;
+        rows.push({num:counter++, level:2, isGroup:false, name:si.name, start:si.start, end:si.end, milestone: isMilestone(si), hours:siHours, color:itemColor(si)});
+        noteLegend(si);
+      });
+      // If the parent item itself has no dates but its sub-items do, show the sum.
+      // (itemHours summerar redan underobjekten)
+      projectHours += rows[itRowIdx].hours;
+    });
+    rows[projectRowIdx].hours = projectHours;
+  });
+  const dated = rows.filter(r=>r.start && r.end);
+  let min = dated.length ? dated.reduce((a,b)=>a.start<b.start?a:b).start : todayISO();
+  let max = dated.length ? dated.reduce((a,b)=>a.end>b.end?a:b).end : addDays(todayISO(),60);
+  min = addDays(min,-3); max = addDays(max,3);
+  const legend = legendIds.map(getResource).filter(Boolean).map(r=>({name:r.name, color:r.color}));
+  if(legendNoRes) legend.push({name:'Ingen resurs angiven', color:NO_RES_COLOR});
+  return {rows, min, max, legend};
+}
+
+function buildTimeColumns(min,max,granularity){
+  const cols = [];
+  if(granularity==='week'){
+    let d = new Date(min+'T00:00:00');
+    const dow = (d.getDay()+6)%7; d.setDate(d.getDate()-dow); // back to Monday
+    let cur = d.toISOString().slice(0,10);
+    while(cur <= max){ const next = addDays(cur,7); cols.push({start:cur, end:next, label: fmtShort(cur)}); cur = next; }
+  } else {
+    let d = new Date(min+'T00:00:00'); d.setDate(1);
+    while(d.toISOString().slice(0,10) <= max){
+      const start = d.toISOString().slice(0,10);
+      const nd = new Date(d); nd.setMonth(nd.getMonth()+1);
+      cols.push({start, end: nd.toISOString().slice(0,10), label: MONTHS[d.getMonth()]+" '"+String(d.getFullYear()).slice(2)});
+      d = nd;
+    }
+  }
+  if(!cols.length) cols.push({start:min,end:addDays(min,7),label:''});
+  return cols;
+}
+
+function computeBands(cols, granularity){
+  const bands = [];
+  cols.forEach(c=>{
+    const d = new Date(c.start+'T00:00:00');
+    let label;
+    if(granularity==='week'){ label = MONTHS[d.getMonth()]+" '"+String(d.getFullYear()).slice(2); }
+    else { const q = Math.floor(d.getMonth()/3)+1; label = 'Q'+q+' '+d.getFullYear(); }
+    if(bands.length && bands[bands.length-1].label===label) bands[bands.length-1].count++;
+    else bands.push({label,count:1});
+  });
+  return bands;
+}
+
+function xForCol(dateIso, cols, colWidth){
+  for(let i=0;i<cols.length;i++){
+    const c = cols[i];
+    if(dateIso < c.end || i===cols.length-1){
+      const span = Math.max(1,daysBetween(c.start,c.end));
+      const frac = clamp(daysBetween(c.start,dateIso)/span,0,1);
+      return i*colWidth + frac*colWidth;
+    }
+  }
+  return cols.length*colWidth;
+}
+
+function renderClassicGanttHTML(model, granularity, projectTitle){
+  const cols = buildTimeColumns(model.min, model.max, granularity);
+  const bands = computeBands(cols, granularity);
+  const colWidth = granularity==='week' ? 34 : 86;
+  const chartWidth = cols.length*colWidth;
+  const rowH = 24;
+  const leftColsTemplate = '34px 220px 66px 64px 76px 76px';
+
+  const bandHtml = bands.map(b=>`<div style="width:${b.count*colWidth}px;border-right:1px solid #99a1b3;text-align:center;font-weight:700;font-size:11px;padding:4px 0;background:#dfe3ec;box-sizing:border-box;">${escapeHtml(b.label)}</div>`).join('');
+  const labelRowHtml = cols.map(c=>`<div style="width:${colWidth}px;border-right:1px solid #ccc;text-align:center;font-size:9px;padding:4px 0 2px;background:#f2f3f7;color:#444;box-sizing:border-box;">${escapeHtml(c.label)}</div>`).join('');
+
+  const gridLinesHtml = cols.map((c,i)=>`<div style="position:absolute;left:${i*colWidth}px;top:0;bottom:0;width:1px;background:#e6e6ea;"></div>`).join('')
+    + `<div style="position:absolute;left:${chartWidth}px;top:0;bottom:0;width:1px;background:#bbb;"></div>`;
+
+  const t = todayISO();
+  let todayLineHtml = '';
+  if(t>=model.min && t<=model.max){
+    const x = xForCol(t, cols, colWidth);
+    todayLineHtml = `<div style="position:absolute;left:${x}px;top:0;bottom:0;width:0;border-left:2px dashed #e04b4b;z-index:5;"></div>`;
+  }
+
+  let leftRows='', chartRows='';
+  model.rows.forEach(r=>{
+    const bg = r.isGroup ? '#eef0f5' : (r.level===2 ? '#fbfbfd' : '#ffffff');
+    const nameIndent = 8 + r.level*18;
+    leftRows += `<div style="display:grid;grid-template-columns:${leftColsTemplate};height:${rowH}px;border-bottom:1px solid #e5e5e5;background:${bg};align-items:center;font-size:11px;color:#222;box-sizing:border-box;">
+      <div style="text-align:center;color:#888;">${r.num}</div>
+      <div style="padding-left:${nameIndent}px;font-weight:${r.isGroup?'700':'400'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(r.name)}</div>
+      <div style="text-align:center;color:#555;">${(r.start&&r.end&&!r.milestone)?(workHours(r.start,r.end)/8)+' d':''}</div>
+      <div style="text-align:center;color:#555;">${r.hours?r.hours+'h':''}</div>
+      <div style="text-align:center;color:#555;">${r.start?fmtDate(r.start):''}</div>
+      <div style="text-align:center;color:#555;">${r.end?fmtDate(r.end):''}</div>
+    </div>`;
+
+    let barHtml = '';
+    if(r.start && r.end){
+      const x1 = xForCol(r.start, cols, colWidth), x2 = xForCol(r.end, cols, colWidth);
+      if(r.isGroup){
+        const w = Math.max(2,x2-x1);
+        barHtml = `<div style="position:absolute;left:${x1}px;top:${rowH/2-3}px;width:${w}px;height:6px;background:#222;border-radius:1px;"></div>
+          <div style="position:absolute;left:${x1-1}px;top:${rowH/2-7}px;width:3px;height:14px;background:#222;"></div>
+          <div style="position:absolute;left:${x2-2}px;top:${rowH/2-7}px;width:3px;height:14px;background:#222;"></div>`;
+      } else if(r.milestone){
+        barHtml = `<div style="position:absolute;left:${x1-6}px;top:${rowH/2-6}px;width:12px;height:12px;background:#222;transform:rotate(45deg);"></div>`;
+      } else {
+        const w = Math.max(4,x2-x1);
+        barHtml = `<div style="position:absolute;left:${x1}px;top:${rowH/2-7}px;width:${w}px;height:14px;background:${r.color||'#3b6fd6'};border:1px solid rgba(0,0,0,.35);border-radius:2px;box-sizing:border-box;"></div>`;
+      }
+    }
+    chartRows += `<div style="position:relative;height:${rowH}px;border-bottom:1px solid #e5e5e5;background:${bg};box-sizing:border-box;">${barHtml}</div>`;
+  });
+
+  return `
+  <div style="display:inline-block;background:#ffffff;font-family:Arial,Helvetica,sans-serif;color:#222;">
+    <div style="padding:14px 18px 4px;font-size:16px;font-weight:700;color:#15132a;">${escapeHtml(projectTitle)} – Gantt</div>
+    <div style="padding:0 18px 12px;font-size:11px;color:#777;">Exporterad ${new Date().toLocaleString('sv-SE')}</div>
+    <div style="display:flex;border:1px solid #b9bfcc;">
+      <div>
+        <div style="display:grid;grid-template-columns:${leftColsTemplate};height:44px;border-bottom:1px solid #99a1b3;background:#dfe3ec;align-items:center;font-size:11px;font-weight:700;box-sizing:border-box;">
+          <div style="text-align:center;">#</div><div style="padding-left:8px;">Uppgift</div><div style="text-align:center;">Arb.dagar</div><div style="text-align:center;">Timmar</div><div style="text-align:center;">Start</div><div style="text-align:center;">Slut</div>
+        </div>
+        ${leftRows}
+      </div>
+      <div>
+        <div>
+          <div style="display:flex;height:20px;">${bandHtml}</div>
+          <div style="display:flex;height:24px;">${labelRowHtml}</div>
+        </div>
+        <div style="position:relative;">
+          <div style="position:absolute;top:0;left:0;right:0;bottom:0;">${gridLinesHtml}${todayLineHtml}</div>
+          ${chartRows}
+        </div>
+      </div>
+    </div>
+    <div style="margin:12px 18px 0;display:inline-block;border:1px solid #b9bfcc;border-radius:4px;padding:8px 12px;font-size:11px;color:#222;">
+      <div style="font-weight:700;margin-bottom:6px;">Resurser (färg på staplar)</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px 18px;max-width:900px;">
+        ${(model.legend||[]).map(l=>`<span style="white-space:nowrap;"><span style="display:inline-block;width:16px;height:11px;background:${l.color};border:1px solid rgba(0,0,0,.35);margin-right:6px;vertical-align:middle;"></span>${escapeHtml(l.name)}</span>`).join('')}
+      </div>
+    </div>
+    <div style="padding:12px 18px;font-size:11px;color:#444;display:flex;gap:20px;align-items:center;flex-wrap:wrap;">
+      <span><span style="display:inline-block;width:14px;height:6px;background:#222;margin-right:5px;vertical-align:middle;"></span>Projekt / sammanfattning</span>
+      <span><span style="display:inline-block;width:10px;height:10px;background:#222;transform:rotate(45deg);margin-right:8px;vertical-align:middle;"></span>Milstolpe</span>
+      <span><span style="display:inline-block;width:14px;height:0;border-top:2px dashed #e04b4b;margin-right:5px;vertical-align:middle;"></span>Idag</span>
+    </div>
+  </div>`;
+}
+
+/* ======================= MEETINGS VIEW ======================= */
+function addMeeting(){
+  const p = getProject(state.ui.meetingsProjectId); if(!p) return;
+  p.meetings.unshift({id:uid(), date:todayISO(), title:'Statusmöte', attendees:'', notes:''});
+  markDirty(); renderMain();
+}
+function renderMeetings(el){
+  const p = getProject(state.ui.meetingsProjectId);
+  if(!p){ el.innerHTML = `<div class="empty-state">Skapa ett projekt först.</div>`; return; }
+  if(!p.meetings.length){ el.innerHTML = `<div class="empty-state">Inga möten loggade för ${escapeHtml(p.name)} ännu.</div>`; return; }
+  const sorted = [...p.meetings].sort((a,b)=> b.date.localeCompare(a.date));
+  el.innerHTML = sorted.map(m=>`
+    <div class="meeting-card" data-meeting="${m.id}">
+      <div class="mhead">
+        <input type="date" data-m-date="${m.id}" value="${m.date}">
+        <input data-m-title="${m.id}" value="${escapeHtml(m.title)}" style="flex:1;font-weight:700;">
+        <button class="icon-btn" data-m-del="${m.id}">🗑</button>
+      </div>
+      <div class="field"><label>Deltagare</label><input data-m-att="${m.id}" value="${escapeHtml(m.attendees)}"></div>
+      <div class="field"><label>Anteckningar</label><textarea rows="4" data-m-notes="${m.id}">${escapeHtml(m.notes)}</textarea></div>
+    </div>`).join('');
+  el.querySelectorAll('[data-m-date]').forEach(n=> n.addEventListener('change', ()=>{ findMeeting(n.dataset.mDate).date=n.value; markDirty(); }));
+  el.querySelectorAll('[data-m-title]').forEach(n=> n.addEventListener('change', ()=>{ findMeeting(n.dataset.mTitle).title=n.value; markDirty(); }));
+  el.querySelectorAll('[data-m-att]').forEach(n=> n.addEventListener('change', ()=>{ findMeeting(n.dataset.mAtt).attendees=n.value; markDirty(); }));
+  el.querySelectorAll('[data-m-notes]').forEach(n=> n.addEventListener('input', debounce(()=>{ findMeeting(n.dataset.mNotes).notes=n.value; markDirty(); },300)));
+  el.querySelectorAll('[data-m-del]').forEach(n=> n.addEventListener('click', ()=>{ if(confirm('Ta bort mötet?')){ p.meetings = p.meetings.filter(m=>m.id!==n.dataset.mDel); markDirty(); renderMain(); } }));
+  function findMeeting(id){ return p.meetings.find(m=>m.id===id); }
+}
+
+/* ======================= NOTES VIEW ======================= */
+function renderNotes(el){
+  const p = getProject(state.ui.notesProjectId);
+  if(!p){ el.innerHTML = `<div class="empty-state">Skapa ett projekt först.</div>`; return; }
+  el.innerHTML = `<h3 style="margin-top:0;">Anteckningar – ${escapeHtml(p.name)}</h3>
+    <textarea class="notes-box" id="notesArea" placeholder="Skriv fria anteckningar för projektet här…">${escapeHtml(p.notes)}</textarea>
+    <div class="hint" id="notesSaved" style="margin-top:6px;">Sparas automatiskt.</div>`;
+  document.getElementById('notesArea').addEventListener('input', debounce(()=>{
+    p.notes = document.getElementById('notesArea').value; markDirty();
+    document.getElementById('notesSaved').textContent = 'Sparat ✓';
+  },300));
+}
+
+/* ======================= SETTINGS MODAL ======================= */
+function openSettings(){
+  const root = document.getElementById('modal-root');
+  let activeTab = 'resources';
+  function draw(){
+    root.innerHTML = `<div class="overlay" id="settingsOverlay"><div class="modal">
+      <div class="modal-head"><h3>Inställningar</h3><button class="icon-btn" id="closeSettings">✖</button></div>
+      <div class="settings-tabs">
+        <div class="settings-tab ${activeTab==='resources'?'active':''}" data-st="resources">Resurser</div>
+        <div class="settings-tab ${activeTab==='statuses'?'active':''}" data-st="statuses">Statusar</div>
+        <div class="settings-tab ${activeTab==='data'?'active':''}" data-st="data">Data</div>
+      </div>
+      <div class="modal-body" id="settingsBody"></div>
+      <div class="modal-foot"><button class="btn primary" id="doneSettings">Klart</button></div>
+    </div></div>`;
+    document.getElementById('closeSettings').onclick = ()=>{ root.innerHTML=''; renderAll(); };
+    document.getElementById('doneSettings').onclick = ()=>{ root.innerHTML=''; renderAll(); };
+    document.getElementById('settingsOverlay').addEventListener('click', e=>{ if(e.target.id==='settingsOverlay'){ root.innerHTML=''; renderAll(); } });
+    root.querySelectorAll('[data-st]').forEach(n=> n.addEventListener('click', ()=>{ activeTab=n.dataset.st; draw(); }));
+    const body = document.getElementById('settingsBody');
+    if(activeTab==='resources') drawResources(body);
+    else if(activeTab==='statuses') drawStatuses(body);
+    else drawData(body);
+  }
+  function drawResources(body){
+    body.innerHTML = `<div class="hint" style="margin-bottom:10px;">Döp om de 10 resurserna till riktiga namn och välj en färg.</div>` + state.resources.map(r=>`
+      <div class="res-row" data-rrow="${r.id}">
+        <span class="swatch" style="background:${r.color}"></span>
+        <input data-r-name="${r.id}" value="${escapeHtml(r.name)}" style="flex:1;">
+        <input data-r-init="${r.id}" value="${escapeHtml(r.initials)}" maxlength="3" style="width:50px;text-align:center;" title="Initialer">
+      </div>
+      <div class="palette" data-r-palette="${r.id}" style="margin:2px 0 10px 32px;">${PALETTE.map(c=>`<div class="swatch ${c===r.color?'selected':''}" data-r-color="${r.id}" data-color="${c}" style="background:${c};cursor:pointer;"></div>`).join('')}</div>
+    `).join('');
+    body.querySelectorAll('[data-r-name]').forEach(n=> n.addEventListener('change', ()=>{ getResource(n.dataset.rName).name = n.value.trim()||'Resurs'; markDirty(); renderAll(); }));
+    body.querySelectorAll('[data-r-init]').forEach(n=> n.addEventListener('change', ()=>{ getResource(n.dataset.rInit).initials = n.value.trim()||'?'; markDirty(); renderAll(); }));
+    body.querySelectorAll('[data-r-color]').forEach(n=> n.addEventListener('click', ()=>{ getResource(n.dataset.rColor).color = n.dataset.color; markDirty(); drawResources(body); renderAll(); }));
+  }
+  function drawStatuses(body){
+    body.innerHTML = `<div class="hint" style="margin-bottom:10px;">Lägg till, döp om eller ta bort statusar.</div>` + state.statuses.map(s=>`
+      <div class="status-row" data-srow="${s.id}">
+        <span class="swatch" style="background:${s.color}"></span>
+        <input data-s-name="${s.id}" value="${escapeHtml(s.name)}" style="flex:1;">
+        <button class="icon-btn" data-s-del="${s.id}">🗑</button>
+      </div>
+      <div class="palette" style="margin:2px 0 10px 32px;">${PALETTE.map(c=>`<div class="swatch ${c===s.color?'selected':''}" data-s-color="${s.id}" data-color="${c}" style="background:${c};cursor:pointer;"></div>`).join('')}</div>
+    `).join('') + `<button class="btn" id="addStatus" style="margin-top:6px;">+ Ny status</button>`;
+    body.querySelectorAll('[data-s-name]').forEach(n=> n.addEventListener('change', ()=>{ state.statuses.find(s=>s.id===n.dataset.sName).name = n.value.trim()||'Status'; markDirty(); renderAll(); }));
+    body.querySelectorAll('[data-s-color]').forEach(n=> n.addEventListener('click', ()=>{ state.statuses.find(s=>s.id===n.dataset.sColor).color = n.dataset.color; markDirty(); drawStatuses(body); renderAll(); }));
+    body.querySelectorAll('[data-s-del]').forEach(n=> n.addEventListener('click', ()=>{
+      if(state.statuses.length<=1){ toast('Minst en status krävs.'); return; }
+      if(confirm('Ta bort statusen? Objekt som använder den får första statusen istället.')){
+        const removedId = n.dataset.sDel;
+        const fallback = state.statuses.find(s=>s.id!==removedId).id;
+        state.statuses = state.statuses.filter(s=>s.id!==removedId);
+        state.projects.forEach(p=> p.items.forEach(it=>{ if(it.statusId===removedId) it.statusId=fallback; it.subItems.forEach(si=>{ if(si.statusId===removedId) si.statusId=fallback; }); }));
+        markDirty(); drawStatuses(body); renderAll();
+      }
+    }));
+    document.getElementById('addStatus').onclick = ()=>{
+      state.statuses.push({id:uid(), name:'Ny status', color:PALETTE[state.statuses.length%PALETTE.length]});
+      markDirty(); drawStatuses(body); renderAll();
+    };
+  }
+  function drawData(body){
+    body.innerHTML = `
+      <div class="hint" style="margin-bottom:12px;">Extra säkerhetskopiering utöver "Spara"-knappen som skriver hela verktygsfilen.</div>
+      <button class="btn" id="exportJson">⇩ Exportera data (JSON)</button>
+      <button class="btn" id="importJson">⇧ Importera data (JSON)</button>
+      <input type="file" id="importJsonFile" accept="application/json" style="display:none;">
+      <hr style="border-color:var(--border);margin:16px 0;">
+      <button class="btn" id="clearDemo" style="border-color:#f0b429;color:#f0b429;">Rensa exempeldata (behåll resurser/statusar)</button>
+      <br><br>
+      <button class="btn" id="wipeAll" style="border-color:#f2727f;color:#f2727f;">Radera all data</button>
+    `;
+    document.getElementById('exportJson').onclick = ()=>{
+      const blob = new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
+      const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='resursplanering-data.json'; a.click();
+      setTimeout(()=>URL.revokeObjectURL(a.href),3000);
+    };
+    document.getElementById('importJson').onclick = ()=> document.getElementById('importJsonFile').click();
+    document.getElementById('importJsonFile').addEventListener('change', e=>{
+      const file = e.target.files[0]; if(!file) return;
+      const reader = new FileReader();
+      reader.onload = ()=>{
+        try{ const parsed = JSON.parse(reader.result); if(!parsed.projects||!parsed.resources) throw new Error('bad shape');
+          state = parsed; markDirty(); root.innerHTML=''; renderAll(); toast('Data importerad.');
+        }catch(err){ alert('Kunde inte läsa filen som giltig data.'); }
+      };
+      reader.readAsText(file);
+    });
+    document.getElementById('clearDemo').onclick = ()=>{
+      if(confirm('Tar bort alla projekt och objekt (resurser och statusar behålls). Fortsätt?')){
+        state.projects = []; markDirty(); root.innerHTML=''; renderAll();
+      }
+    };
+    document.getElementById('wipeAll').onclick = ()=>{
+      if(confirm('Detta raderar ALLT (projekt, resurser, statusar). Kan inte ångras. Fortsätt?')){
+        state = defaultState(); state.projects=[]; markDirty(); root.innerHTML=''; renderAll();
+      }
+    };
+  }
+  draw();
+}
+
+/* ======================= EXPORT: XLSX ======================= */
+async function exportExcel(){
+  if(typeof ExcelJS==='undefined'){ toast('Excel-biblioteket kunde inte laddas (kräver internetuppkoppling).'); return; }
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'Resursplanering';
+  wb.created = new Date();
+
+  // ---- Sheet 1: Data (flat list, for filtering/pivoting) ----
+  const ws = wb.addWorksheet('Data');
+  ws.columns = [
+    {header:'Projekt', key:'project', width:26},
+    {header:'Objekt', key:'item', width:26},
+    {header:'Underobjekt', key:'sub', width:22},
+    {header:'Resurser', key:'res', width:24},
+    {header:'Status', key:'status', width:18},
+    {header:'Start', key:'start', width:12},
+    {header:'Slut', key:'end', width:12},
+    {header:'Arbetstimmar', key:'hours', width:14},
+    {header:'Antal resurser på plats', key:'hc', width:20}
+  ];
+  ws.getRow(1).eachCell(c=> c.fill = {type:'pattern',pattern:'solid',fgColor:{argb:'FF262347'}});
+  ws.getRow(1).font = {bold:true, color:{argb:'FFFFFFFF'}};
+  function addRow(vals, statusColor){
+    const row = ws.addRow(vals);
+    if(statusColor){ row.getCell('status').fill = {type:'pattern',pattern:'solid',fgColor:{argb:'FF'+statusColor.replace('#','').toUpperCase()}}; row.getCell('status').font={color:{argb:'FF15132A'},bold:true}; }
+  }
+  state.projects.forEach(p=>{
+    p.items.forEach(it=>{
+      const st = getStatus(it.statusId);
+      addRow({project:p.name, item:it.name, sub:'', res:it.resourceIds.map(id=>getResource(id)?.name).filter(Boolean).join(', '), status:st.name, start:it.start||'', end:it.end||'', hours:itemHours(it)||'', hc: it.headcount==null?'':it.headcount}, st.color);
+      it.subItems.forEach(si=>{
+        const sst = getStatus(si.statusId);
+        addRow({project:p.name, item:it.name, sub:si.name, res:si.resourceIds.map(id=>getResource(id)?.name).filter(Boolean).join(', '), status:sst.name, start:si.start||'', end:si.end||'', hours:itemHours(si)||'', hc:si.headcount==null?'':si.headcount}, sst.color);
+      });
+    });
+  });
+
+  // ---- Sheet 2: Gantt (klassisk Gantt-layout: #, uppgift, varaktighet, start/slut + tidslinje) ----
+  const gs = wb.addWorksheet('Gantt');
+  const model = buildExportModel();
+  const granularity = state.ui.ganttZoom==='week' ? 'week' : 'month';
+  const cols = buildTimeColumns(model.min, model.max, granularity);
+  const bands = computeBands(cols, granularity);
+  const INFO_COLS = 6;
+
+  gs.getColumn(1).width = 5;
+  gs.getColumn(2).width = 34;
+  gs.getColumn(3).width = 11;
+  gs.getColumn(4).width = 11;
+  gs.getColumn(5).width = 11;
+  gs.getColumn(6).width = 11;
+  for(let i=0;i<cols.length;i++) gs.getColumn(INFO_COLS+1+i).width = granularity==='week' ? 4.2 : 8.5;
+
+  const headerFill = {type:'pattern',pattern:'solid',fgColor:{argb:'FFDFE3EC'}};
+  const subHeaderFill = {type:'pattern',pattern:'solid',fgColor:{argb:'FFF2F3F7'}};
+
+  gs.mergeCells(1,1,2,1); gs.getCell(1,1).value = '#';
+  gs.mergeCells(1,2,2,2); gs.getCell(1,2).value = 'Uppgift';
+  gs.mergeCells(1,3,2,3); gs.getCell(1,3).value = 'Arbetsdagar';
+  gs.mergeCells(1,4,2,4); gs.getCell(1,4).value = 'Timmar';
+  gs.mergeCells(1,5,2,5); gs.getCell(1,5).value = 'Start';
+  gs.mergeCells(1,6,2,6); gs.getCell(1,6).value = 'Slut';
+  for(let c=1;c<=INFO_COLS;c++){ const cell=gs.getCell(1,c); cell.font={bold:true,size:10}; cell.alignment={horizontal:'center',vertical:'middle'}; cell.fill=headerFill; }
+
+  let colCursor = INFO_COLS+1;
+  bands.forEach(b=>{
+    gs.mergeCells(1, colCursor, 1, colCursor+b.count-1);
+    const cell = gs.getCell(1, colCursor);
+    cell.value = b.label; cell.alignment = {horizontal:'center', vertical:'middle'}; cell.font = {bold:true, size:9}; cell.fill = headerFill;
+    colCursor += b.count;
+  });
+  cols.forEach((c,i)=>{
+    const cell = gs.getRow(2).getCell(INFO_COLS+1+i);
+    cell.value = c.label; cell.font = {size:8};
+    cell.alignment = {textRotation: granularity==='week'?60:0, horizontal:'center', vertical:'middle'};
+    cell.fill = subHeaderFill;
+  });
+  gs.getRow(1).height = 18;
+  gs.getRow(2).height = granularity==='week' ? 44 : 16;
+
+  const thin = {style:'thin', color:{argb:'FFD9D9D9'}};
+  const borderAll = {top:thin,left:thin,bottom:thin,right:thin};
+  const todayIso = todayISO();
+
+  model.rows.forEach((r,idx)=>{
+    const rowIdx = idx+3;
+    const row = gs.getRow(rowIdx);
+    row.height = 15;
+    row.getCell(1).value = r.num;
+    row.getCell(2).value = r.name;
+    row.getCell(2).alignment = {indent:r.level*2};
+    row.getCell(3).value = (r.start && r.end && !r.milestone) ? workHours(r.start,r.end)/8 : null; // arbetsdagar mån–fre
+    row.getCell(4).value = r.hours || null;
+    row.getCell(5).value = r.start || '';
+    row.getCell(6).value = r.end || '';
+    if(r.isGroup) row.getCell(2).font = {bold:true};
+    // NOTE: deliberately no row.outlineLevel here. Setting an Excel outline
+    // level on these rows was tried previously (for collapsible groups) but
+    // it caused most sub-item rows to render as collapsed/invisible in both
+    // LibreOffice and real Excel even though they were not flagged "hidden" —
+    // confirmed by reproducing the export against a real 83-row project and
+    // visually inspecting the rendered PDF. Removed as the fix for that bug.
+    for(let c=1;c<=INFO_COLS;c++){
+      row.getCell(c).border = borderAll;
+      if(r.isGroup) row.getCell(c).fill = {type:'pattern',pattern:'solid',fgColor:{argb:'FFEFF1F6'}};
+    }
+    for(let i=0;i<cols.length;i++){
+      const c = cols[i];
+      const cell = row.getCell(INFO_COLS+1+i);
+      cell.border = borderAll;
+      if(todayIso>=c.start && todayIso<c.end && !r.isGroup){ cell.border = Object.assign({}, borderAll, {left:{style:'thin',color:{argb:'FFE04B4B'}}, right:{style:'thin',color:{argb:'FFE04B4B'}}}); }
+      if(r.start && r.end){
+        const overlaps = r.start < c.end && r.end >= c.start;
+        if(overlaps){
+          if(r.isGroup) cell.fill = {type:'pattern',pattern:'solid',fgColor:{argb:'FF222222'}};
+          else if(r.milestone){ cell.value = '◆'; cell.font = {bold:true, color:{argb:'FF222222'}}; cell.alignment = {horizontal:'center'}; }
+          else cell.fill = {type:'pattern',pattern:'solid',fgColor:{argb:'FF'+(r.color||'#3b6fd6').replace('#','').toUpperCase()}};
+        }
+      }
+    }
+  });
+  // ---- Teckenförklaring: resursfärger i en ruta under Gantt-schemat ----
+  let lr = model.rows.length + 5;
+  const box = {style:'medium', color:{argb:'FF8A93A6'}};
+  const legendRows = [{title:true, name:'Teckenförklaring – resurser (färg på staplar)'}]
+    .concat((model.legend||[]).map(l=>({name:l.name, color:l.color})))
+    .concat([{name:'Projekt / sammanfattning', color:'#222222'}, {name:'Milstolpe', mark:'◆'}]);
+  legendRows.forEach((L,i)=>{
+    const row = gs.getRow(lr+i);
+    gs.mergeCells(lr+i, 2, lr+i, 4);
+    const c1 = row.getCell(1), c2 = row.getCell(2);
+    if(L.title){ c1.value=''; c2.value=L.name; c2.font={bold:true,size:10}; c1.fill=headerFill; c2.fill=headerFill; }
+    else {
+      c2.value = L.name; c2.font={size:10};
+      if(L.color) c1.fill = {type:'pattern',pattern:'solid',fgColor:{argb:'FF'+L.color.replace('#','').toUpperCase()}};
+      if(L.mark){ c1.value=L.mark; c1.alignment={horizontal:'center'}; c1.font={bold:true}; }
+    }
+    const top = i===0 ? box : thin, bottom = i===legendRows.length-1 ? box : thin;
+    c1.border = {top, bottom, left:box, right:thin};
+    for(let c=2;c<=4;c++) row.getCell(c).border = {top, bottom, left:thin, right: c===4?box:thin};
+  });
+  gs.views = [{state:'frozen', xSplit:INFO_COLS, ySplit:2}];
+
+  const buf = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'gantt-export.xlsx'; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 4000);
+  toast('Excel-fil nedladdad (klassisk Gantt-flik + datatabell).');
+}
+
+/* ======================= EXPORT: PDF ======================= */
+async function exportPdf(){
+  if(typeof html2canvas==='undefined' || !window.jspdf){ toast('PDF-biblioteken kunde inte laddas (kräver internetuppkoppling).'); return; }
+  toast('Skapar PDF …');
+  const model = buildExportModel();
+  const granularity = state.ui.ganttZoom==='week' ? 'week' : 'month';
+  const title = document.getElementById('titleInput').value || 'Resursplanering';
+
+  const hidden = document.createElement('div');
+  hidden.style.cssText = 'position:fixed;top:0;left:-100000px;z-index:-1;';
+  hidden.innerHTML = renderClassicGanttHTML(model, granularity, title);
+  document.body.appendChild(hidden);
+  await new Promise(r=>setTimeout(r,60));
+  try{
+    const canvas = await html2canvas(hidden.firstElementChild, {backgroundColor:'#ffffff', scale:2});
+    const { jsPDF } = window.jspdf;
+    const wPt = canvas.width * 0.75, hPt = canvas.height * 0.75;
+    const margin = 20;
+    const pdf = new jsPDF({orientation: wPt>hPt?'l':'p', unit:'pt', format:[wPt+margin*2, hPt+margin*2]});
+    pdf.setFillColor(255,255,255); pdf.rect(0,0,wPt+margin*2,hPt+margin*2,'F');
+    pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', margin, margin, wPt, hPt);
+    pdf.save('gantt-export.pdf');
+    toast('PDF nedladdad (klassisk Gantt).');
+  }catch(e){ console.error(e); toast('Kunde inte skapa PDF.'); }
+  finally{ hidden.remove(); }
+}
+
+/* ======================= INIT ======================= */
+function init(){
+  loadInitialState();
+  document.getElementById('titleInput').value = state.title || document.getElementById('titleInput').value;
+  document.getElementById('titleInput').addEventListener('change', e=>{ state.title = e.target.value; markDirty(); });
+  document.getElementById('btnConnectFile').addEventListener('click', connectFile);
+  document.getElementById('btnSaveFile').addEventListener('click', saveToFile);
+  document.getElementById('btnSettings').addEventListener('click', openSettings);
+  tryRestoreFileHandle();
+  renderAll();
+  updateSaveIndicator();
+  window.addEventListener('beforeunload', (e)=>{ if(dirty){ e.preventDefault(); e.returnValue=''; } });
+}
+
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', init); else init();
+
+})();
+</script>
+</body>
+</html>

@@ -33,7 +33,7 @@ public static class KomponentEndpoints
 {
     public static IEndpointRouteBuilder MapKomponentEndpoints(this IEndpointRouteBuilder app)
     {
-        var g = app.MapGroup("/api/projekt/{projektId:guid}/komponenter");
+        var g = app.MapGroup("/api/projekt/{projektId:guid}/komponenter").AddEndpointFilter<ProjektAtkomst>();
 
         g.MapGet("/", async (Guid projektId, PvDbContext db) =>
         {

@@ -4,7 +4,7 @@ using Projekteringsverktyg.Server.Data;
 
 namespace Projekteringsverktyg.Server.AnvandarApi;
 
-public sealed record MigDto(string Id, string Namn, string Tema);
+public sealed record MigDto(string Id, string Namn, string Tema, string Roll, object Rattigheter);
 public sealed record TemaVal(string Tema);
 
 public static class AnvandarEndpoints
@@ -14,14 +14,14 @@ public static class AnvandarEndpoints
 
     public static IEndpointRouteBuilder MapAnvandarEndpoints(this IEndpointRouteBuilder app)
     {
-        app.MapGet("/api/mig", async (ClaimsPrincipal user, PvDbContext db) =>
+        app.MapGet("/api/mig", async (ClaimsPrincipal user, PvDbContext db, Behorighet beh) =>
         {
-            var av = Anvandare.Fran(user);
-            var inst = await db.AnvandarInstallningar.FindAsync(av.Id);
-            return new MigDto(av.Id, av.Namn, inst?.Tema ?? "natt");
+            var post = await beh.AktuellAsync(user);
+            var inst = await db.AnvandarInstallningar.FindAsync(post.Id);
+            return new MigDto(post.Id, post.Namn, inst?.Tema ?? "natt", post.Roll, Behorighet.Rattigheter(post.Roll));
         });
 
-        app.MapPut("/api/mig/tema", async (TemaVal val, ClaimsPrincipal user, PvDbContext db) =>
+        app.MapPut("/api/mig/tema", async (TemaVal val, ClaimsPrincipal user, PvDbContext db, Behorighet beh) =>
         {
             if (!Teman.Contains(val.Tema))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["tema"] = ["Okänt tema."] });
@@ -35,7 +35,8 @@ public static class AnvandarEndpoints
             }
             inst.Tema = val.Tema;
             await db.SaveChangesAsync();
-            return Results.Ok(new MigDto(av.Id, av.Namn, inst.Tema));
+            var post = await beh.AktuellAsync(user);
+            return Results.Ok(new MigDto(av.Id, av.Namn, inst.Tema, post.Roll, Behorighet.Rattigheter(post.Roll)));
         });
 
         return app;

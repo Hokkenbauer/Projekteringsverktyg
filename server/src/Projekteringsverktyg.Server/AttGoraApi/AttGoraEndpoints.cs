@@ -26,7 +26,7 @@ public static class AttGoraEndpoints
 {
     public static IEndpointRouteBuilder MapAttGoraEndpoints(this IEndpointRouteBuilder app)
     {
-        var g = app.MapGroup("/api/projekt/{projektId:guid}/att-gora");
+        var g = app.MapGroup("/api/projekt/{projektId:guid}/att-gora").AddEndpointFilter<ProjektAtkomst>();
 
         g.MapGet("/", async (Guid projektId, PvDbContext db) =>
             (await db.AttGora.Where(a => a.ProjektId == projektId)
@@ -101,7 +101,7 @@ public static class AttGoraEndpoints
         });
 
         // ---- Anteckningar: ett fritt textfält per projekt ----
-        var ant = app.MapGroup("/api/projekt/{projektId:guid}/anteckningar");
+        var ant = app.MapGroup("/api/projekt/{projektId:guid}/anteckningar").AddEndpointFilter<ProjektAtkomst>();
 
         ant.MapGet("/", async (Guid projektId, PvDbContext db) =>
             await db.Projekt.Where(p => p.Id == projektId)

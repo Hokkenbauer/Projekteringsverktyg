@@ -9,6 +9,7 @@ using Projekteringsverktyg.Server.Auth;
 using Projekteringsverktyg.Server.Data;
 using Projekteringsverktyg.Server.KomponentApi;
 using Projekteringsverktyg.Server.ProjektApi;
+using Projekteringsverktyg.Server.StatusApi;
 using Projekteringsverktyg.Server.Synk;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -72,6 +73,7 @@ if (string.IsNullOrWhiteSpace(anslutning))
 builder.Services.AddDbContext<PvDbContext>(o => o.UseNpgsql(anslutning));
 builder.Services.AddSignalR();
 builder.Services.AddSingleton<NarvaroRegister>();
+builder.Services.AddScoped<Behorighet>();
 builder.Services.AddProblemDetails();
 
 var app = builder.Build();
@@ -113,6 +115,8 @@ app.MapAnvandarEndpoints();
 app.MapProjektEndpoints();
 app.MapKomponentEndpoints();
 app.MapAttGoraEndpoints();
+app.MapRollEndpoints();
+app.MapStatusEndpoints();
 app.MapHub<ProjektHub>("/hubs/projekt");
 
 // Alla andra adresser hör till webbappen (React sköter sin egen navigering).

@@ -91,3 +91,23 @@ public class MigreringTester
         Assert.Equal("001_grund.sql", namn[0]);
     }
 }
+
+public class RollTester
+{
+    [Theory]
+    [InlineData("Admin", true)]
+    [InlineData("Projektledare", true)]
+    [InlineData("System", true)]
+    [InlineData("Tekniker", false)]
+    [InlineData("Lasare", false)]
+    public void Ser_alla_projekt_efter_roll(string roll, bool forvantat) =>
+        Assert.Equal(forvantat, Projekteringsverktyg.Server.Data.Roller.SerAllaProjekt(roll));
+
+    [Fact]
+    public void Lasare_far_inte_skriva()
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize(Projekteringsverktyg.Server.Auth.Behorighet.Rattigheter("Lasare"));
+        Assert.Contains("\"skriva\":false", json);
+        Assert.Contains("\"hanteraAnvandare\":false", json);
+    }
+}

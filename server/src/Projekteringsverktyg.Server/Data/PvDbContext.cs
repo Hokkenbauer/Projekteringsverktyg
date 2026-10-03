@@ -9,6 +9,10 @@ public class PvDbContext(DbContextOptions<PvDbContext> options) : DbContext(opti
     public DbSet<AndringsloggPost> Andringslogg => Set<AndringsloggPost>();
     public DbSet<AnvandarInstallning> AnvandarInstallningar => Set<AnvandarInstallning>();
     public DbSet<AttGoraPost> AttGora => Set<AttGoraPost>();
+    public DbSet<AnvandarPost> Anvandare => Set<AnvandarPost>();
+    public DbSet<ProjektMedlem> Medlemmar => Set<ProjektMedlem>();
+    public DbSet<StatusRubrik> StatusRubriker => Set<StatusRubrik>();
+    public DbSet<StatusUppgift> StatusUppgifter => Set<StatusUppgift>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -44,6 +48,32 @@ public class PvDbContext(DbContextOptions<PvDbContext> options) : DbContext(opti
             e.HasKey(a => a.Id);
             e.HasIndex(a => a.ProjektId);
             e.Property(a => a.Version).IsConcurrencyToken();
+        });
+
+        b.Entity<AnvandarPost>(e =>
+        {
+            e.ToTable("anvandare");
+            e.HasKey(a => a.Id);
+        });
+
+        b.Entity<ProjektMedlem>(e =>
+        {
+            e.ToTable("projekt_medlem");
+            e.HasKey(m => new { m.ProjektId, m.AnvandarId });
+        });
+
+        b.Entity<StatusRubrik>(e =>
+        {
+            e.ToTable("status_rubrik");
+            e.HasKey(r => r.Id);
+        });
+
+        b.Entity<StatusUppgift>(e =>
+        {
+            e.ToTable("status_uppgift");
+            e.HasKey(u => u.Id);
+            e.HasIndex(u => u.ProjektId);
+            e.Property(u => u.Version).IsConcurrencyToken();
         });
 
         b.Entity<AnvandarInstallning>(e =>

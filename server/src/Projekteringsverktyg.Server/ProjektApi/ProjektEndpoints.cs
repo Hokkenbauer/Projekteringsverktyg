@@ -32,14 +32,19 @@ public static class ProjektEndpoints
         return q;
     }
 
+    private static IQueryable<Data.Projekt> SynligaProjekt(PvDbContext db, AnvandarPost anv) =>
+        Roller.SerAllaProjekt(anv.Roll)
+            ? db.Projekt
+            : db.Projekt.Where(p => db.Medlemmar.Any(m => m.ProjektId == p.Id && m.AnvandarId == anv.Id));
+
     public static IEndpointRouteBuilder MapProjektEndpoints(this IEndpointRouteBuilder app)
     {
-        var g = app.MapGroup("/api/projekt");
+        var g = app.MapGroup("/api/projekt").AddEndpointFilter<ProjektAtkomst>();
 
         // Fas 1: alla inloggade i organisationen ser alla projekt.
         // Behörighet per projekt (medlemmar och roller) läggs till i ett senare steg.
-        g.MapGet("/", async (PvDbContext db) =>
-            await db.Projekt
+        g.MapGet("/", async (ClaimsPrincipal user, Behorighet beh, PvDbContext db) =>
+            await SynligaProjekt(db, await beh.AktuellAsync(user))
                 .OrderByDescending(p => p.Skapad)
                 .Select(p => new ProjektDto(p.Id, p.Namn, p.Nummer, p.Kund, p.Ansvarig, p.Skapad, p.SkapadAv, p.Komponenter.Count))
                 .ToListAsync());
@@ -50,8 +55,9 @@ public static class ProjektEndpoints
                 .Select(p => new ProjektDto(p.Id, p.Namn, p.Nummer, p.Kund, p.Ansvarig, p.Skapad, p.SkapadAv, p.Komponenter.Count))
                 .FirstOrDefaultAsync() is { } dto ? Results.Ok(dto) : Results.NotFound());
 
-        g.MapPost("/", async (NyttProjekt nytt, ClaimsPrincipal user, PvDbContext db) =>
+        g.MapPost("/", async (NyttProjekt nytt, ClaimsPrincipal user, Behorighet beh, PvDbContext db) =>
         {
+            if (!await beh.HarRoll(user, Roller.Admin, Roller.Projektledare)) return Results.Forbid();
             if (string.IsNullOrWhiteSpace(nytt.Namn))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["namn"] = ["Projektet behöver ett namn."] });
 
@@ -65,6 +71,8 @@ public static class ProjektEndpoints
                 SkapadAv = av.Namn,
             };
             db.Projekt.Add(p);
+            // Den som skapar projektet blir medlem, så att det syns även om rollen ändras senare.
+            db.Medlemmar.Add(new ProjektMedlem { ProjektId = p.Id, AnvandarId = (await beh.AktuellAsync(user)).Id, TillagdAv = av.Namn });
             Andringslogg.Logga(db, p.Id, av, "Projekt", p.Id, $"skapade projektet {p.Namn}");
             await db.SaveChangesAsync();
             return Results.Created($"/api/projekt/{p.Id}",

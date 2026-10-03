@@ -11,12 +11,14 @@ namespace Projekteringsverktyg.Server.Synk;
 /// Meddelanden till klienten: KomponentSkapad, KomponentAndrad, KomponentBorttagen, Narvaro.
 /// </summary>
 [Authorize]
-public sealed class ProjektHub(NarvaroRegister narvaro) : Hub
+public sealed class ProjektHub(NarvaroRegister narvaro, Behorighet beh) : Hub
 {
     public static string Grupp(Guid projektId) => $"projekt:{projektId}";
 
     public async Task GaMedIProjekt(Guid projektId)
     {
+        if (!await beh.KanLasa(Context.User!, projektId))
+            throw new HubException("Du har inte tillgång till projektet.");
         var anv = Anvandare.Fran(Context.User!);
         var tidigare = narvaro.Satt(Context.ConnectionId, projektId, anv);
         if (tidigare is { } gammalt && gammalt != projektId)

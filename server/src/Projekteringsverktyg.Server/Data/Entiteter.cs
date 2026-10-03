@@ -80,3 +80,58 @@ public class AnvandarInstallning
     public string AnvandarId { get; set; } = "";
     public string Tema { get; set; } = "natt";
 }
+
+public static class Roller
+{
+    public const string Admin = "Admin";
+    public const string Projektledare = "Projektledare";
+    public const string System = "System";
+    public const string Tekniker = "Tekniker";
+    public const string Lasare = "Lasare";
+
+    public static readonly IReadOnlyList<string> Alla = [Admin, Projektledare, System, Tekniker, Lasare];
+
+    /// <summary>Roller som ser alla projekt, inte bara dem de är medlemmar i.</summary>
+    public static bool SerAllaProjekt(string roll) => roll is Admin or Projektledare or System;
+}
+
+public class AnvandarPost
+{
+    public string Id { get; set; } = "";
+    public string Namn { get; set; } = "";
+    public string Epost { get; set; } = "";
+    public string Roll { get; set; } = Roller.Tekniker;
+    public DateTimeOffset Skapad { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset SenastInloggad { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public class ProjektMedlem
+{
+    public Guid ProjektId { get; set; }
+    public string AnvandarId { get; set; } = "";
+    public DateTimeOffset Tillagd { get; set; } = DateTimeOffset.UtcNow;
+    public string TillagdAv { get; set; } = "";
+}
+
+public class StatusRubrik
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public string Namn { get; set; } = "";
+    public int Ordning { get; set; }
+}
+
+public class StatusUppgift
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid ProjektId { get; set; }
+    public Guid RubrikId { get; set; }
+    public string Text { get; set; } = "";
+    public int Ordning { get; set; }
+    public bool Klar { get; set; }
+    public string Kommentar { get; set; } = "";
+    public string UtfordAv { get; set; } = "";
+    public DateTimeOffset? KlarDatum { get; set; }
+    public int Version { get; set; } = 1;
+    public DateTimeOffset Andrad { get; set; } = DateTimeOffset.UtcNow;
+    public string AndradAv { get; set; } = "";
+}
