@@ -88,7 +88,8 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
-app.UseHttpsRedirection();
+// HTTPS sköts av Azure App Service (httpsOnly). Ingen omdirigering här, så att
+// Azures interna hälsokontroll över http inte stoppas.
 app.UseDefaultFiles();
 app.UseStaticFiles();
 app.UseAuthentication();
