@@ -1,0 +1,21 @@
+# .NET
+bin/
+obj/
+*.user
+.vs/
+TestResults/
+
+# Webb
+node_modules/
+web/dist/
+server/src/Projekteringsverktyg.Server/wwwroot/
+
+# Lokala inställningar och hemligheter
+appsettings.Local.json
+.env
+.env.*
+*.pfx
+
+# Övrigt
+.DS_Store
+Thumbs.db

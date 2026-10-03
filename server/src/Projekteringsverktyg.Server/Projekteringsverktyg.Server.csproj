@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Projekteringsverktyg.Server</RootNamespace>
+    <AssemblyName>Projekteringsverktyg.Server</AssemblyName>
+    <InvariantGlobalization>false</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Databas: PostgreSQL via Entity Framework Core -->
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.*" />
+    <!-- Inloggning: Microsoft Entra ID (jobbkonton i Microsoft 365) -->
+    <PackageReference Include="Microsoft.Identity.Web" Version="3.*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Projekteringsverktyg.Tests" />
+  </ItemGroup>
+
+</Project>

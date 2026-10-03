@@ -1,0 +1,15 @@
+# Lokal databas för utveckling. Starta med: docker compose up -d
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: pv
+      POSTGRES_PASSWORD: pv-lokalt
+      POSTGRES_DB: projekteringsverktyg
+    ports:
+      - "5432:5432"
+    volumes:
+      - pv-data:/var/lib/postgresql/data
+
+volumes:
+  pv-data:
