@@ -5,13 +5,20 @@ type Props = {
   anteckningar: Anteckningar | null;
   onSpara: (text: string) => Promise<void>;
   lasläge?: boolean;
+  grupp?: string;
+  rubrik?: string;
+  ingress?: string;
+  onSkrivUt?: (text: string) => void;
 };
 
 const tid = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString("sv-SE", { dateStyle: "short", timeStyle: "short" }) : "";
 
 /** Fritt textfält, ungefär som Notepad++. Sparas automatiskt en stund efter att man slutat skriva. */
-export function AnteckningarVy({ anteckningar, onSpara, lasläge = false }: Props) {
+export function AnteckningarVy({
+  anteckningar, onSpara, lasläge = false, grupp = "Att göra", rubrik = "Anteckningar",
+  ingress = "Fritt textfält för projektet. Texten sparas automatiskt medan du skriver.", onSkrivUt,
+}: Props) {
   const [text, setText] = useState(anteckningar?.text ?? "");
   const [status, setStatus] = useState<"sparat" | "osparat" | "sparar" | "fel">("sparat");
   const senastSparat = useRef(anteckningar?.text ?? "");
@@ -48,12 +55,15 @@ export function AnteckningarVy({ anteckningar, onSpara, lasläge = false }: Prop
 
   return (
     <>
-      <div className="brodsmula">Att göra</div>
-      <h1>Anteckningar</h1>
-      <p className="ingress">Fritt textfält för projektet. Texten sparas automatiskt medan du skriver.</p>
+      <div className="brodsmula">{grupp}</div>
+      <div className="rubrikrad">
+        <h1>{rubrik}</h1>
+        {onSkrivUt && <button className="knapp" onClick={() => onSkrivUt(text)}>Skriv ut / PDF</button>}
+      </div>
+      <p className="ingress">{ingress}</p>
       <textarea
         className="anteckningar"
-        aria-label="Anteckningar"
+        aria-label={rubrik}
         spellCheck
         readOnly={lasläge}
         value={text}

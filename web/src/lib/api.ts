@@ -16,7 +16,7 @@ export function sattTokenKalla(kalla: () => Promise<string>) {
 
 export async function api<T>(sokvag: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
-  if (init.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+  if (typeof init.body === "string" && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
   if (tokenKalla) headers.set("Authorization", `Bearer ${await tokenKalla()}`);
 
   const svar = await fetch(sokvag, { ...init, headers });

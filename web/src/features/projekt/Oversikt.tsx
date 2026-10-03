@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, laddaNer } from "../../lib/api";
-import type { Anteckningar, AttGora, Komponent, Logg, Narvarande, Projekt } from "../../lib/typer";
+import type { Anteckningar, AttGora, Komponent, ListRad, Logg, Narvarande, Projekt } from "../../lib/typer";
 
 const tid = (iso: string) =>
   new Date(iso).toLocaleString("sv-SE", { dateStyle: "short", timeStyle: "short" });
@@ -13,10 +13,15 @@ type OversiktProps = {
   logg: Logg[];
   narvaro: Narvarande[];
   onFlik: (f: string) => void;
+  egenkontroll?: ListRad[];
+  anmarkningar?: ListRad[];
 };
 
-export function Oversikt({ projekt, komponenter, attGora, anteckningar, logg, narvaro, onFlik }: OversiktProps) {
+export function Oversikt({ projekt, komponenter, attGora, anteckningar, logg, narvaro, onFlik, egenkontroll, anmarkningar }: OversiktProps) {
   const oppna = attGora.filter((a) => !a.klar);
+  const komponentIds = new Set(komponenter.map((k) => k.id));
+  const klaraEk = (egenkontroll ?? []).filter((r) => r.komponentId && komponentIds.has(r.komponentId) && r.data.kontrollerad === "true").length;
+  const olosta = (anmarkningar ?? []).filter((r) => r.data.atgardad !== "true").length;
   const text = anteckningar?.text.trim() ?? "";
 
   return (
@@ -28,8 +33,12 @@ export function Oversikt({ projekt, komponenter, attGora, anteckningar, logg, na
       </p>
       <div className="nyckeltal">
         <div className="tal"><span>Komponenter</span><b>{komponenter.length}</b><small>{new Set(komponenter.map((k) => k.system).filter(Boolean)).size} system</small></div>
-        <div className="tal ejbyggt"><span>Klara egenkontroller</span><b>Fas 3</b><small>visas när Egenkontroll är byggd</small></div>
-        <div className="tal ejbyggt"><span>Olösta anmärkningar</span><b>Fas 3</b><small>visas när Anmärkningsbilaga är byggd</small></div>
+        <button className="tal klickbar" onClick={() => onFlik("egenkontroll")}>
+          <span>Klara egenkontroller</span><b>{egenkontroll ? klaraEk : "…"}</b><small>av {komponenter.length} komponenter</small>
+        </button>
+        <button className={`tal klickbar ${olosta ? "varning" : ""}`} onClick={() => onFlik("anmarkningsbilaga")}>
+          <span>Olösta anmärkningar</span><b>{anmarkningar ? olosta : "…"}</b><small>av {anmarkningar?.length ?? 0} totalt</small>
+        </button>
         <div className={`tal ${oppna.length ? "varning" : ""}`}><span>Att göra</span><b>{oppna.length}</b><small>av {attGora.length} kvar</small></div>
         <div className="tal"><span>Inloggade i projektet</span><b>{narvaro.length}</b><small>{narvaro.map((n) => n.namn.split(" ")[0]).join(", ") || "—"}</small></div>
       </div>

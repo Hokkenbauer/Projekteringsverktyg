@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Blink } from "../../grid/DataGrid";
-import { api, ApiFel, skicka } from "../../lib/api";
+import { api, ApiFel, laddaNer, skicka } from "../../lib/api";
 import { anslutTillProjekt } from "../../lib/synk";
-import type { Anteckningar, AttGora, Komponent, KomponentHandelse, ListaHandelse, Logg, Mig, Narvarande, Projekt } from "../../lib/typer";
+import type { Anteckningar, AttGora, Komponent, KomponentHandelse, ListaHandelse, ListDef, ListRad, Logg, Mig, Narvarande, Projekt } from "../../lib/typer";
+import { skrivUt } from "../../lib/utskrift";
 import { NAVIGERING, hittaFlik } from "../../shell/navigering";
 import { AnteckningarVy } from "../att-gora/AnteckningarVy";
 import { AttGoraVy } from "../att-gora/AttGoraVy";
+import { ProjektfilerVy } from "../filer/ProjektfilerVy";
+import { ListVy, type VisadRad } from "../listor/ListVy";
 import { KomponenterVy } from "../komponenter/KomponenterVy";
 import { ProjektStatusVy } from "../status/ProjektStatusVy";
 import { MedlemmarVy } from "./MedlemmarVy";
@@ -34,27 +37,45 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
   const [statusVersion, setStatusVersion] = useState(0);
   const [attGora, setAttGora] = useState<AttGora[]>([]);
   const [anteckningar, setAnteckningar] = useState<Anteckningar | null>(null);
+  const [listdefinitioner, setListdefinitioner] = useState<ListDef[]>([]);
+  const [listor, setListor] = useState<Record<string, ListRad[]>>({});
+  const [texter, setTexter] = useState<Record<string, Anteckningar>>({});
+  const [filVersion, setFilVersion] = useState(0);
+  // Vilka listor och texter som är hämtade, så att livesynken vet vad som ska uppdateras.
+  const hamtadeListor = useRef<Set<string>>(new Set());
+  const hamtadeTexter = useRef<Set<string>>(new Set());
   const [narvaro, setNarvaro] = useState<Narvarande[]>([]);
   const [status, setStatus] = useState<"ansluten" | "ateransluter" | "frankopplad">("ateransluter");
   const [blinkar, setBlinkar] = useState<Blink[]>([]);
   const [fel, setFel] = useState<string | null>(null);
+  const listorRef = useRef(listor);
+  listorRef.current = listor;
   const [oppnaGrupper, setOppnaGrupper] = useState<Set<string>>(
     () => new Set(["Projekt", "Status", hittaFlik(flik)?.grupp.namn ?? "Komponenter & Listor"]),
   );
 
   const hamtaAllt = useCallback(async () => {
     try {
-      const [p, k, a, t] = await Promise.all([
+      const [p, k, a, t, d] = await Promise.all([
         api<Projekt>(`/api/projekt/${projektId}`),
         api<Komponent[]>(`/api/projekt/${projektId}/komponenter`),
         api<AttGora[]>(`/api/projekt/${projektId}/att-gora`),
         api<Anteckningar>(`/api/projekt/${projektId}/anteckningar`),
+        api<ListDef[]>(`/api/listdefinitioner`),
       ]);
       setProjekt(p);
       setKomponenter(k);
       setAttGora(a);
       setAnteckningar(t);
+      setListdefinitioner(d);
       setFel(null);
+      // Översikten visar egenkontroller och anmärkningar, så de hämtas alltid. Övriga listor hämtas när de öppnas.
+      const listIds = new Set(["egenkontroll", "anmarkningar", ...hamtadeListor.current]);
+      const listSvar = await Promise.all([...listIds].map(async (id) => [id, await api<ListRad[]>(`/api/projekt/${projektId}/listor/${id}`)] as const));
+      setListor(Object.fromEntries(listSvar));
+      listIds.forEach((id) => hamtadeListor.current.add(id));
+      const textSvar = await Promise.all([...hamtadeTexter.current].map(async (n) => [n, await api<Anteckningar>(`/api/projekt/${projektId}/texter/${n}`)] as const));
+      if (textSvar.length) setTexter(Object.fromEntries(textSvar));
     } catch (e) {
       setFel((e as Error).message);
     }
@@ -104,8 +125,43 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
     });
   }, []);
 
+  const laggListRad = useCallback((lista: string, rad: ListRad): ListRad | null => {
+    let fore: ListRad | null = null;
+    setListor((alla) => {
+      const nuvarande = alla[lista];
+      if (!nuvarande) return alla;
+      const i = nuvarande.findIndex((x) => x.id === rad.id || (rad.komponentId !== null && x.komponentId === rad.komponentId));
+      if (i === -1) return { ...alla, [lista]: [...nuvarande, rad] };
+      fore = nuvarande[i]!;
+      if (fore.version > rad.version) return alla;
+      const kopia = [...nuvarande];
+      kopia[i] = rad;
+      return { ...alla, [lista]: kopia };
+    });
+    return fore;
+  }, []);
+
   const listaAndrad = useCallback((h: ListaHandelse) => {
-    if (h.lista === "attGora") {
+    if (h.lista.startsWith("lista:")) {
+      const id = h.lista.slice(6);
+      const rad = h.rad as ListRad;
+      if (h.typ === "borttagen") setListor((alla) => (alla[id] ? { ...alla, [id]: alla[id]!.filter((x) => x.id !== rad.id) } : alla));
+      else if (hamtadeListor.current.has(id)) {
+        const fore = listorRef.current[id]?.find((x) => x.id === rad.id || (rad.komponentId !== null && x.komponentId === rad.komponentId));
+        laggListRad(id, rad);
+        if (h.avId !== mig.id) {
+          const radId = rad.komponentId ?? rad.id;
+          for (const nyckel of Object.keys(rad.data)) {
+            if ((fore?.data[nyckel] ?? "") !== rad.data[nyckel]) blinka(radId, nyckel, fargFor(h.avId));
+          }
+        }
+      }
+    } else if (h.lista.startsWith("text:")) {
+      const nyckel = h.lista.slice(5);
+      if (h.avId !== mig.id) setTexter((t) => ({ ...t, [nyckel]: h.rad as Anteckningar }));
+    } else if (h.lista === "filer") {
+      if (h.avId !== mig.id) setFilVersion((v) => v + 1);
+    } else if (h.lista === "attGora") {
       const rad = h.rad as AttGora;
       if (h.typ === "borttagen") setAttGora((l) => l.filter((x) => x.id !== rad.id));
       else {
@@ -118,7 +174,7 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
       setStatusVersion((v) => v + 1);
     }
     hamtaLoggSnart();
-  }, [laggAttGora, blinka, hamtaLoggSnart, mig.id]);
+  }, [laggAttGora, laggListRad, blinka, hamtaLoggSnart, mig.id]);
 
   useEffect(() => {
     void hamtaAllt();
@@ -171,6 +227,71 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
     if (res.some((r) => r.status === "rejected")) { visaMeddelande("Några rader kunde inte tas bort."); void hamtaAllt(); }
   };
 
+  // ---- Listor från den gemensamma listmotorn ----
+  const vald = hittaFlik(flik);
+  const listId = vald?.flik.lista;
+  const textNyckel = vald?.flik.text;
+
+  useEffect(() => {
+    if (!listId || hamtadeListor.current.has(listId)) return;
+    hamtadeListor.current.add(listId);
+    api<ListRad[]>(`/api/projekt/${projektId}/listor/${listId}`)
+      .then((rader) => setListor((alla) => ({ ...alla, [listId]: rader })))
+      .catch((e) => { hamtadeListor.current.delete(listId); visaMeddelande(`Listan kunde inte hämtas: ${(e as Error).message}`); });
+  }, [listId, projektId, visaMeddelande]);
+
+  useEffect(() => {
+    if (!textNyckel || hamtadeTexter.current.has(textNyckel)) return;
+    hamtadeTexter.current.add(textNyckel);
+    api<Anteckningar>(`/api/projekt/${projektId}/texter/${textNyckel}`)
+      .then((t) => setTexter((alla) => ({ ...alla, [textNyckel]: t })))
+      .catch((e) => { hamtadeTexter.current.delete(textNyckel); visaMeddelande(`Texten kunde inte hämtas: ${(e as Error).message}`); });
+  }, [textNyckel, projektId, visaMeddelande]);
+
+  const hamtaLista = async (id: string) => {
+    try {
+      const rader = await api<ListRad[]>(`/api/projekt/${projektId}/listor/${id}`);
+      setListor((alla) => ({ ...alla, [id]: rader }));
+    } catch { /* nästa ändring hämtar igen */ }
+  };
+
+  const andraLista = async (def: ListDef, visad: VisadRad, falt: string, varde: string) => {
+    const rader = listor[def.id] ?? [];
+    const befintlig = def.kopplad ? rader.find((r) => r.komponentId === visad.id) : rader.find((r) => r.id === visad.id);
+    if (!def.kopplad && !befintlig) return;
+    const url = def.kopplad
+      ? `/api/projekt/${projektId}/listor/${def.id}/komponent/${visad.id}`
+      : `/api/projekt/${projektId}/listor/${def.id}/${visad.id}`;
+    if (befintlig) laggListRad(def.id, { ...befintlig, data: { ...befintlig.data, [falt]: varde } });
+    try {
+      laggListRad(def.id, await api<ListRad>(url, { method: "PATCH", body: skicka({ falt, varde, version: befintlig?.version ?? 0 }) }));
+    } catch (e) {
+      visaMeddelande(e instanceof ApiFel && e.status === 409
+        ? "Någon annan ändrade raden samtidigt. Raden är uppdaterad, gör om din ändring."
+        : `Ändringen kunde inte sparas: ${(e as Error).message}`);
+      void hamtaLista(def.id);
+    }
+  };
+
+  const nyListRad = async (def: ListDef) => {
+    try {
+      laggListRad(def.id, await api<ListRad>(`/api/projekt/${projektId}/listor/${def.id}`, { method: "POST" }));
+    } catch (e) {
+      visaMeddelande(`Raden kunde inte skapas: ${(e as Error).message}`);
+    }
+  };
+
+  const taBortListRader = async (def: ListDef, ids: string[]) => {
+    const res = await Promise.allSettled(ids.map((id) => api(`/api/projekt/${projektId}/listor/${def.id}/${id}`, { method: "DELETE" })));
+    setListor((alla) => ({ ...alla, [def.id]: (alla[def.id] ?? []).filter((x) => !ids.includes(x.id)) }));
+    if (res.some((r) => r.status === "rejected")) { visaMeddelande("Några rader kunde inte tas bort."); void hamtaLista(def.id); }
+  };
+
+  const sparaText = async (nyckel: string, text: string) => {
+    const t = await api<Anteckningar>(`/api/projekt/${projektId}/texter/${nyckel}`, { method: "PUT", body: skicka({ text }) });
+    setTexter((alla) => ({ ...alla, [nyckel]: t }));
+  };
+
   // ---- Anteckningar ----
   const sparaAnteckningar = async (text: string) => {
     setAnteckningar(await api<Anteckningar>(`/api/projekt/${projektId}/anteckningar`, { method: "PUT", body: skicka({ text }) }));
@@ -216,7 +337,8 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
     if (misslyckade) void hamtaAllt();
   };
 
-  const vald = hittaFlik(flik);
+  const listDef = listId ? listdefinitioner.find((d) => d.id === listId) : undefined;
+  const skrivbar = mig.rattigheter.skriva;
 
   return (
     <div className="arbetsyta">
@@ -272,13 +394,48 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
           <KomponenterVy komponenter={komponenter} blinkar={blinkar} onAndra={andra} onNy={ny} onTaBort={taBort} lasläge={!mig.rattigheter.skriva} />
         )}
         {flik === "oversikt" && projekt && (
-          <Oversikt projekt={projekt} komponenter={komponenter} attGora={attGora} anteckningar={anteckningar} logg={logg} narvaro={narvaro} onFlik={onFlik} />
+          <Oversikt
+            projekt={projekt} komponenter={komponenter} attGora={attGora} anteckningar={anteckningar} logg={logg} narvaro={narvaro} onFlik={onFlik}
+            egenkontroll={listor.egenkontroll} anmarkningar={listor.anmarkningar}
+          />
         )}
         {flik === "andringslogg" && <LoggVy projektId={projektId} komponenter={komponenter} uppdaterad={loggVersion} />}
         {flik === "att-gora" && <AttGoraVy rader={attGora} blinkar={blinkar} onAndra={andraAttGora} onNy={nyAttGora} onTaBort={taBortAttGora} lasläge={!mig.rattigheter.skriva} />}
         {flik === "projektstatus" && <ProjektStatusVy projektId={projektId} rattigheter={mig.rattigheter} uppdaterad={statusVersion} visaMeddelande={visaMeddelande} />}
         {flik === "medlemmar" && <MedlemmarVy projektId={projektId} rattigheter={mig.rattigheter} visaMeddelande={visaMeddelande} />}
         {flik === "anteckningar" && anteckningar && <AnteckningarVy key={projektId} anteckningar={anteckningar} onSpara={sparaAnteckningar} lasläge={!mig.rattigheter.skriva} />}
+        {listId && vald && (listDef ? (
+          <ListVy
+            key={listDef.id}
+            def={listDef}
+            grupp={vald.grupp.namn}
+            rader={listor[listDef.id]}
+            komponenter={komponenter}
+            projekt={projekt}
+            blinkar={blinkar}
+            lasläge={!skrivbar}
+            onAndra={(r, falt, v) => void andraLista(listDef, r, falt, v)}
+            onNy={() => void nyListRad(listDef)}
+            onTaBort={(ids) => void taBortListRader(listDef, ids)}
+            onExcel={() => void laddaNer(`/api/projekt/${projektId}/listor/${listDef.id}/excel`, `${listDef.namn}.xlsx`).catch((e) => visaMeddelande((e as Error).message))}
+            onFlik={onFlik}
+          />
+        ) : <p className="dampad">Hämtar…</p>)}
+        {textNyckel && vald && (texter[textNyckel] ? (
+          <AnteckningarVy
+            key={`${projektId}-${textNyckel}`}
+            anteckningar={texter[textNyckel]!}
+            onSpara={(t) => sparaText(textNyckel, t)}
+            lasläge={!skrivbar}
+            grupp={vald.grupp.namn}
+            rubrik={vald.flik.namn}
+            ingress={textNyckel === "serviceinformation"
+              ? "Information som serviceteknikern behöver: åtkomst, kontaktpersoner, larmhantering, särskilda förutsättningar. Sparas automatiskt."
+              : "Övergripande information om projektet: omfattning, förutsättningar, kontaktpersoner och viktiga beslut. Sparas automatiskt."}
+            onSkrivUt={(t) => skrivUt(vald.flik.namn, projekt, { typ: "text", text: t })}
+          />
+        ) : <p className="dampad">Hämtar…</p>)}
+        {flik === "projektfiler" && <ProjektfilerVy projektId={projektId} lasläge={!skrivbar} uppdaterad={filVersion} visaMeddelande={visaMeddelande} />}
         {vald && !vald.flik.klar && (
           <>
             <div className="brodsmula">{vald.grupp.namn}</div>

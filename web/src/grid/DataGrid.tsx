@@ -8,7 +8,8 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNod
 export type Kolumn<T> = {
   nyckel: keyof T & string;
   rubrik: string;
-  typ: "text" | "val" | "kryss";
+  /** ro = visas men ändras inte här (t.ex. uppgifter som hämtas från Komponenter, eller löpnummer). */
+  typ: "text" | "val" | "kryss" | "datum" | "ro";
   val?: string[];
   mono?: boolean;
   bredd?: number;
@@ -29,10 +30,14 @@ type Props<T extends Rad> = {
   verktyg?: ReactNode;
   /** Läsläge: inga ändringar, inga knappar för ny rad eller borttagning. */
   lasläge?: boolean;
+  /** Text som visas när tabellen är tom. */
+  tomText?: string;
+  /** Returnerar en varningstext för en cell (cellen markeras röd), annars undefined. */
+  cellVarning?: (rad: T, nyckel: string) => string | undefined;
 };
 
 export function DataGrid<T extends Rad>({
-  rader, kolumner, sokPlatshallare, onAndra, onNy: nyIn, onTaBort: taBortIn, blinkar = [], verktyg, lasläge = false,
+  rader, kolumner, sokPlatshallare, onAndra, onNy: nyIn, onTaBort: taBortIn, blinkar = [], verktyg, lasläge = false, tomText, cellVarning,
 }: Props<T>) {
   const onNy = lasläge ? undefined : nyIn;
   const onTaBort = lasläge ? undefined : taBortIn;
@@ -115,7 +120,7 @@ export function DataGrid<T extends Rad>({
           <tbody>
             {synliga.length === 0 && (
               <tr><td colSpan={kolumner.length + 1} className="tom">
-                {rader.length === 0 ? "Inga rader än. Klicka på Ny rad för att börja." : "Inga rader matchar sökningen."}
+                {rader.length === 0 ? (tomText ?? "Inga rader än. Klicka på Ny rad för att börja.") : "Inga rader matchar sökningen."}
               </td></tr>
             )}
             {synliga.map((r) => (
@@ -133,6 +138,7 @@ export function DataGrid<T extends Rad>({
                       kolumn={k}
                       varde={String(r[k.nyckel] ?? "")}
                       blink={blink}
+                      varning={cellVarning?.(r, k.nyckel)}
                       lasläge={lasläge}
                       onSpara={(v) => onAndra(r, k.nyckel, v)}
                     />
@@ -147,8 +153,8 @@ export function DataGrid<T extends Rad>({
   );
 }
 
-function Cell<T>({ kolumn, varde, blink, onSpara, lasläge }: {
-  kolumn: Kolumn<T>; varde: string; blink?: Blink; onSpara: (v: string) => void; lasläge: boolean;
+function Cell<T>({ kolumn, varde, blink, varning, onSpara, lasläge }: {
+  kolumn: Kolumn<T>; varde: string; blink?: Blink; varning?: string; onSpara: (v: string) => void; lasläge: boolean;
 }) {
   const [utkast, setUtkast] = useState(varde);
   const fokus = useRef(false);
@@ -160,7 +166,26 @@ function Cell<T>({ kolumn, varde, blink, onSpara, lasläge }: {
   }, [varde]);
 
   const stil = blink ? ({ "--blink": blink.farg } as CSSProperties) : undefined;
-  const klass = [kolumn.mono ? "mono" : "", blink ? "blinkar" : ""].join(" ").trim() || undefined;
+  const klass = [kolumn.mono ? "mono" : "", blink ? "blinkar" : "", varning ? "varnar" : ""].join(" ").trim() || undefined;
+
+  if (kolumn.typ === "ro") {
+    return (
+      <td className={["ro", klass].filter(Boolean).join(" ")} style={stil} key={blink?.tid} title={varning}>
+        <span>{varde}</span>
+      </td>
+    );
+  }
+
+  if (kolumn.typ === "datum") {
+    return (
+      <td className={klass} style={stil} key={blink?.tid} title={varning}>
+        <input
+          type="date" aria-label={kolumn.rubrik} value={varde} readOnly={lasläge} disabled={lasläge}
+          onChange={(e) => { if (e.target.value !== varde) onSpara(e.target.value); }}
+        />
+      </td>
+    );
+  }
 
   if (kolumn.typ === "kryss") {
     return (
@@ -184,7 +209,7 @@ function Cell<T>({ kolumn, varde, blink, onSpara, lasläge }: {
   }
 
   return (
-    <td className={klass} style={stil} key={blink?.tid}>
+    <td className={klass} style={stil} key={blink?.tid} title={varning}>
       <input
         type="text" aria-label={kolumn.rubrik} spellCheck={false} value={utkast} readOnly={lasläge}
         onFocus={() => { fokus.current = true; }}

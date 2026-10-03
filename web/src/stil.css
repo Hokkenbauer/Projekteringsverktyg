@@ -160,6 +160,10 @@ table.grid { border-collapse: collapse; width: 100%; min-width: 900px; }
 
 /* Kryssruta i tabellmotorn */
 .grid td.kryss { text-align: center; width: 70px; }
+.grid td.ro span { display: block; padding: 7px 8px; font-size: 13.5px; color: var(--dampad); white-space: nowrap; }
+.grid td.ro.mono span { font-family: var(--font-mono); font-size: 12.5px; }
+.grid td input[type="date"] { width: 100%; border: 0; background: transparent; padding: 6px 8px; font-size: 13px; color: var(--text); color-scheme: light dark; }
+.grid td.varnar { background: color-mix(in srgb, var(--fara) 18%, transparent); box-shadow: inset 0 0 0 1px var(--fara); }
 .grid td.kryss input { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
 
 /* Anteckningar */
@@ -207,3 +211,26 @@ table.enkel { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .rubriklista li { display: flex; gap: 6px; align-items: center; }
 .rubriklista input { flex: 0 1 360px; background: var(--yta-2); border: 1px solid var(--linje); border-radius: var(--r); padding: 6px 9px; color: var(--text); }
 a.knapp { text-decoration: none; color: var(--text); }
+.rubrikrad { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.rubrikrad h1 { margin-bottom: 0; }
+.rubrikrad .knappar { display: flex; gap: 8px; flex-wrap: wrap; }
+.summering { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+.summering .chip { background: var(--yta); border: 1px solid var(--linje); border-radius: 999px; padding: 3px 10px; font-size: 12.5px; }
+.summering .chip b { font-family: var(--font-mono); margin-left: 4px; }
+.filyta { display: grid; grid-template-columns: 240px 1fr; gap: 16px; align-items: start; }
+@media (max-width: 760px) { .filyta { grid-template-columns: 1fr; } }
+.mapplista { display: flex; flex-direction: column; gap: 2px; background: var(--yta); border: 1px solid var(--linje); border-radius: var(--r); padding: 6px; }
+.mapplista .mapp { display: flex; align-items: center; gap: 8px; text-align: left; background: transparent; border: 0; border-radius: var(--r); padding: 7px 10px; color: var(--text); font-size: 13.5px; }
+.mapplista .mapp:hover { background: var(--bakgrund, transparent); outline: 1px solid var(--linje); }
+.mapplista .mapp.aktiv { background: color-mix(in srgb, var(--accent) 16%, transparent); font-weight: 500; }
+.mapplista .mapp .antal { margin-left: auto; font-family: var(--font-mono); font-size: 12px; color: var(--dampad); }
+.filinnehall { min-height: 240px; border: 1px dashed transparent; border-radius: var(--r); }
+.filinnehall.drar { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.fillista td { padding: 7px 8px; }
+.fillista td.hoger { text-align: right; }
+.tomruta { padding: 28px; text-align: center; color: var(--dampad); background: var(--yta); border: 1px dashed var(--linje); border-radius: var(--r); }
+.lank { background: none; border: 0; padding: 0; color: var(--accent); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; font: inherit; text-align: left; }
+.knapp.liten { padding: 3px 8px; font-size: 12px; }
+.versioner { margin-top: 16px; }
+.tal.klickbar { text-align: left; color: var(--text); font: inherit; cursor: pointer; }
+.tal.klickbar:hover { border-color: var(--accent); }

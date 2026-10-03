@@ -98,9 +98,54 @@ export type AttGora = {
 export type Anteckningar = { text: string; andrad: string | null; andradAv: string };
 
 export type ListaHandelse = {
-  lista: "attGora" | "anteckningar" | "projektStatus";
+  /** attGora, anteckningar, projektStatus, filer, lista:<id> eller text:<nyckel>. */
+  lista: string;
   typ: "skapad" | "andrad" | "borttagen";
   rad: unknown;
   avId: string;
   avNamn: string;
+};
+
+export type ListKolumn = {
+  nyckel: string;
+  rubrik: string;
+  typ: "text" | "val" | "kryss" | "datum" | "komponent" | "lopnr";
+  val: string[] | null;
+  komponentFalt: keyof Komponent | null;
+  standard: string | null;
+  mono: boolean;
+  bredd: number | null;
+  redigerbar: boolean;
+};
+
+export type ListDef = {
+  id: string;
+  namn: string;
+  grupp: string;
+  ingress: string;
+  kopplad: boolean;
+  komponenttypInnehaller: string[] | null;
+  kolumner: ListKolumn[];
+};
+
+export type ListRad = {
+  id: string;
+  komponentId: string | null;
+  data: Record<string, string>;
+  ordning: number;
+  version: number;
+  andrad: string;
+  andradAv: string;
+};
+
+export type ProjektFil = {
+  id: string;
+  mapp: string;
+  namn: string;
+  version: number;
+  antalVersioner: number;
+  storlek: number;
+  typ: string;
+  uppladdad: string;
+  uppladdadAv: string;
 };
