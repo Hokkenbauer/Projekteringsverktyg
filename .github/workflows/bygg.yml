@@ -95,3 +95,12 @@ jobs:
           done
           echo "Appen svarade inte inom 5 minuter." >&2
           exit 1
+
+      - name: Visa appens logg om den inte startade
+        if: failure()
+        run: |
+          az webapp log download --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" --name "${{ vars.AZURE_WEBAPP_NAME }}" --log-file logg.zip || exit 0
+          mkdir -p logg && unzip -q -o logg.zip -d logg || exit 0
+          for f in $(ls -t $(find logg -name '*docker*.log' -o -name '*default_docker*.log') 2>/dev/null | head -3); do
+            echo "===== $f"; tail -n 80 "$f"
+          done
