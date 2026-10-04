@@ -38,10 +38,12 @@ type Props<T extends Rad> = {
   tomText?: string;
   /** Returnerar en varningstext för en cell (cellen markeras röd), annars undefined. */
   cellVarning?: (rad: T, nyckel: string) => string | undefined;
+  /** Knappar som gäller markerade rader (visas i verktygsraden). */
+  markeradeVerktyg?: (ids: string[]) => ReactNode;
 };
 
 export function DataGrid<T extends Rad>({
-  rader, kolumner, sokPlatshallare, onAndra, onNy: nyIn, onTaBort: taBortIn, blinkar = [], verktyg, lasläge = false, tomText, cellVarning,
+  rader, kolumner, sokPlatshallare, onAndra, onNy: nyIn, onTaBort: taBortIn, blinkar = [], verktyg, lasläge = false, tomText, cellVarning, markeradeVerktyg,
 }: Props<T>) {
   const onNy = lasläge ? undefined : nyIn;
   const onTaBort = lasläge ? undefined : taBortIn;
@@ -103,6 +105,7 @@ export function DataGrid<T extends Rad>({
             Ta bort markerade{markerade.size ? ` (${markerade.size})` : ""}
           </button>
         )}
+        {markeradeVerktyg?.([...markerade])}
         {verktyg}
         <span className="antal">
           {synliga.length === rader.length ? `${rader.length} rader` : `${synliga.length} av ${rader.length} rader`}

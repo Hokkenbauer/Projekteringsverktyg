@@ -53,9 +53,11 @@ type Props = {
   onTaBort: (ids: string[]) => void;
   onExcel: () => void;
   onFlik: (flik: string) => void;
+  /** Inbäddad i en annan vy (t.ex. Kontroller): mindre rubrik, ingen brödsmula. */
+  inbaddad?: boolean;
 };
 
-export function ListVy({ def, grupp, rader, komponenter, projekt, blinkar, lasläge, onAndra, onNy, onTaBort, onExcel, onFlik }: Props) {
+export function ListVy({ def, grupp, rader, komponenter, projekt, blinkar, lasläge, onAndra, onNy, onTaBort, onExcel, onFlik, inbaddad }: Props) {
   const visade = useMemo(() => byggRader(def, rader ?? [], komponenter), [def, rader, komponenter]);
 
   const kolumner: Kolumn<VisadRad>[] = useMemo(
@@ -108,9 +110,9 @@ export function ListVy({ def, grupp, rader, komponenter, projekt, blinkar, lasl�
 
   return (
     <>
-      <div className="brodsmula">{grupp}</div>
+      {!inbaddad && <div className="brodsmula">{grupp}</div>}
       <div className="rubrikrad">
-        <h1>{def.namn}</h1>
+        {inbaddad ? <h2>{def.namn}</h2> : <h1>{def.namn}</h1>}
         <div className="knappar">
           {def.kopplad && <button className="knapp" onClick={() => onFlik("komponenter")}>Till Komponenter</button>}
           <button className="knapp" onClick={onExcel}>Exportera till Excel</button>

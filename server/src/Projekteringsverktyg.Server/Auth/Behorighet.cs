@@ -73,6 +73,7 @@ public sealed class Behorighet(PvDbContext db)
         redigeraStatusRubriker = roll is Roller.Admin,
         redigeraUnderrubriker = roll is Roller.Admin or Roller.Projektledare,
         redigeraKataloger = roll is Roller.Admin or Roller.System,
+        hanteraMallar = roll is Roller.Admin or Roller.Projektledare or Roller.System,
         seAnslutningsinformation = roll is Roller.Admin or Roller.Projektledare or Roller.System,
         skriva = roll is not Roller.Lasare,
     };

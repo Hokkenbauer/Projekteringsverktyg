@@ -11,6 +11,7 @@ import { ProjektfilerVy } from "../filer/ProjektfilerVy";
 import { ListVy, type VisadRad } from "../listor/ListVy";
 import { PlaceringsritningVy } from "../ritning/PlaceringsritningVy";
 import { KomponenterVy } from "../komponenter/KomponenterVy";
+import { KontrollerVy, type Kontroll } from "../kontroller/KontrollerVy";
 import { ProjektStatusVy } from "../status/ProjektStatusVy";
 import { MedlemmarVy } from "./MedlemmarVy";
 import { LoggVy, Oversikt } from "./Oversikt";
@@ -44,6 +45,8 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
   const [texter, setTexter] = useState<Record<string, Anteckningar>>({});
   const [filVersion, setFilVersion] = useState(0);
   const [ritningVersion, setRitningVersion] = useState(0);
+  const [kontrollVersion, setKontrollVersion] = useState(0);
+  const [valdKontroll, setValdKontroll] = useState<Record<string, Kontroll | null>>({});
   // Vilka listor och texter som är hämtade, så att livesynken vet vad som ska uppdateras.
   const hamtadeListor = useRef<Set<string>>(new Set());
   const hamtadeTexter = useRef<Set<string>>(new Set());
@@ -148,6 +151,7 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
   const listaAndrad = useCallback((h: ListaHandelse) => {
     if (h.lista.startsWith("lista:")) {
       const id = h.lista.slice(6);
+      if (id.startsWith("kontroll-")) setKontrollVersion((v) => v + 1);
       const rad = h.rad as ListRad;
       if (h.typ === "borttagen") setListor((alla) => (alla[id] ? { ...alla, [id]: alla[id]!.filter((x) => x.id !== rad.id) } : alla));
       else if (hamtadeListor.current.has(id)) {
@@ -163,6 +167,8 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
     } else if (h.lista.startsWith("text:")) {
       const nyckel = h.lista.slice(5);
       if (h.avId !== mig.id) setTexter((t) => ({ ...t, [nyckel]: h.rad as Anteckningar }));
+    } else if (h.lista === "kontroller") {
+      if (h.avId !== mig.id) setKontrollVersion((v) => v + 1);
     } else if (h.lista === "ritning") {
       if (h.avId !== mig.id) setRitningVersion((v) => v + 1);
     } else if (h.lista === "filer") {
@@ -235,7 +241,9 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
 
   // ---- Listor från den gemensamma listmotorn ----
   const vald = hittaFlik(flik);
-  const listId = vald?.flik.lista;
+  const kontrollTyp = vald?.flik.kontroll;
+  const aktivKontroll = kontrollTyp ? valdKontroll[kontrollTyp] ?? null : null;
+  const listId = vald?.flik.lista ?? (aktivKontroll ? `kontroll-${aktivKontroll.id}` : undefined);
   const textNyckel = vald?.flik.text;
 
   // Listor som fliken behöver hämtas första gången de används. Ritningen visar egenkontroll och kabellängd.
@@ -347,7 +355,29 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
     if (misslyckade) void hamtaAllt();
   };
 
-  const listDef = listId ? listdefinitioner.find((d) => d.id === listId) : undefined;
+  const kontrollDef = listdefinitioner.find((d) => d.id === "kontroll");
+  const listDef = !listId ? undefined
+    : aktivKontroll && kontrollDef
+      ? { ...kontrollDef, id: listId, namn: aktivKontroll.namn, ingress: aktivKontroll.beskrivning || kontrollDef.ingress }
+      : listdefinitioner.find((d) => d.id === listId);
+  const listVy = (inbaddad: boolean) => listDef && vald ? (
+    <ListVy
+      key={listDef.id}
+      def={listDef}
+      grupp={vald.grupp.namn}
+      rader={listor[listDef.id]}
+      komponenter={komponenter}
+      projekt={projekt}
+      blinkar={blinkar}
+      lasläge={!skrivbar}
+      onAndra={(r, falt, v) => void andraLista(listDef, r, falt, v)}
+      onNy={() => void nyListRad(listDef)}
+      onTaBort={(ids) => void taBortListRader(listDef, ids)}
+      onExcel={() => void laddaNer(`/api/projekt/${projektId}/listor/${listDef.id}/excel`, `${listDef.namn}.xlsx`).catch((e) => visaMeddelande((e as Error).message))}
+      onFlik={onFlik}
+      inbaddad={inbaddad}
+    />
+  ) : <p className="dampad">Hämtar…</p>;
   const skrivbar = mig.rattigheter.skriva;
 
   return (
@@ -401,7 +431,9 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
         {fel && <p className="felruta">Projektet kunde inte hämtas: {fel}</p>}
 
         {flik === "komponenter" && (
-          <KomponenterVy komponenter={komponenter} kataloger={kataloger} blinkar={blinkar} onAndra={andra} onNy={ny} onTaBort={taBort} lasläge={!mig.rattigheter.skriva} />
+          <KomponenterVy
+            projektId={projektId} kanHanteraMallar={!!mig.rattigheter.hanteraMallar} onUppdatera={() => void hamtaAllt()} visaMeddelande={visaMeddelande}
+            komponenter={komponenter} kataloger={kataloger} blinkar={blinkar} onAndra={andra} onNy={ny} onTaBort={taBort} lasläge={!mig.rattigheter.skriva} />
         )}
         {flik === "oversikt" && projekt && (
           <Oversikt
@@ -414,23 +446,24 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
         {flik === "projektstatus" && <ProjektStatusVy projektId={projektId} rattigheter={mig.rattigheter} uppdaterad={statusVersion} visaMeddelande={visaMeddelande} />}
         {flik === "medlemmar" && <MedlemmarVy projektId={projektId} rattigheter={mig.rattigheter} visaMeddelande={visaMeddelande} />}
         {flik === "anteckningar" && anteckningar && <AnteckningarVy key={projektId} anteckningar={anteckningar} onSpara={sparaAnteckningar} lasläge={!mig.rattigheter.skriva} />}
-        {listId && vald && (listDef ? (
-          <ListVy
-            key={listDef.id}
-            def={listDef}
+        {vald?.flik.lista && listVy(false)}
+        {kontrollTyp && vald && (
+          <KontrollerVy
+            key={kontrollTyp}
+            projektId={projektId}
+            typ={kontrollTyp}
             grupp={vald.grupp.namn}
-            rader={listor[listDef.id]}
-            komponenter={komponenter}
-            projekt={projekt}
-            blinkar={blinkar}
-            lasläge={!skrivbar}
-            onAndra={(r, falt, v) => void andraLista(listDef, r, falt, v)}
-            onNy={() => void nyListRad(listDef)}
-            onTaBort={(ids) => void taBortListRader(listDef, ids)}
-            onExcel={() => void laddaNer(`/api/projekt/${projektId}/listor/${listDef.id}/excel`, `${listDef.namn}.xlsx`).catch((e) => visaMeddelande((e as Error).message))}
-            onFlik={onFlik}
-          />
-        ) : <p className="dampad">Hämtar…</p>)}
+            rubrik={vald.flik.namn}
+            valdId={aktivKontroll?.id ?? null}
+            onVald={(_, k) => setValdKontroll((alla) => ({ ...alla, [kontrollTyp]: k }))}
+            uppdaterad={kontrollVersion}
+            skriva={skrivbar}
+            hanteraMallar={!!mig.rattigheter.hanteraMallar}
+            visaMeddelande={visaMeddelande}
+          >
+            {listVy(true)}
+          </KontrollerVy>
+        )}
         {textNyckel && vald && (texter[textNyckel] ? (
           <AnteckningarVy
             key={`${projektId}-${textNyckel}`}

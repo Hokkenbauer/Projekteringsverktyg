@@ -240,3 +240,32 @@ a.knapp { text-decoration: none; color: var(--text); }
 .ritningshuvud p { flex: 1; margin: 0; font-size: 12.5px; max-width: 80ch; }
 .ritningsyta.helskarm .ritningshuvud .brodsmula, .ritningsyta.helskarm .ritningshuvud h1 { display: none; }
 .ritningsram { flex: 1; width: 100%; border: 1px solid var(--linje); border-radius: var(--r); background: #0d1014; }
+.dialog { border: 1px solid var(--linje); border-radius: calc(var(--r) * 2); padding: 0; background: var(--yta); color: var(--text); width: min(640px, 94vw); max-height: 88vh; box-shadow: 0 24px 70px rgba(0,0,0,.45); }
+.dialog.bred { width: min(1100px, 96vw); }
+.dialog::backdrop { background: rgba(5, 10, 18, .55); }
+.dialog-ram { display: flex; flex-direction: column; max-height: 88vh; }
+.dialog header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--linje); }
+.dialog header h2 { margin: 0; font-size: 16px; }
+.dialog-innehall { padding: 14px 16px; overflow: auto; }
+.dialog footer { display: flex; gap: 8px; justify-content: flex-end; align-items: center; padding: 10px 16px; border-top: 1px solid var(--linje); }
+.dialog footer .dampad { margin-right: auto; font-size: 12.5px; }
+.mallyta { display: grid; grid-template-columns: 240px 1fr; gap: 14px; min-height: 360px; }
+@media (max-width: 760px) { .mallyta { grid-template-columns: 1fr; } }
+.malllista { display: flex; flex-direction: column; gap: 2px; border: 1px solid var(--linje); border-radius: var(--r); padding: 4px; overflow: auto; max-height: 60vh; }
+.malllista button { text-align: left; background: transparent; border: 0; border-radius: var(--r); padding: 7px 9px; color: var(--text); font-size: 13.5px; display: flex; justify-content: space-between; gap: 8px; }
+.malllista button:hover { background: var(--yta-2); }
+.malllista button.aktiv { background: color-mix(in srgb, var(--accent) 16%, transparent); font-weight: 500; }
+.malllista button small { color: var(--dampad); font-family: var(--font-mono); }
+.forhands { overflow: auto; max-height: 52vh; border: 1px solid var(--linje); border-radius: var(--r); }
+table.enkel.tat td, table.enkel.tat th { padding: 5px 8px; font-size: 12.5px; }
+.faltrad { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+.faltrad label { font-size: 12.5px; color: var(--dampad); display: flex; gap: 6px; align-items: center; }
+.faltrad input[type="text"], .faltrad select { background: var(--yta-2); border: 1px solid var(--linje); border-radius: var(--r); padding: 6px 8px; color: var(--text); }
+.kontrollchips { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 16px; align-items: center; }
+.kontrollchip { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; background: var(--yta); border: 1px solid var(--linje); border-radius: var(--r); padding: 7px 12px; color: var(--text); text-align: left; min-width: 160px; }
+.kontrollchip:hover { border-color: var(--accent); }
+.kontrollchip.aktiv { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.kontrollchip b { font-size: 13.5px; font-weight: 500; }
+.kontrollchip small { color: var(--dampad); font-size: 12px; }
+.kontrollchip.klar small { color: var(--klar, #2F855A); }
+.punktlista { margin: 6px 0 0; padding-left: 22px; font-size: 13px; line-height: 1.5; max-height: 46vh; overflow: auto; }

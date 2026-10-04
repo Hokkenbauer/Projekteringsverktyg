@@ -9,6 +9,8 @@ export type Flik = {
   lista?: string;
   /** Fliken är ett fritt textfält (nyckel enligt serverns TextEndpoints). */
   text?: string;
+  /** Fliken visar kontroller av den här typen (serverns KontrollEndpoints). */
+  kontroll?: "projekt" | "projektering" | "service";
 };
 export type Grupp = { namn: string; flikar: Flik[] };
 
@@ -63,7 +65,7 @@ export const NAVIGERING: Grupp[] = [
       { id: "anmarkningsbilaga", namn: "Anmärkningsbilaga", fas: 3, klar: true, lista: "anmarkningar" },
       { id: "ip-lista", namn: "IP-lista", fas: 3, klar: true, lista: "iplista" },
       { id: "matplan", namn: "Mätplan", fas: 3, klar: true, lista: "matplan" },
-      { id: "kontroller", namn: "Projektspecifika kontroller", fas: 3 },
+      { id: "kontroller", namn: "Projektspecifika kontroller", fas: 3, klar: true, kontroll: "projekt" },
       { id: "anslutningsinformation", namn: "Anslutningsinformation", fas: 3 },
     ],
   },
@@ -72,7 +74,7 @@ export const NAVIGERING: Grupp[] = [
     flikar: [
       { id: "projekteringsstod", namn: "Projekteringsstöd", fas: 5 },
       { id: "funktionstexter", namn: "Funktionstexter", fas: 5 },
-      { id: "projekteringsegenkontroll", namn: "Projekteringsegenkontroll", fas: 5 },
+      { id: "projekteringsegenkontroll", namn: "Projekteringsegenkontroll", fas: 5, klar: true, kontroll: "projektering" },
       { id: "riskbedomning", namn: "Riskbedömning", fas: 5 },
       { id: "byggvarubedomning", namn: "Byggvarubedömning", fas: 5 },
       { id: "sunda-hus", namn: "Sunda Hus", fas: 5 },
@@ -97,7 +99,7 @@ export const NAVIGERING: Grupp[] = [
       { id: "servicerapport", namn: "Servicerapport", fas: 6 },
       { id: "planerade-tillfallen", namn: "Planerade tillfällen", fas: 6, klar: true, lista: "planerade" },
       { id: "serviceinformation", namn: "Serviceinformation", fas: 6, klar: true, text: "serviceinformation" },
-      { id: "servicekontroller", namn: "Kontroller (service)", fas: 6 },
+      { id: "servicekontroller", namn: "Kontroller (service)", fas: 6, klar: true, kontroll: "service" },
     ],
   },
   {

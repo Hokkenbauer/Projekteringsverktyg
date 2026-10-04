@@ -7,6 +7,7 @@ export type Rattigheter = {
   redigeraStatusRubriker: boolean;
   redigeraUnderrubriker: boolean;
   redigeraKataloger: boolean;
+  hanteraMallar?: boolean;
   seAnslutningsinformation: boolean;
   skriva: boolean;
 };

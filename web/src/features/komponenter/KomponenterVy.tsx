@@ -1,8 +1,15 @@
-import { useMemo } from "react";
+import { useMemo, useRef, useState } from "react";
 import { DataGrid, type Blink, type Kolumn } from "../../grid/DataGrid";
+import { api, laddaNer, skicka } from "../../lib/api";
 import type { Kataloger, Komponent } from "../../lib/typer";
+import { KomponentMallDialog } from "./KomponentMallDialog";
 
 type Props = {
+  projektId: string;
+  kanHanteraMallar: boolean;
+  /** Hämtar om komponenterna (efter import eller mall). */
+  onUppdatera: () => void;
+  visaMeddelande: (t: string) => void;
   komponenter: Komponent[];
   kataloger: Kataloger;
   blinkar: Blink[];
@@ -23,7 +30,49 @@ function forslag(kataloger: Kataloger, komponenter: Komponent[], falt: keyof Kat
   return ut.sort((a, b) => a.localeCompare(b, "sv", { numeric: true }));
 }
 
-export function KomponenterVy({ komponenter, kataloger, blinkar, onAndra, onNy, onTaBort, lasläge }: Props) {
+const MALLFALT = ["beteckning", "system", "komponenttyp", "signaltyp", "placering", "beskrivning", "ovrigt", "anslutsTill", "kabeltyp", "produkttyp", "produkt", "monteringsanvisning"] as const;
+
+export function KomponenterVy({
+  projektId, kanHanteraMallar, onUppdatera, visaMeddelande, komponenter, kataloger, blinkar, onAndra, onNy, onTaBort, lasläge,
+}: Props) {
+  const [mallOppen, setMallOppen] = useState(false);
+  const [importerar, setImporterar] = useState(false);
+  const filval = useRef<HTMLInputElement>(null);
+
+  const importera = async (fil: File) => {
+    const form = new FormData();
+    form.append("fil", fil, fil.name);
+    setImporterar(true);
+    try {
+      const svar = await api<{ antal: number }>(`/api/projekt/${projektId}/komponenter/import`, { method: "POST", body: form });
+      visaMeddelande(`${svar.antal} komponenter importerade från ${fil.name}.`);
+      onUppdatera();
+    } catch (e) {
+      visaMeddelande(`Importen misslyckades: ${(e as Error).message}`);
+    } finally {
+      setImporterar(false);
+      if (filval.current) filval.current.value = "";
+    }
+  };
+
+  const sparaSomMall = async (ids: string[]) => {
+    const valda = komponenter.filter((k) => ids.includes(k.id));
+    const namn = window.prompt(`Namn på mallen (${valda.length} komponenter). Skriv xx där numret ska bytas, t.ex. LBxx-GT11.`);
+    if (!namn?.trim()) return;
+    const rader = valda.map((k) => Object.fromEntries(MALLFALT.map((f) => [f, k[f]]).filter(([, v]) => v)));
+    try {
+      await api("/api/komponentmallar", { method: "POST", body: skicka({ namn, rader }) });
+      visaMeddelande(`Mallen ${namn} är sparad.`);
+    } catch (e) {
+      if ((e as { status?: number }).status === 409 && window.confirm(`Det finns redan en mall som heter ${namn}. Skriva över den?`)) {
+        await api("/api/komponentmallar", { method: "POST", body: skicka({ namn, rader, skrivOver: true }) });
+        visaMeddelande(`Mallen ${namn} är uppdaterad.`);
+      } else if ((e as { status?: number }).status !== 409) {
+        visaMeddelande(`Mallen kunde inte sparas: ${(e as Error).message}`);
+      }
+    }
+  };
+
   // Förslagen räknas om när katalogen hämtats eller antalet komponenter ändras, inte vid varje tangenttryckning.
   const antal = komponenter.length;
   const kolumner: Kolumn<Komponent>[] = useMemo(() => {
@@ -62,6 +111,24 @@ export function KomponenterVy({ komponenter, kataloger, blinkar, onAndra, onNy, 
         onTaBort={onTaBort}
         blinkar={blinkar}
         lasläge={lasläge}
+        markeradeVerktyg={kanHanteraMallar ? (ids) => (
+          <button className="knapp" disabled={ids.length === 0} onClick={() => void sparaSomMall(ids)}>Spara markerade som mall</button>
+        ) : undefined}
+        verktyg={<>
+          {!lasläge && <button className="knapp" onClick={() => setMallOppen(true)}>Lägg till från mall</button>}
+          {!lasläge && (
+            <>
+              <input ref={filval} type="file" accept=".xlsx,.csv,.txt" hidden onChange={(e) => e.target.files?.[0] && void importera(e.target.files[0])} />
+              <button className="knapp" disabled={importerar} onClick={() => filval.current?.click()}>{importerar ? "Importerar…" : "Importera Excel/CSV"}</button>
+            </>
+          )}
+          <button className="knapp" onClick={() => void laddaNer(`/api/projekt/${projektId}/komponenter/excel`, "Komponenter.xlsx").catch((e) => visaMeddelande((e as Error).message))}>Exportera Excel</button>
+        </>}
+      />
+      <KomponentMallDialog
+        projektId={projektId} oppen={mallOppen} onStang={() => setMallOppen(false)} kanHanteraMallar={kanHanteraMallar}
+        onKlar={(n) => { visaMeddelande(`${n} komponenter tillagda från mallen.`); onUppdatera(); }}
+        visaMeddelande={visaMeddelande}
       />
     </>
   );
