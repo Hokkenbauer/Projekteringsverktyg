@@ -38,12 +38,14 @@ type Props<T extends Rad> = {
   tomText?: string;
   /** Returnerar en varningstext för en cell (cellen markeras röd), annars undefined. */
   cellVarning?: (rad: T, nyckel: string) => string | undefined;
+  /** Extra CSS-klass för en cell, t.ex. färg efter riskvärde. */
+  cellKlass?: (rad: T, nyckel: string) => string | undefined;
   /** Knappar som gäller markerade rader (visas i verktygsraden). */
   markeradeVerktyg?: (ids: string[]) => ReactNode;
 };
 
 export function DataGrid<T extends Rad>({
-  rader, kolumner, sokPlatshallare, onAndra, onNy: nyIn, onTaBort: taBortIn, blinkar = [], verktyg, lasläge = false, tomText, cellVarning, markeradeVerktyg,
+  rader, kolumner, sokPlatshallare, onAndra, onNy: nyIn, onTaBort: taBortIn, blinkar = [], verktyg, lasläge = false, tomText, cellVarning, cellKlass, markeradeVerktyg,
 }: Props<T>) {
   const onNy = lasläge ? undefined : nyIn;
   const onTaBort = lasläge ? undefined : taBortIn;
@@ -151,6 +153,7 @@ export function DataGrid<T extends Rad>({
                       varde={String(r[k.nyckel] ?? "")}
                       blink={blink}
                       varning={cellVarning?.(r, k.nyckel)}
+                      extraKlass={cellKlass?.(r, k.nyckel)}
                       lasläge={lasläge}
                       onSpara={(v) => onAndra(r, k.nyckel, v)}
                     />
@@ -182,8 +185,8 @@ function kolumnStil<T>(k: Kolumn<T>): CSSProperties | undefined {
   return undefined;
 }
 
-function Cell<T>({ kolumn, varde, blink, varning, onSpara, lasläge }: {
-  kolumn: Kolumn<T>; varde: string; blink?: Blink; varning?: string; onSpara: (v: string) => void; lasläge: boolean;
+function Cell<T>({ kolumn, varde, blink, varning, extraKlass, onSpara, lasläge }: {
+  kolumn: Kolumn<T>; varde: string; blink?: Blink; varning?: string; extraKlass?: string; onSpara: (v: string) => void; lasläge: boolean;
 }) {
   const [utkast, setUtkast] = useState(varde);
   const fokus = useRef(false);
@@ -195,7 +198,7 @@ function Cell<T>({ kolumn, varde, blink, varning, onSpara, lasläge }: {
   }, [varde]);
 
   const stil = blink ? ({ "--blink": blink.farg } as CSSProperties) : undefined;
-  const klass = [kolumn.mono ? "mono" : "", blink ? "blinkar" : "", varning ? "varnar" : ""].join(" ").trim() || undefined;
+  const klass = [kolumn.mono ? "mono" : "", blink ? "blinkar" : "", varning ? "varnar" : "", extraKlass ?? ""].join(" ").trim() || undefined;
 
   if (kolumn.typ === "ro") {
     return (

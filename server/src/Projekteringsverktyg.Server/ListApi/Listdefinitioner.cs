@@ -21,9 +21,25 @@ public sealed record KolumnDef(
     /// <summary>För kryss: fält som får användarens signatur när rutan bockas i.</summary>
     string? SatterSign = null,
     /// <summary>Kolumnen tar allt utrymme som blir över (t.ex. Anmärkning).</summary>
-    bool Fyll = false)
+    bool Fyll = false,
+    /// <summary>För typ produkt: kolumnerna som multipliceras (t.ex. sannolikhet × konsekvens).</summary>
+    string[]? Faktorer = null)
 {
     public bool Redigerbar => Typ is "text" or "val" or "kryss" or "datum";
+
+    /// <summary>Räknat värde för typ produkt; tomt om någon faktor saknas eller inte är ett tal.</summary>
+    public string Berakna(IReadOnlyDictionary<string, string> data)
+    {
+        if (Typ != "produkt" || Faktorer is null) return "";
+        var resultat = 1m;
+        foreach (var f in Faktorer)
+        {
+            if (!decimal.TryParse(data.GetValueOrDefault(f, "").Replace(',', '.'), System.Globalization.NumberStyles.Number,
+                    System.Globalization.CultureInfo.InvariantCulture, out var v)) return "";
+            resultat *= v;
+        }
+        return resultat.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    }
 }
 
 /// <summary>
@@ -47,6 +63,20 @@ public sealed record ListDef(
 public static class Listdefinitioner
 {
     private static string[] Kat(string namn) => Grundkataloger.Hamta(namn);
+
+    private static ListDef Risk(string id, string namn, string ingress) => new(id, namn, "Projektering", ingress,
+        Kopplad: false,
+        Kolumner:
+        [
+            new("pos", "Pos.", "lopnr"),
+            new("arbetsmoment", "Arbetsmoment", Bredd: 180),
+            new("risk", "Risk (förklaring)", Bredd: 320, Fyll: true),
+            new("sannolikhet", "Sannolikhet", "val", ["1", "2", "3"], Bredd: 90),
+            new("konsekvens", "Konsekvens", "val", ["1", "2", "3"], Bredd: 90),
+            new("riskvarde", "Riskvärde", "produkt", Mono: true, Bredd: 96, Faktorer: ["sannolikhet", "konsekvens"]),
+            new("atgard", "Åtgärd", Bredd: 260),
+            new("ansvarig", "Ansvarig", "val", Kat("RiskbedomningAnsvarig")),
+        ]);
 
     private static KolumnDef K(string falt, string rubrik, bool mono = false, int? bredd = null) =>
         new(falt, rubrik, "komponent", KomponentFalt: falt, Mono: mono, Bredd: bredd);
@@ -221,6 +251,11 @@ public static class Listdefinitioner
                 new("datum", "Datum", "datum"),
                 new("sign", "Sign.", Mono: true, Bredd: 52),
             ]),
+
+        Risk("risk-projektering", "Riskanalys projektering",
+            "Risker i projekteringen. Riskvärde = sannolikhet × konsekvens (1–3). 1–2 låg, 3–4 medel, 6–9 hög."),
+        Risk("risk-produktion", "Riskanalys produktion",
+            "Risker i produktionen, t.ex. lyft, arbete på stege eller nära spänning. Riskvärde = sannolikhet × konsekvens (1–3)."),
 
         // ---------------- Dokumentation ----------------
         new("signaturlista", "Signaturlista", "Dokumentation",

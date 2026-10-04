@@ -68,7 +68,7 @@ public static class ListEndpoints
         app.MapGet("/api/listdefinitioner", () => Listdefinitioner.Alla.Append(Listdefinitioner.Kontroll).Select(d => new
         {
             d.Id, d.Namn, d.Grupp, d.Ingress, d.Kopplad, d.KomponenttypInnehaller, d.Bindestreck,
-            kolumner = d.Kolumner.Select(k => new { k.Nyckel, k.Rubrik, k.Typ, k.Val, k.KomponentFalt, k.Standard, k.Mono, k.Bredd, k.Redigerbar, k.Fyll }),
+            kolumner = d.Kolumner.Select(k => new { k.Nyckel, k.Rubrik, k.Typ, k.Val, k.KomponentFalt, k.Standard, k.Mono, k.Bredd, k.Redigerbar, k.Fyll, k.Faktorer }),
         }));
 
         var g = app.MapGroup("/api/projekt/{projektId:guid}/listor/{lista}").AddEndpointFilter<ProjektAtkomst>();
@@ -99,6 +99,34 @@ public static class ListEndpoints
             var dto = Dto(rad);
             await Skicka(hub, projektId, lista, "skapad", dto, av);
             return Results.Created($"/api/projekt/{projektId}/listor/{lista}/{rad.Id}", dto);
+        });
+
+        // Flera nya rader på en gång i en fri lista (t.ex. "Lägg till vanliga risker").
+        g.MapPost("/flera", async (Guid projektId, string lista, List<Dictionary<string, string>> nya, ClaimsPrincipal user, PvDbContext db, IHubContext<ProjektHub> hub) =>
+        {
+            var def = Listdefinitioner.Hitta(lista);
+            if (def is null) return Results.NotFound();
+            if (def.Kopplad) return Fel("lista", "Raderna i den här listan skapas från Komponenter.");
+            if (nya.Count is 0 or > 500) return Fel("rader", "Mellan 1 och 500 rader per gång.");
+            if (!await db.Projekt.AnyAsync(p => p.Id == projektId)) return Results.NotFound();
+
+            var av = Anvandare.Fran(user);
+            var max = await db.ListRader.Where(r => r.ProjektId == projektId && r.Lista == lista).MaxAsync(r => (int?)r.Ordning) ?? 0;
+            var skapade = new List<ListRad>();
+            foreach (var n in nya)
+            {
+                var data = def.Kolumner.Where(k => k.Standard is not null).ToDictionary(k => k.Nyckel, k => k.Standard!);
+                foreach (var (falt, varde) in n)
+                    if (def.Kolumn(falt) is { Redigerbar: true } && !string.IsNullOrWhiteSpace(varde))
+                        data[falt] = varde.Length > MaxLangd ? varde[..MaxLangd] : varde.Trim();
+                var rad = new ListRad { ProjektId = projektId, Lista = lista, Ordning = ++max, Data = JsonSerializer.Serialize(data, Json), AndradAv = av.Namn };
+                db.ListRader.Add(rad);
+                skapade.Add(rad);
+            }
+            Andringslogg.Logga(db, projektId, av, "Lista", null, $"lade till {skapade.Count} rader i {def.Namn}");
+            await db.SaveChangesAsync();
+            foreach (var rad in skapade) await Skicka(hub, projektId, lista, "skapad", Dto(rad), av);
+            return Results.Ok(skapade.Select(Dto));
         });
 
         // Ändra ett fält på en befintlig rad.
@@ -213,6 +241,7 @@ public static class ListEndpoints
         "komponent" when k is not null && c.KomponentFalt is not null =>
             bindestreck ? KomponentFalt.Hamta(k, c.KomponentFalt).Replace('_', '-') : KomponentFalt.Hamta(k, c.KomponentFalt),
         "lopnr" => nr.ToString(),
+        "produkt" => c.Berakna(data),
         "kryss" => data.GetValueOrDefault(c.Nyckel) == "true" ? "Ja" : "",
         _ => data.GetValueOrDefault(c.Nyckel, c.Standard ?? ""),
     };

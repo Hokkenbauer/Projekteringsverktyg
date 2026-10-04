@@ -269,3 +269,17 @@ table.enkel.tat td, table.enkel.tat th { padding: 5px 8px; font-size: 12.5px; }
 .kontrollchip small { color: var(--dampad); font-size: 12px; }
 .kontrollchip.klar small { color: var(--klar, #2F855A); }
 .punktlista { margin: 6px 0 0; padding-left: 22px; font-size: 13px; line-height: 1.5; max-height: 46vh; overflow: auto; }
+.grid td.risk-lag span { color: #fff; background: #2F855A; }
+.grid td.risk-medel span { color: #1a1300; background: #D69E2E; }
+.grid td.risk-hog span { color: #fff; background: #C53030; }
+.grid td.risk-lag span, .grid td.risk-medel span, .grid td.risk-hog span { font-weight: 600; text-align: center; }
+.riskhuvud { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px 14px; margin-bottom: 16px; }
+.riskfalt, .risksektion { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--dampad); }
+.riskfalt input, .risksektion textarea { background: var(--yta-2); border: 1px solid var(--linje); border-radius: var(--r); padding: 7px 9px; color: var(--text); font: inherit; font-size: 13.5px; }
+.risksektion textarea { resize: vertical; line-height: 1.5; }
+.risksektioner { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 14px; margin-top: 16px; }
+.riskmatrisruta { margin-top: 16px; display: inline-block; }
+.riskmatris { border-collapse: separate; border-spacing: 3px; }
+.riskmatris th { font-size: 12px; color: var(--dampad); padding: 4px 8px; }
+.riskmatris td { width: 46px; height: 34px; text-align: center; font-weight: 600; border-radius: 4px; color: #fff; }
+.riskmatris td.risk-lag { background: #2F855A; } .riskmatris td.risk-medel { background: #D69E2E; color: #1a1300; } .riskmatris td.risk-hog { background: #C53030; }

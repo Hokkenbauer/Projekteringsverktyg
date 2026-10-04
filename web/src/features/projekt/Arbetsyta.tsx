@@ -12,6 +12,7 @@ import { ListVy, type VisadRad } from "../listor/ListVy";
 import { PlaceringsritningVy } from "../ritning/PlaceringsritningVy";
 import { KomponenterVy } from "../komponenter/KomponenterVy";
 import { KontrollerVy, type Kontroll } from "../kontroller/KontrollerVy";
+import { RiskVy } from "../risk/RiskVy";
 import { ProjektStatusVy } from "../status/ProjektStatusVy";
 import { MedlemmarVy } from "./MedlemmarVy";
 import { LoggVy, Oversikt } from "./Oversikt";
@@ -243,8 +244,9 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
   const vald = hittaFlik(flik);
   const kontrollTyp = vald?.flik.kontroll;
   const aktivKontroll = kontrollTyp ? valdKontroll[kontrollTyp] ?? null : null;
-  const listId = vald?.flik.lista ?? (aktivKontroll ? `kontroll-${aktivKontroll.id}` : undefined);
-  const textNyckel = vald?.flik.text;
+  const riskVariant = vald?.flik.risk;
+  const listId = vald?.flik.lista ?? (riskVariant ? `risk-${riskVariant}` : aktivKontroll ? `kontroll-${aktivKontroll.id}` : undefined);
+  const textNyckel = vald?.flik.text ?? (vald?.flik.risk ? `risk-${vald.flik.risk}` : undefined);
 
   // Listor som fliken behöver hämtas första gången de används. Ritningen visar egenkontroll och kabellängd.
   const behovdaListor = listId ? listId : flik === "placeringsritningar" ? "egenkontroll,installationslista" : "";
@@ -376,6 +378,7 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
       onExcel={() => void laddaNer(`/api/projekt/${projektId}/listor/${listDef.id}/excel`, `${listDef.namn}.xlsx`).catch((e) => visaMeddelande((e as Error).message))}
       onFlik={onFlik}
       inbaddad={inbaddad}
+      utanUtskrift={!!riskVariant}
     />
   ) : <p className="dampad">Hämtar…</p>;
   const skrivbar = mig.rattigheter.skriva;
@@ -464,7 +467,25 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
             {listVy(true)}
           </KontrollerVy>
         )}
-        {textNyckel && vald && (texter[textNyckel] ? (
+        {riskVariant && vald && (
+          <RiskVy
+            key={riskVariant}
+            projektId={projektId}
+            projekt={projekt}
+            variant={riskVariant}
+            grupp={vald.grupp.namn}
+            rubrik={vald.flik.namn}
+            text={texter[`risk-${riskVariant}`]}
+            onSparaText={(t) => sparaText(`risk-${riskVariant}`, t)}
+            def={listDef}
+            rader={listId ? listor[listId] : undefined}
+            lasläge={!skrivbar}
+            visaMeddelande={visaMeddelande}
+          >
+            {listVy(true)}
+          </RiskVy>
+        )}
+        {vald?.flik.text && textNyckel && (texter[textNyckel] ? (
           <AnteckningarVy
             key={`${projektId}-${textNyckel}`}
             anteckningar={texter[textNyckel]!}

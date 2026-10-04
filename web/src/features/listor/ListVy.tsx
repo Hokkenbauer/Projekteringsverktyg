@@ -20,6 +20,12 @@ export function byggRader(def: ListDef, rader: ListRad[], komponenter: Komponent
         ut[kol.nyckel] = def.bindestreck ? v.replace(/_/g, "-") : v;
       }
       else if (kol.typ === "lopnr") ut[kol.nyckel] = String(nr);
+      else if (kol.typ === "produkt") {
+        const varden = (kol.faktorer ?? []).map((f) => (data[f] ?? "").trim());
+        const tal = varden.map((v) => Number(v.replace(",", ".")));
+        ut[kol.nyckel] = varden.length && varden.every((v) => v !== "") && tal.every((t) => !Number.isNaN(t))
+          ? String(tal.reduce((x, y) => x * y, 1)) : "";
+      }
       else ut[kol.nyckel] = data[kol.nyckel] ?? kol.standard ?? "";
     }
     return ut;
@@ -55,9 +61,11 @@ type Props = {
   onFlik: (flik: string) => void;
   /** Inbäddad i en annan vy (t.ex. Kontroller): mindre rubrik, ingen brödsmula. */
   inbaddad?: boolean;
+  /** Dölj listans egen utskriftsknapp (när vyn runt omkring har en egen). */
+  utanUtskrift?: boolean;
 };
 
-export function ListVy({ def, grupp, rader, komponenter, projekt, blinkar, lasläge, onAndra, onNy, onTaBort, onExcel, onFlik, inbaddad }: Props) {
+export function ListVy({ def, grupp, rader, komponenter, projekt, blinkar, lasläge, onAndra, onNy, onTaBort, onExcel, onFlik, inbaddad, utanUtskrift }: Props) {
   const visade = useMemo(() => byggRader(def, rader ?? [], komponenter), [def, rader, komponenter]);
 
   const kolumner: Kolumn<VisadRad>[] = useMemo(
@@ -116,7 +124,7 @@ export function ListVy({ def, grupp, rader, komponenter, projekt, blinkar, lasl�
         <div className="knappar">
           {def.kopplad && <button className="knapp" onClick={() => onFlik("komponenter")}>Till Komponenter</button>}
           <button className="knapp" onClick={onExcel}>Exportera till Excel</button>
-          <button className="knapp" onClick={utskrift}>Skriv ut / PDF</button>
+          {!utanUtskrift && <button className="knapp" onClick={utskrift}>Skriv ut / PDF</button>}
         </div>
       </div>
       <p className="ingress">{def.ingress}</p>
@@ -137,6 +145,12 @@ export function ListVy({ def, grupp, rader, komponenter, projekt, blinkar, lasl�
           blinkar={blinkar}
           lasläge={lasläge}
           tomText={tomText}
+          cellKlass={(r, nyckel) => {
+            const kol = def.kolumner.find((k) => k.nyckel === nyckel);
+            if (kol?.typ !== "produkt" || !def.id.startsWith("risk-")) return undefined;
+            const v = Number(r[nyckel]);
+            return !r[nyckel] ? undefined : v >= 6 ? "risk-hog" : v >= 3 ? "risk-medel" : "risk-lag";
+          }}
           cellVarning={dubblettIp ? (r, nyckel) => (nyckel === "ip" && r.ip?.trim() && (dubblettIp.get(r.ip.trim()) ?? 0) > 1 ? "IP-adressen finns på flera rader" : undefined) : undefined}
         />
       )}

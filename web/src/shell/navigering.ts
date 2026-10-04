@@ -11,6 +11,8 @@ export type Flik = {
   text?: string;
   /** Fliken visar kontroller av den här typen (serverns KontrollEndpoints). */
   kontroll?: "projekt" | "projektering" | "service";
+  /** Fliken är en riskanalys (lista risk-{variant} och rubrikfält/texter). */
+  risk?: "projektering" | "produktion";
 };
 export type Grupp = { namn: string; flikar: Flik[] };
 
@@ -75,7 +77,8 @@ export const NAVIGERING: Grupp[] = [
       { id: "projekteringsstod", namn: "Projekteringsstöd", fas: 5 },
       { id: "funktionstexter", namn: "Funktionstexter", fas: 5 },
       { id: "projekteringsegenkontroll", namn: "Projekteringsegenkontroll", fas: 5, klar: true, kontroll: "projektering" },
-      { id: "riskbedomning", namn: "Riskbedömning", fas: 5 },
+      { id: "riskanalys-projektering", namn: "Riskanalys projektering", fas: 5, klar: true, risk: "projektering" },
+      { id: "riskanalys-produktion", namn: "Riskanalys produktion", fas: 5, klar: true, risk: "produktion" },
       { id: "byggvarubedomning", namn: "Byggvarubedömning", fas: 5 },
       { id: "sunda-hus", namn: "Sunda Hus", fas: 5 },
       { id: "teknisk-beskrivning", namn: "Teknisk beskrivning", fas: 5 },

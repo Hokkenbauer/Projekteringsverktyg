@@ -15,6 +15,9 @@ public static class TextEndpoints
     {
         ["projektinformation"] = "Projektinformation",
         ["serviceinformation"] = "Serviceinformation",
+        // Riskanalysernas rubrikfält och standardtexter, sparade som JSON.
+        ["risk-projektering"] = "Riskanalys projektering",
+        ["risk-produktion"] = "Riskanalys produktion",
     };
 
     public static IEndpointRouteBuilder MapTextEndpoints(this IEndpointRouteBuilder app)

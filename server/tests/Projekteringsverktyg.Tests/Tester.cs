@@ -224,3 +224,17 @@ public class MallTester
     public void Grundkataloger_finns() =>
         Assert.Contains("Temperaturgivare", Projekteringsverktyg.Server.Data.Grundkataloger.Hamta("KomponentTyp"));
 }
+
+public class RiskTester
+{
+    [Theory]
+    [InlineData("2", "3", "6")]
+    [InlineData("1", "", "")]
+    [InlineData("x", "2", "")]
+    public void Riskvarde_ar_sannolikhet_ganger_konsekvens(string s, string k, string forvantat)
+    {
+        var def = Projekteringsverktyg.Server.ListApi.Listdefinitioner.Hitta("risk-produktion")!;
+        var kol = def.Kolumn("riskvarde")!;
+        Assert.Equal(forvantat, kol.Berakna(new Dictionary<string, string> { ["sannolikhet"] = s, ["konsekvens"] = k }));
+    }
+}
