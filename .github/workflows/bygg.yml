@@ -101,6 +101,10 @@ jobs:
         run: |
           az webapp log download --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" --name "${{ vars.AZURE_WEBAPP_NAME }}" --log-file logg.zip || exit 0
           mkdir -p logg && unzip -q -o logg.zip -d logg || exit 0
-          for f in $(ls -t $(find logg -name '*docker*.log' -o -name '*default_docker*.log') 2>/dev/null | head -3); do
-            echo "===== $f"; tail -n 80 "$f"
+          find logg -type f | head -50
+          for f in $(ls -t $(find logg -type f -name '*.log') 2>/dev/null | head -4); do
+            echo "===== $f"; tail -n 60 "$f"
+            # Som annotering också, så att loggen syns i körningens sammanfattning.
+            text=$(tail -n 40 "$f" | cut -c1-300 | sed 's/%/%25/g' | awk 'BEGIN{ORS="%0A"} {print}')
+            echo "::warning title=$(basename "$f")::$text"
           done
