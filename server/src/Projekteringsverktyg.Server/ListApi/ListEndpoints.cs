@@ -67,8 +67,8 @@ public static class ListEndpoints
     {
         app.MapGet("/api/listdefinitioner", () => Listdefinitioner.Alla.Select(d => new
         {
-            d.Id, d.Namn, d.Grupp, d.Ingress, d.Kopplad, d.KomponenttypInnehaller,
-            kolumner = d.Kolumner.Select(k => new { k.Nyckel, k.Rubrik, k.Typ, k.Val, k.KomponentFalt, k.Standard, k.Mono, k.Bredd, k.Redigerbar }),
+            d.Id, d.Namn, d.Grupp, d.Ingress, d.Kopplad, d.KomponenttypInnehaller, d.Bindestreck,
+            kolumner = d.Kolumner.Select(k => new { k.Nyckel, k.Rubrik, k.Typ, k.Val, k.KomponentFalt, k.Standard, k.Mono, k.Bredd, k.Redigerbar, k.Fyll }),
         }));
 
         var g = app.MapGroup("/api/projekt/{projektId:guid}/listor/{lista}").AddEndpointFilter<ProjektAtkomst>();
@@ -184,7 +184,7 @@ public static class ListEndpoints
                 {
                     var data = perKomponent.TryGetValue(k.Id, out var r) ? LasData(r.Data) : new();
                     nr++;
-                    rader.Add(kolumner.Select(c => (object?)Cell(c, data, k, nr)).ToArray());
+                    rader.Add(kolumner.Select(c => (object?)Cell(c, data, k, nr, def.Bindestreck)).ToArray());
                 }
             }
             else
@@ -194,7 +194,7 @@ public static class ListEndpoints
                 {
                     nr++;
                     var data = LasData(r.Data);
-                    rader.Add(kolumner.Select(c => (object?)Cell(c, data, null, nr)).ToArray());
+                    rader.Add(kolumner.Select(c => (object?)Cell(c, data, null, nr, false)).ToArray());
                 }
             }
 
@@ -205,9 +205,10 @@ public static class ListEndpoints
         return app;
     }
 
-    private static string Cell(KolumnDef c, Dictionary<string, string> data, Komponent? k, int nr) => c.Typ switch
+    private static string Cell(KolumnDef c, Dictionary<string, string> data, Komponent? k, int nr, bool bindestreck) => c.Typ switch
     {
-        "komponent" when k is not null && c.KomponentFalt is not null => KomponentFalt.Hamta(k, c.KomponentFalt),
+        "komponent" when k is not null && c.KomponentFalt is not null =>
+            bindestreck ? KomponentFalt.Hamta(k, c.KomponentFalt).Replace('_', '-') : KomponentFalt.Hamta(k, c.KomponentFalt),
         "lopnr" => nr.ToString(),
         "kryss" => data.GetValueOrDefault(c.Nyckel) == "true" ? "Ja" : "",
         _ => data.GetValueOrDefault(c.Nyckel, c.Standard ?? ""),

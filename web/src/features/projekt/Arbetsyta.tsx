@@ -2,13 +2,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Blink } from "../../grid/DataGrid";
 import { api, ApiFel, laddaNer, skicka } from "../../lib/api";
 import { anslutTillProjekt } from "../../lib/synk";
-import type { Anteckningar, AttGora, Komponent, KomponentHandelse, ListaHandelse, ListDef, ListRad, Logg, Mig, Narvarande, Projekt } from "../../lib/typer";
+import type { Anteckningar, AttGora, Kataloger, Komponent, KomponentHandelse, ListaHandelse, ListDef, ListRad, Logg, Mig, Narvarande, Projekt } from "../../lib/typer";
 import { skrivUt } from "../../lib/utskrift";
 import { NAVIGERING, hittaFlik } from "../../shell/navigering";
 import { AnteckningarVy } from "../att-gora/AnteckningarVy";
 import { AttGoraVy } from "../att-gora/AttGoraVy";
 import { ProjektfilerVy } from "../filer/ProjektfilerVy";
 import { ListVy, type VisadRad } from "../listor/ListVy";
+import { PlaceringsritningVy } from "../ritning/PlaceringsritningVy";
 import { KomponenterVy } from "../komponenter/KomponenterVy";
 import { ProjektStatusVy } from "../status/ProjektStatusVy";
 import { MedlemmarVy } from "./MedlemmarVy";
@@ -38,9 +39,11 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
   const [attGora, setAttGora] = useState<AttGora[]>([]);
   const [anteckningar, setAnteckningar] = useState<Anteckningar | null>(null);
   const [listdefinitioner, setListdefinitioner] = useState<ListDef[]>([]);
+  const [kataloger, setKataloger] = useState<Kataloger>({});
   const [listor, setListor] = useState<Record<string, ListRad[]>>({});
   const [texter, setTexter] = useState<Record<string, Anteckningar>>({});
   const [filVersion, setFilVersion] = useState(0);
+  const [ritningVersion, setRitningVersion] = useState(0);
   // Vilka listor och texter som är hämtade, så att livesynken vet vad som ska uppdateras.
   const hamtadeListor = useRef<Set<string>>(new Set());
   const hamtadeTexter = useRef<Set<string>>(new Set());
@@ -69,6 +72,7 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
       setAnteckningar(t);
       setListdefinitioner(d);
       setFel(null);
+      api<Kataloger>(`/api/kataloger`).then(setKataloger).catch(() => { /* bara förslag */ });
       // Översikten visar egenkontroller och anmärkningar, så de hämtas alltid. Övriga listor hämtas när de öppnas.
       const listIds = new Set(["egenkontroll", "anmarkningar", ...hamtadeListor.current]);
       const listSvar = await Promise.all([...listIds].map(async (id) => [id, await api<ListRad[]>(`/api/projekt/${projektId}/listor/${id}`)] as const));
@@ -159,6 +163,8 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
     } else if (h.lista.startsWith("text:")) {
       const nyckel = h.lista.slice(5);
       if (h.avId !== mig.id) setTexter((t) => ({ ...t, [nyckel]: h.rad as Anteckningar }));
+    } else if (h.lista === "ritning") {
+      if (h.avId !== mig.id) setRitningVersion((v) => v + 1);
     } else if (h.lista === "filer") {
       if (h.avId !== mig.id) setFilVersion((v) => v + 1);
     } else if (h.lista === "attGora") {
@@ -232,13 +238,17 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
   const listId = vald?.flik.lista;
   const textNyckel = vald?.flik.text;
 
+  // Listor som fliken behöver hämtas första gången de används. Ritningen visar egenkontroll och kabellängd.
+  const behovdaListor = listId ? listId : flik === "placeringsritningar" ? "egenkontroll,installationslista" : "";
   useEffect(() => {
-    if (!listId || hamtadeListor.current.has(listId)) return;
-    hamtadeListor.current.add(listId);
-    api<ListRad[]>(`/api/projekt/${projektId}/listor/${listId}`)
-      .then((rader) => setListor((alla) => ({ ...alla, [listId]: rader })))
-      .catch((e) => { hamtadeListor.current.delete(listId); visaMeddelande(`Listan kunde inte hämtas: ${(e as Error).message}`); });
-  }, [listId, projektId, visaMeddelande]);
+    for (const id of behovdaListor.split(",").filter(Boolean)) {
+      if (hamtadeListor.current.has(id)) continue;
+      hamtadeListor.current.add(id);
+      api<ListRad[]>(`/api/projekt/${projektId}/listor/${id}`)
+        .then((rader) => setListor((alla) => ({ ...alla, [id]: rader })))
+        .catch((e) => { hamtadeListor.current.delete(id); visaMeddelande(`Listan kunde inte hämtas: ${(e as Error).message}`); });
+    }
+  }, [behovdaListor, projektId, visaMeddelande]);
 
   useEffect(() => {
     if (!textNyckel || hamtadeTexter.current.has(textNyckel)) return;
@@ -391,7 +401,7 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
         {fel && <p className="felruta">Projektet kunde inte hämtas: {fel}</p>}
 
         {flik === "komponenter" && (
-          <KomponenterVy komponenter={komponenter} blinkar={blinkar} onAndra={andra} onNy={ny} onTaBort={taBort} lasläge={!mig.rattigheter.skriva} />
+          <KomponenterVy komponenter={komponenter} kataloger={kataloger} blinkar={blinkar} onAndra={andra} onNy={ny} onTaBort={taBort} lasläge={!mig.rattigheter.skriva} />
         )}
         {flik === "oversikt" && projekt && (
           <Oversikt
@@ -435,6 +445,25 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
             onSkrivUt={(t) => skrivUt(vald.flik.namn, projekt, { typ: "text", text: t })}
           />
         ) : <p className="dampad">Hämtar…</p>)}
+        {flik === "placeringsritningar" && (
+          <PlaceringsritningVy
+            projektId={projektId}
+            projekt={projekt}
+            komponenter={komponenter}
+            egenkontroll={listor.egenkontroll}
+            installationslista={listor.installationslista}
+            kataloger={kataloger}
+            uppdaterad={ritningVersion}
+            lasläge={!skrivbar}
+            laggKomponent={lagg}
+            taBortKomponentLokalt={(id) => setKomponenter((l) => l.filter((x) => x.id !== id))}
+            andraLista={async (lista, komponentId, falt, varde) => {
+              const def = listdefinitioner.find((d) => d.id === lista);
+              if (def) await andraLista(def, { id: komponentId } as VisadRad, falt, varde);
+            }}
+            visaMeddelande={visaMeddelande}
+          />
+        )}
         {flik === "projektfiler" && <ProjektfilerVy projektId={projektId} lasläge={!skrivbar} uppdaterad={filVersion} visaMeddelande={visaMeddelande} />}
         {vald && !vald.flik.klar && (
           <>

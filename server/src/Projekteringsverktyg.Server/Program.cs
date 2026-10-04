@@ -135,6 +135,8 @@ app.MapStatusEndpoints();
 app.MapListEndpoints();
 app.MapTextEndpoints();
 app.MapFilEndpoints();
+app.MapRitningEndpoints();
+app.MapKatalogEndpoints();
 app.MapHub<ProjektHub>("/hubs/projekt");
 
 // Alla andra adresser hör till webbappen (React sköter sin egen navigering).

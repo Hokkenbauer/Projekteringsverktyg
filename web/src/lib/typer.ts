@@ -58,6 +58,9 @@ export type Komponent = {
   kabeltyp: string;
   placering: string;
   ovrigt: string;
+  produkttyp: string;
+  produkt: string;
+  monteringsanvisning: string;
   version: number;
   andrad: string;
   andradAv: string;
@@ -116,6 +119,7 @@ export type ListKolumn = {
   mono: boolean;
   bredd: number | null;
   redigerbar: boolean;
+  fyll: boolean;
 };
 
 export type ListDef = {
@@ -125,6 +129,7 @@ export type ListDef = {
   ingress: string;
   kopplad: boolean;
   komponenttypInnehaller: string[] | null;
+  bindestreck: boolean;
   kolumner: ListKolumn[];
 };
 
@@ -149,3 +154,6 @@ export type ProjektFil = {
   uppladdad: string;
   uppladdadAv: string;
 };
+
+/** Förslagslistor per komponentfält, byggda av allt som använts i något projekt. */
+export type Kataloger = Partial<Record<"system" | "komponenttyp" | "signaltyp" | "kabeltyp" | "produkttyp" | "produkt" | "placering", string[]>>;

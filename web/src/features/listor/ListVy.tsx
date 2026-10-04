@@ -15,7 +15,10 @@ export function byggRader(def: ListDef, rader: ListRad[], komponenter: Komponent
   const fyll = (data: Record<string, string>, k: Komponent | null, nr: number) => {
     const ut: Record<string, string> = {};
     for (const kol of def.kolumner) {
-      if (kol.typ === "komponent" && kol.komponentFalt) ut[kol.nyckel] = k ? String(k[kol.komponentFalt] ?? "") : "";
+      if (kol.typ === "komponent" && kol.komponentFalt) {
+        const v = k ? String(k[kol.komponentFalt] ?? "") : "";
+        ut[kol.nyckel] = def.bindestreck ? v.replace(/_/g, "-") : v;
+      }
       else if (kol.typ === "lopnr") ut[kol.nyckel] = String(nr);
       else ut[kol.nyckel] = data[kol.nyckel] ?? kol.standard ?? "";
     }
@@ -63,6 +66,7 @@ export function ListVy({ def, grupp, rader, komponenter, projekt, blinkar, lasl√
       val: k.val ?? undefined,
       mono: k.mono || k.typ === "lopnr",
       bredd: k.bredd ?? undefined,
+      fyll: k.fyll,
     })),
     [def],
   );

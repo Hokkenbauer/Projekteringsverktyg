@@ -16,6 +16,7 @@ public class PvDbContext(DbContextOptions<PvDbContext> options) : DbContext(opti
     public DbSet<ListRad> ListRader => Set<ListRad>();
     public DbSet<ProjektText> Texter => Set<ProjektText>();
     public DbSet<ProjektFil> Filer => Set<ProjektFil>();
+    public DbSet<Ritning> Ritningar => Set<Ritning>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -91,6 +92,13 @@ public class PvDbContext(DbContextOptions<PvDbContext> options) : DbContext(opti
         {
             e.ToTable("projekttext");
             e.HasKey(t => new { t.ProjektId, t.Nyckel });
+        });
+
+        b.Entity<Ritning>(e =>
+        {
+            e.ToTable("ritning");
+            e.HasKey(r => r.ProjektId);
+            e.Property(r => r.Version).IsConcurrencyToken();
         });
 
         b.Entity<ProjektFil>(e =>

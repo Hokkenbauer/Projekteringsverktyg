@@ -17,7 +17,9 @@ public sealed record KolumnDef(
     /// <summary>För kryss: fält som får dagens datum när rutan bockas i.</summary>
     string? SatterDatum = null,
     /// <summary>För kryss: fält som får användarens signatur när rutan bockas i.</summary>
-    string? SatterSign = null)
+    string? SatterSign = null,
+    /// <summary>Kolumnen tar allt utrymme som blir över (t.ex. Anmärkning).</summary>
+    bool Fyll = false)
 {
     public bool Redigerbar => Typ is "text" or "val" or "kryss" or "datum";
 }
@@ -33,7 +35,9 @@ public sealed record ListDef(
     bool Kopplad,
     IReadOnlyList<KolumnDef> Kolumner,
     string[]? KomponenttypInnehaller = null,
-    string[]? ExportKolumner = null)
+    string[]? ExportKolumner = null,
+    /// <summary>Visa och exportera komponentens fält med - i stället för _ (skyltar).</summary>
+    bool Bindestreck = false)
 {
     public KolumnDef? Kolumn(string nyckel) => Kolumner.FirstOrDefault(k => k.Nyckel == nyckel);
 }
@@ -61,7 +65,8 @@ public static class Listdefinitioner
                 new("montage", "Montage", "val", ["2 hål + tejp", "Buntband", "Skruv", "Lim"], Standard: "2 hål + tejp"),
                 new("ovrigt", "Övrigt"),
             ],
-            ExportKolumner: ["beteckning", "komponenttyp", "anslutsTill"]),
+            ExportKolumner: ["beteckning", "komponenttyp", "anslutsTill"],
+            Bindestreck: true),
 
         new("installationslista", "Installationslista", "Komponenter & Listor",
             "Kabel och installationsstatus per komponent. Bocka i Utdragen, Ansluten och Märkning så fylls datum och signatur i.",
@@ -79,13 +84,13 @@ public static class Listdefinitioner
                 new("information", "Övrig information", Bredd: 180),
                 new("utdragen", "Utdragen", "kryss", SatterDatum: "utdragenDatum", SatterSign: "utdragenSign"),
                 new("utdragenDatum", "Datum", "datum"),
-                new("utdragenSign", "Sign.", Mono: true),
+                new("utdragenSign", "Sign.", Mono: true, Bredd: 52),
                 new("ansluten", "Ansluten", "kryss", SatterDatum: "anslutenDatum", SatterSign: "anslutenSign"),
                 new("anslutenDatum", "Datum", "datum"),
-                new("anslutenSign", "Sign.", Mono: true),
+                new("anslutenSign", "Sign.", Mono: true, Bredd: 52),
                 new("markning", "Märkning", "kryss", SatterDatum: "markningDatum", SatterSign: "markningSign"),
                 new("markningDatum", "Datum", "datum"),
-                new("markningSign", "Sign.", Mono: true),
+                new("markningSign", "Sign.", Mono: true, Bredd: 52),
             ]),
 
         new("signallista", "Signallista (I/O)", "Komponenter & Listor",
@@ -127,7 +132,7 @@ public static class Listdefinitioner
                 K("placering", "Placering"),
                 new("kontrollerad", "Kontrollerad", "kryss", SatterDatum: "datum", SatterSign: "sign"),
                 new("datum", "Datum", "datum"),
-                new("sign", "Sign.", Mono: true),
+                new("sign", "Sign.", Mono: true, Bredd: 52),
                 new("anmarkning", "Anmärkning", Bredd: 200),
                 new("ansvarig", "Ansvarig"),
             ]),
@@ -138,12 +143,12 @@ public static class Listdefinitioner
             Kolumner:
             [
                 new("nr", "Nr", "lopnr"),
-                new("anmarkning", "Anmärkning", Bredd: 320),
+                new("anmarkning", "Anmärkning", Bredd: 420, Fyll: true),
                 new("ansvarig", "Ansvarig entreprenör", "val", Entreprenorer),
                 new("tillhor", "Tillhör"),
                 new("atgardad", "Åtgärdad", "kryss", SatterDatum: "datum", SatterSign: "sign"),
                 new("datum", "Datum för åtgärd", "datum"),
-                new("sign", "Sign.", Mono: true),
+                new("sign", "Sign.", Mono: true, Bredd: 52),
             ]),
 
         new("iplista", "IP-lista", "Driftsättning",
@@ -178,7 +183,7 @@ public static class Listdefinitioner
                 new("ovrigt", "Övrigt"),
                 new("kontrollerad", "Kontrollerad", "kryss", SatterDatum: "datum", SatterSign: "sign"),
                 new("datum", "Datum för kontroll", "datum"),
-                new("sign", "Sign.", Mono: true),
+                new("sign", "Sign.", Mono: true, Bredd: 52),
             ]),
 
         // ---------------- Konstruktion ----------------
@@ -198,7 +203,7 @@ public static class Listdefinitioner
                 new("ovrigt", "Övrigt"),
                 new("kontrollerad", "Kontrollerad", "kryss", SatterDatum: "datum", SatterSign: "sign"),
                 new("datum", "Datum", "datum"),
-                new("sign", "Sign.", Mono: true),
+                new("sign", "Sign.", Mono: true, Bredd: 52),
             ]),
 
         // ---------------- Projektering ----------------
@@ -212,7 +217,7 @@ public static class Listdefinitioner
                 new("intern", "Intern info", Bredd: 200),
                 new("hanterad", "Hanterad", "kryss", SatterDatum: "datum", SatterSign: "sign"),
                 new("datum", "Datum", "datum"),
-                new("sign", "Sign.", Mono: true),
+                new("sign", "Sign.", Mono: true, Bredd: 52),
             ]),
 
         // ---------------- Dokumentation ----------------

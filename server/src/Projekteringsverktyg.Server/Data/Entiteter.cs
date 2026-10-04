@@ -51,6 +51,9 @@ public class Komponent
     public string Kabeltyp { get; set; } = "";
     public string Placering { get; set; } = "";
     public string Ovrigt { get; set; } = "";
+    public string Produkttyp { get; set; } = "";
+    public string Produkt { get; set; } = "";
+    public string Monteringsanvisning { get; set; } = "";
 
     /// <summary>Räknas upp vid varje ändring. Skyddar mot att två personer skriver över varandra.</summary>
     public int Version { get; set; } = 1;
@@ -172,4 +175,14 @@ public class ProjektFil
     public string BlobNamn { get; set; } = "";
     public DateTimeOffset Uppladdad { get; set; } = DateTimeOffset.UtcNow;
     public string UppladdadAv { get; set; } = "";
+}
+
+/// <summary>Placeringsritningen för ett projekt (byggnader, plan, rum, placeringar, kablar) som JSON.</summary>
+public class Ritning
+{
+    public Guid ProjektId { get; set; }
+    public string Data { get; set; } = "";
+    public int Version { get; set; } = 1;
+    public DateTimeOffset Andrad { get; set; } = DateTimeOffset.UtcNow;
+    public string AndradAv { get; set; } = "";
 }

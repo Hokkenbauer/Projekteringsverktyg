@@ -63,3 +63,12 @@ export async function laddaNer(sokvag: string, reservnamn: string): Promise<void
   a.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
+
+/** Hämtar en fil från API:t (med inloggning) som rå bytes. */
+export async function hamtaBinar(sokvag: string): Promise<ArrayBuffer> {
+  const headers = new Headers();
+  if (tokenKalla) headers.set("Authorization", `Bearer ${await tokenKalla()}`);
+  const svar = await fetch(sokvag, { headers });
+  if (!svar.ok) throw new ApiFel(svar.status, null, `Fel ${svar.status} vid hämtning`);
+  return svar.arrayBuffer();
+}

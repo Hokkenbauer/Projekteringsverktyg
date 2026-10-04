@@ -221,7 +221,7 @@ a.knapp { text-decoration: none; color: var(--text); }
 @media (max-width: 760px) { .filyta { grid-template-columns: 1fr; } }
 .mapplista { display: flex; flex-direction: column; gap: 2px; background: var(--yta); border: 1px solid var(--linje); border-radius: var(--r); padding: 6px; }
 .mapplista .mapp { display: flex; align-items: center; gap: 8px; text-align: left; background: transparent; border: 0; border-radius: var(--r); padding: 7px 10px; color: var(--text); font-size: 13.5px; }
-.mapplista .mapp:hover { background: var(--bakgrund, transparent); outline: 1px solid var(--linje); }
+.mapplista .mapp:hover { background: var(--yta-2); outline: 1px solid var(--linje); }
 .mapplista .mapp.aktiv { background: color-mix(in srgb, var(--accent) 16%, transparent); font-weight: 500; }
 .mapplista .mapp .antal { margin-left: auto; font-family: var(--font-mono); font-size: 12px; color: var(--dampad); }
 .filinnehall { min-height: 240px; border: 1px dashed transparent; border-radius: var(--r); }
@@ -234,3 +234,9 @@ a.knapp { text-decoration: none; color: var(--text); }
 .versioner { margin-top: 16px; }
 .tal.klickbar { text-align: left; color: var(--text); font: inherit; cursor: pointer; }
 .tal.klickbar:hover { border-color: var(--accent); }
+.ritningsyta { display: flex; flex-direction: column; height: calc(100vh - 150px); min-height: 520px; }
+.ritningsyta.helskarm { position: fixed; inset: 0; z-index: 50; height: auto; background: var(--bg); padding: 8px; }
+.ritningshuvud { display: flex; align-items: center; gap: 16px; margin-bottom: 8px; }
+.ritningshuvud p { flex: 1; margin: 0; font-size: 12.5px; max-width: 80ch; }
+.ritningsyta.helskarm .ritningshuvud .brodsmula, .ritningsyta.helskarm .ritningshuvud h1 { display: none; }
+.ritningsram { flex: 1; width: 100%; border: 1px solid var(--linje); border-radius: var(--r); background: #0d1014; }

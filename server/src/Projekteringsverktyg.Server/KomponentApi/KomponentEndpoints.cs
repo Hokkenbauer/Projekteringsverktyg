@@ -11,18 +11,21 @@ namespace Projekteringsverktyg.Server.KomponentApi;
 public sealed record KomponentDto(
     Guid Id, Guid ProjektId, string System, string Beteckning, string Komponenttyp, string Signaltyp,
     string Beskrivning, string AnslutsTill, string Kabeltyp, string Placering, string Ovrigt,
+    string Produkttyp, string Produkt, string Monteringsanvisning,
     int Version, DateTimeOffset Andrad, string AndradAv)
 {
     public static KomponentDto Fran(Komponent k) => new(
         k.Id, k.ProjektId, k.System, k.Beteckning, k.Komponenttyp, k.Signaltyp,
         k.Beskrivning, k.AnslutsTill, k.Kabeltyp, k.Placering, k.Ovrigt,
+        k.Produkttyp, k.Produkt, k.Monteringsanvisning,
         k.Version, k.Andrad, k.AndradAv);
 }
 
 /// <summary>Ny komponent. Alla fält är frivilliga; tomma fält fylls i efterhand i tabellen.</summary>
 public sealed record NyKomponent(
     string? System, string? Beteckning, string? Komponenttyp, string? Signaltyp,
-    string? Beskrivning, string? AnslutsTill, string? Kabeltyp, string? Placering, string? Ovrigt);
+    string? Beskrivning, string? AnslutsTill, string? Kabeltyp, string? Placering, string? Ovrigt,
+    string? Produkttyp = null, string? Produkt = null, string? Monteringsanvisning = null);
 
 /// <summary>Ändring av ett fält. Version = den version klienten utgick från.</summary>
 public sealed record FaltAndring(string Falt, string? Varde, int Version);
@@ -58,6 +61,9 @@ public static class KomponentEndpoints
             Fyll(k, "kabeltyp", ny.Kabeltyp);
             Fyll(k, "placering", ny.Placering);
             Fyll(k, "ovrigt", ny.Ovrigt);
+            Fyll(k, "produkttyp", ny.Produkttyp);
+            Fyll(k, "produkt", ny.Produkt);
+            Fyll(k, "monteringsanvisning", ny.Monteringsanvisning);
 
             db.Komponenter.Add(k);
             Andringslogg.Logga(db, projektId, av, "Komponent", k.Id,

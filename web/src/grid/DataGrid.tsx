@@ -13,6 +13,10 @@ export type Kolumn<T> = {
   val?: string[];
   mono?: boolean;
   bredd?: number;
+  /** Kolumnen tar allt utrymme som blir över. */
+  fyll?: boolean;
+  /** För typ text: förslag som visas medan man skriver (fritt värde går ändå). */
+  forslag?: string[];
 };
 
 export type Blink = { radId: string; nyckel: string; farg: string; tid: number };
@@ -104,13 +108,18 @@ export function DataGrid<T extends Rad>({
           {synliga.length === rader.length ? `${rader.length} rader` : `${synliga.length} av ${rader.length} rader`}
         </span>
       </div>
+      {kolumner.filter((k) => k.forslag?.length).map((k) => (
+        <datalist key={k.nyckel} id={forslagId(k.forslag!)}>
+          {k.forslag!.map((v) => <option key={v} value={v} />)}
+        </datalist>
+      ))}
       <div className="grid-ram">
         <table className="grid">
           <thead>
             <tr>
               {onTaBort && <th className="smal" aria-label="Markera" />}
               {kolumner.map((k) => (
-                <th key={k.nyckel} onClick={() => sortera(k.nyckel)} style={k.bredd ? { minWidth: k.bredd } : undefined}>
+                <th key={k.nyckel} onClick={() => sortera(k.nyckel)} style={kolumnStil(k)}>
                   {k.rubrik}
                   {sortering?.nyckel === k.nyckel && <span className="pil">{sortering.riktning > 0 ? "▲" : "▼"}</span>}
                 </th>
@@ -151,6 +160,23 @@ export function DataGrid<T extends Rad>({
       </div>
     </div>
   );
+}
+
+/** Stabilt id för en förslagslista, så att samma lista kan delas av flera celler. */
+const forslagIds = new WeakMap<string[], string>();
+let nastaForslag = 0;
+function forslagId(lista: string[]) {
+  let id = forslagIds.get(lista);
+  if (!id) { id = `forslag-${++nastaForslag}`; forslagIds.set(lista, id); }
+  return id;
+}
+
+function kolumnStil<T>(k: Kolumn<T>): CSSProperties | undefined {
+  if (k.fyll) return { width: "100%", minWidth: k.bredd ?? 240 };
+  if (k.bredd && k.bredd < 100) return { width: k.bredd, minWidth: k.bredd, maxWidth: k.bredd };
+  if (k.bredd) return { minWidth: k.bredd };
+  if (k.typ === "text") return { minWidth: 120 };
+  return undefined;
 }
 
 function Cell<T>({ kolumn, varde, blink, varning, onSpara, lasläge }: {
@@ -211,7 +237,8 @@ function Cell<T>({ kolumn, varde, blink, varning, onSpara, lasläge }: {
   return (
     <td className={klass} style={stil} key={blink?.tid} title={varning}>
       <input
-        type="text" aria-label={kolumn.rubrik} spellCheck={false} value={utkast} readOnly={lasläge}
+        type="text" aria-label={kolumn.rubrik} spellCheck={false} value={utkast} readOnly={lasläge} size={1}
+        list={kolumn.forslag?.length ? forslagId(kolumn.forslag) : undefined}
         onFocus={() => { fokus.current = true; }}
         onChange={(e) => setUtkast(e.target.value)}
         onBlur={() => {

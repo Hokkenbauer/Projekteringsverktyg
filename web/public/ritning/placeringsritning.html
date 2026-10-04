@@ -1,0 +1,3480 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Placeringsritning</title>
+<script src="lib/pdf.min.js"></script>
+<script src="lib/xlsx.full.min.js"></script>
+<script src="lib/jspdf.umd.min.js"></script>
+<style>
+:root{
+  --bg:#0d1014; --panel:#141920; --panel2:#1a212a; --line:#26303c; --line2:#33404f;
+  --txt:#dfe5ec; --txt2:#8e9bab; --txt3:#5f6d7d;
+  --accent:#2ec4b6; --accent-dim:#1d7f76; --accent2:#4d9fc4; --hit:#8ee06a; --done:#37c26a; --danger:#e2564a; --warn:#e0a33c;
+  --mono:ui-monospace,"JetBrains Mono","SF Mono",Menlo,Consolas,monospace;
+  --sans:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--txt);font:13px/1.45 var(--sans);overflow:hidden;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+button{background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:5px 9px;cursor:pointer;display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+button:hover{background:#222c37;border-color:var(--line2)}
+button:active{transform:translateY(1px)}
+button.on{background:var(--accent);border-color:var(--accent);color:#06201d;font-weight:600}
+button.ghost{background:transparent;border-color:transparent;color:var(--txt3);padding:3px 4px}
+button.ghost:hover{background:#232d38;color:var(--txt)}
+button.ghost.act{color:var(--accent)}
+button.ghost.ok{color:var(--done)}
+input[type=text],input[type=number],select,textarea{background:#0b0e12;border:1px solid var(--line);border-radius:5px;padding:5px 8px;width:100%}
+input:focus,select:focus,button:focus-visible,textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
+input[type=range]{accent-color:var(--accent)}
+input[type=checkbox]{accent-color:var(--accent);width:auto}
+svg.i{width:14px;height:14px;flex:0 0 14px;display:block}
+.mono{font-family:var(--mono)}
+h3.sec{font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;color:var(--accent);margin:0 0 10px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+.lab-s{display:block;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--txt3);margin-bottom:5px}
+.muted{color:var(--txt3)}
+
+#app{display:flex;flex-direction:column;height:100%}
+.topbar{display:flex;align-items:center;gap:7px;padding:7px 10px;background:var(--panel);border-bottom:1px solid var(--line);flex:0 0 auto;flex-wrap:wrap}
+.brand{font-weight:700;letter-spacing:.14em;font-size:11px;color:var(--accent);text-transform:uppercase;padding-right:8px;border-right:1px solid var(--line);margin-right:2px;line-height:1.2}
+.brand small{display:block;letter-spacing:.02em;text-transform:none;color:var(--txt3);font-weight:400;font-size:10px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sep{width:1px;height:22px;background:var(--line)}
+.grow{flex:1}
+.searchwrap{position:relative;width:230px}
+.searchwrap input{padding-left:26px}
+.searchwrap::before{content:"⌕";position:absolute;left:8px;top:4px;color:var(--txt3);font-size:15px}
+.searchwrap .cnt{position:absolute;right:8px;top:6px;font-size:11px;color:var(--txt3)}
+.body{flex:1;display:flex;min-height:0}
+aside{background:var(--panel);display:flex;flex-direction:column;min-height:0}
+#left{width:304px;border-right:1px solid var(--line);flex:0 0 auto}
+#right{width:280px;border-left:1px solid var(--line);flex:0 0 auto}
+main{flex:1;position:relative;min-width:0;background:#090b0e}
+.phead{display:flex;align-items:center;gap:6px;padding:7px 10px;font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--txt3);border-bottom:1px solid var(--line);flex:0 0 auto}
+.pbody{overflow:auto;flex:1;min-height:0}
+.split{border-top:1px solid var(--line)}
+.tabs{display:flex;gap:2px}
+.tabs button{padding:3px 8px;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;border-radius:4px}
+
+#tree{padding:4px 0 14px}
+.node{display:flex;align-items:center;gap:5px;padding:3px 7px 3px 3px;cursor:pointer;border-left:2px solid transparent;user-select:none}
+.node:hover{background:#1b232d}
+.node.sel{background:#1d3330;border-left-color:var(--accent)}
+.node.hit{box-shadow:inset 0 0 0 1px var(--hit)}
+.node.done .lbl{color:var(--done)}
+.node.off .lbl,.node.off .sub,.node.off .gi{opacity:.35}
+.node .tw{width:12px;text-align:center;color:var(--txt3);font-size:9px;flex:0 0 12px}
+.node .gi{color:var(--txt3);display:flex}
+.node .lbl{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.node .sub{color:var(--txt3);font-size:11px;white-space:nowrap}
+.node .acts{display:none;gap:0}
+.node:hover .acts,.node.eyeoff .acts{display:flex}
+.node.dragover{background:#26382c;box-shadow:inset 0 0 0 1px var(--hit)}
+.kids{margin-left:13px;border-left:1px solid #1f2833}
+.tag{font-family:var(--mono);font-size:11.5px}
+.src{font-family:var(--mono);font-size:9px;border:1px solid var(--line2);border-radius:3px;padding:0 3px;color:var(--txt3)}
+.src.imp{border-color:#3a5a7a;color:#7fb3d5}
+.src.man{border-color:#6a5330;color:#d5a86a}
+
+#palette{display:grid;grid-template-columns:1fr 1fr;gap:5px;padding:8px}
+.pal{display:flex;align-items:center;gap:6px;padding:5px 6px;background:var(--panel2);border:1px solid var(--line);border-radius:5px;cursor:grab}
+.pal:hover{border-color:var(--accent);background:#212b36}
+.pal.off{opacity:.4}
+.pal .sw{width:15px;height:15px;flex:0 0 15px;color:var(--txt)}
+.pal b{font-family:var(--mono);font-size:11.5px;font-weight:600}
+.pal em{font-size:10px;color:var(--txt3);font-style:normal;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pal .eye{margin-left:auto}
+.hint{padding:0 10px 12px;color:var(--txt3);font-size:11px}
+
+.poolbar{padding:8px 10px;border-bottom:1px solid var(--line)}
+.bar{height:5px;background:#0b0e12;border-radius:3px;overflow:hidden;margin-top:6px}
+.bar i{display:block;height:100%;background:var(--accent)}
+.pgrp{border-bottom:1px solid #1b232d}
+.pgrp h5{margin:0;padding:5px 9px;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--txt3);display:flex;gap:6px;align-items:center;background:#111721}
+.pgrp h5 b{margin-left:auto;font-family:var(--mono);color:var(--txt2)}
+.pitem{display:flex;align-items:center;gap:6px;padding:4px 9px;cursor:grab;border-left:2px solid transparent}
+.pitem:hover{background:#1b232d;border-left-color:var(--accent)}
+.pitem .gi{color:var(--txt3);display:flex}
+.pitem .t{font-family:var(--mono);font-size:11.5px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pitem .want{font-size:10px;color:var(--accent2);white-space:nowrap}
+.pdone{padding:26px 14px;text-align:center;color:var(--done);font-size:12px}
+
+#planWrap{position:absolute;inset:0;overflow:hidden}
+.crosshair-h,.crosshair-v{position:absolute;pointer-events:none;background:rgba(46,196,182,.55);display:none;z-index:5}
+.crosshair-h{left:0;right:0;height:1px}
+.crosshair-v{top:0;bottom:0;width:1px}
+#planWrap.drawing .crosshair-h,#planWrap.drawing .crosshair-v{display:block}
+#pdfCanvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+#overlay{position:absolute;inset:0;width:100%;height:100%}
+#overlay text{font-family:var(--mono);paint-order:stroke;stroke:var(--ol);stroke-width:3px;stroke-linejoin:round;fill:var(--cc);font-weight:600}
+.roomShape{fill:rgba(77,159,196,.06);stroke:#4d9fc4;stroke-width:1.4px;vector-effect:non-scaling-stroke}
+.cableLine{fill:none;stroke-width:2.4px;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke;cursor:pointer;opacity:.92}
+.cableLine.sel{stroke-width:4px;opacity:1;filter:drop-shadow(0 0 2px #fff)}
+.junctionPt{fill:#8b939d;stroke:#0b0e12;stroke-width:1.4px;vector-effect:non-scaling-stroke;cursor:pointer}
+.junctionPt.sel{fill:#fff;stroke:#2ec4b6;stroke-width:2.2px}
+.roomShape.sel{stroke:var(--accent);fill:rgba(46,196,182,.13)}
+.roomShape.hit{stroke:var(--hit);fill:rgba(142,224,106,.14)}
+.roomShape.done{stroke:var(--done);fill:rgba(55,194,106,.12);stroke-width:2px}
+.roomLbl{fill:#9fd2ea!important;stroke:#05090d!important}
+.roomLbl.done{fill:var(--done)!important}
+.comp{cursor:pointer}
+.comp .sym{fill:var(--cc);stroke:var(--ol);stroke-width:1.3}
+.comp .mk{fill:none;stroke:var(--ol);stroke-width:1.6;stroke-linecap:round}
+.comp.done .sym{fill:var(--done);stroke:#06210f}
+.comp.done .mk{stroke:#06210f}
+.comp.done text{fill:var(--done);stroke:#05130a}
+.comp .ring{fill:none;stroke:none}
+.comp.sel .ring{stroke:var(--accent);stroke-width:2}
+.comp.hit .ring{stroke:var(--hit);stroke-width:2}
+.vtx{fill:var(--accent);stroke:#05090d;stroke-width:1;cursor:move}
+.vmid{fill:none;stroke:var(--accent);stroke-width:1.4;cursor:copy}
+.tmp{fill:rgba(46,196,182,.1);stroke:var(--accent);stroke-width:1.4px;vector-effect:non-scaling-stroke;stroke-dasharray:6 4;pointer-events:none}
+.tmpLine{fill:none;stroke:var(--accent);stroke-width:2px;vector-effect:non-scaling-stroke;stroke-dasharray:6 4;stroke-linecap:round;pointer-events:none}
+.pvtx{fill:#0d1014;stroke:var(--accent);pointer-events:none}
+.pvtx.first{fill:var(--accent)}
+#planWrap.adjusting #overlay{pointer-events:none;opacity:.45}
+#planHud{position:absolute;left:10px;bottom:10px;display:flex;gap:7px;align-items:center;background:rgba(13,16,20,.85);border:1px solid var(--line);border-radius:6px;padding:5px 9px;font-size:11px;color:var(--txt2);backdrop-filter:blur(4px)}
+#planTools{position:absolute;right:10px;top:10px;display:flex;flex-direction:column;gap:6px;align-items:flex-end;max-height:calc(100% - 20px);overflow:auto}
+.toolgrp{display:flex;gap:4px;align-items:center;background:rgba(13,16,20,.88);border:1px solid var(--line);border-radius:6px;padding:4px;backdrop-filter:blur(4px)}
+.toolgrp .lab{font-size:9.5px;color:var(--txt3);padding:0 4px;text-transform:uppercase;letter-spacing:.1em}
+.sw-btn{width:22px;height:22px;padding:0;border-radius:4px;border:1px solid var(--line2)}
+.sw-btn.on{outline:2px solid var(--accent);outline-offset:1px}
+#layersPanel{flex-direction:column;align-items:stretch;width:284px;padding:0;overflow:hidden}
+#instLayersPanel{flex-direction:column;align-items:stretch;width:284px;padding:0;max-height:220px;overflow-y:auto}
+.lhead{display:flex;align-items:center;gap:6px;padding:6px 8px;border-bottom:1px solid var(--line)}
+.lhead .lab{flex:1;padding:0}
+.lrow{padding:6px 8px;border-bottom:1px solid #1c242e}
+.lrow:last-child{border-bottom:none}
+.lrow.adj{background:#152b28;box-shadow:inset 2px 0 0 var(--accent)}
+.lrow .l1{display:flex;align-items:center;gap:5px}
+.lrow .lname{flex:1;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:text}
+.lrow.hidden .lname{opacity:.4;text-decoration:line-through}
+.lrow .l2{display:flex;align-items:center;gap:7px;margin-top:4px}
+.lrow .l2 input[type=range]{flex:1;width:auto;padding:0;height:16px}
+.lrow .lpct{font-family:var(--mono);font-size:10.5px;color:var(--txt3);width:36px;text-align:right}
+.lrow .l3{display:grid;grid-template-columns:repeat(3,1fr) auto;gap:5px;margin-top:6px;align-items:end}
+.lrow .l3 label{font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--txt3)}
+.lrow .l3 input{padding:3px 5px;font-family:var(--mono);font-size:11px}
+.lempty{padding:10px;color:var(--txt3);font-size:11px;text-align:center}
+#empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--txt3);text-align:center;pointer-events:none}
+#empty button{pointer-events:auto}
+#planWrap.dropping{outline:2px dashed var(--accent);outline-offset:-6px}
+#busy{position:absolute;left:50%;top:12px;transform:translateX(-50%);background:rgba(13,16,20,.92);border:1px solid var(--line);border-radius:20px;padding:5px 14px;font-size:11px;color:var(--accent);display:none;z-index:5}
+
+.viewpane{position:absolute;inset:0;overflow:auto;padding:20px 22px 40px;display:none}
+.secBld{margin-bottom:34px;max-width:1000px}
+.secBldHead{display:flex;align-items:baseline;gap:10px;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);margin-bottom:2px}
+.secBldHead span{letter-spacing:0;text-transform:none;color:var(--txt3);font-size:11px}
+.roofSvg{display:block;width:100%;height:46px}
+.roofSvg polygon{fill:#151d24;stroke:var(--accent-dim);stroke-width:2;vector-effect:non-scaling-stroke;stroke-linejoin:round}
+.stack{border-left:3px solid var(--line2);border-right:3px solid var(--line2);background:#0f141a}
+.secFloor{border-bottom:2px solid var(--line2)}
+.secFloor:last-child{border-bottom:none}
+.secFloorHead{display:flex;align-items:center;gap:9px;padding:7px 11px;background:#131a22;cursor:pointer;border-bottom:1px solid #1e2833}
+.secFloorHead:hover{background:#182029}
+.secFloorHead b{font-size:13px}
+.lvl{font-family:var(--mono);font-size:10px;color:#06201d;background:var(--accent);border-radius:3px;padding:1px 6px;font-weight:700}
+.counts{display:flex;gap:5px;flex-wrap:wrap;margin-left:auto}
+.cnt{font-family:var(--mono);font-size:10.5px;border:1px solid var(--line2);border-radius:10px;padding:1px 7px;color:var(--txt2);display:inline-flex;gap:4px;align-items:center}
+.cnt svg{width:9px;height:9px}
+.secRooms{display:flex;flex-wrap:wrap;gap:8px;padding:10px}
+.secRoom{border:1px solid #222c38;border-radius:6px;background:#0b1015;min-width:158px;max-width:250px;flex:1 1 158px}
+.secRoom.direct{border-style:dashed}
+.secRoom.off{opacity:.4}
+.secRoom.done{border-color:var(--done)}
+.secRoom h4{margin:0;padding:6px 9px;font-size:11.5px;border-bottom:1px solid #1c242e;color:#9fb0c2;display:flex;gap:6px}
+.secRoom h4 span{margin-left:auto;color:var(--txt3);font-size:10px}
+.chips{display:flex;flex-wrap:wrap;gap:4px;padding:8px}
+.chip{display:flex;align-items:center;gap:5px;font-family:var(--mono);font-size:11px;background:#171f27;border:1px solid #26303c;border-radius:4px;padding:2px 6px;cursor:pointer;color:var(--txt2)}
+.chip svg{width:9px;height:9px}
+.chip:hover{border-color:var(--accent2);color:var(--txt)}
+.chip.hit{border-color:var(--hit);background:#1a2a1a;color:var(--txt)}
+.chip.sel{border-color:var(--accent);background:#16302c;color:#fff}
+.chip.done{border-color:var(--done);color:var(--done)}
+.chip.off{opacity:.4;text-decoration:line-through}
+.ground{height:3px;background:var(--line2)}
+.groundHatch{height:16px;background:repeating-linear-gradient(45deg,#1a222b 0 1px,transparent 1px 7px)}
+.secEmpty{padding:8px 9px;color:var(--txt3);font-size:11px}
+
+.field{padding:8px 11px;border-bottom:1px solid #1b232d}
+.field label{display:block;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--txt3);margin-bottom:4px}
+.row{display:flex;gap:6px}
+.kv{display:flex;justify-content:space-between;gap:8px;padding:3px 0;font-size:12px}
+.kv b{color:var(--txt2);font-weight:500}
+.empty-note{padding:22px 14px;color:var(--txt3);text-align:center;font-size:12px}
+.chk{display:flex;align-items:center;gap:8px;font-size:12.5px;text-transform:none;letter-spacing:0;color:var(--txt2);cursor:pointer}
+
+table{width:100%;border-collapse:collapse}
+th{text-align:left;font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--txt3);padding:6px;border-bottom:1px solid var(--line2);white-space:nowrap}
+td{padding:4px 6px;border-bottom:1px solid #1b232d;vertical-align:middle}
+tr.off td{opacity:.42}
+tbody tr:hover td{background:#141c24}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:14px 16px;margin-bottom:16px;max-width:1240px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px}
+.stat{background:#0f151b;border:1px solid var(--line);border-radius:7px;padding:10px 12px}
+.stat b{display:block;font-size:22px;font-weight:600;font-family:var(--mono)}
+.stat span{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--txt3)}
+.stat.ok b{color:var(--done)}.stat.warn b{color:var(--warn)}
+.scrollx{overflow-x:auto}
+.setgrid{display:grid;grid-template-columns:250px 1fr;gap:16px;max-width:1240px}
+.tlist{border:1px solid var(--line);border-radius:8px;overflow:hidden;align-self:start}
+.trow{display:flex;align-items:center;gap:7px;padding:6px 9px;border-bottom:1px solid #1b232d;cursor:pointer}
+.trow:last-child{border-bottom:none}
+.trow:hover{background:#1b232d}
+.trow.sel{background:#1d3330;box-shadow:inset 2px 0 0 var(--accent)}
+.trow b{font-family:var(--mono);font-size:11.5px}
+.trow em{font-style:normal;font-size:11px;color:var(--txt3);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.modal{position:fixed;inset:0;background:rgba(5,7,9,.74);display:none;align-items:center;justify-content:center;z-index:60}
+.modal.open{display:flex}
+.modal .box{background:var(--panel);border:1px solid var(--line2);border-radius:10px;width:min(880px,95vw);max-height:90vh;display:flex;flex-direction:column;box-shadow:0 24px 70px rgba(0,0,0,.6)}
+.modal header{display:flex;align-items:center;padding:11px 14px;border-bottom:1px solid var(--line);font-weight:600}
+.modal .content{padding:14px;overflow:auto}
+.modal footer{padding:10px 14px;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end}
+.kbd{font-family:var(--mono);font-size:10.5px;background:#0b0e12;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:1px 5px;color:var(--txt2);white-space:nowrap}
+.helpgrid{display:grid;grid-template-columns:auto 1fr;gap:8px 14px;align-items:center}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:#2a3440;border-radius:6px;border:2px solid var(--panel)}
+::-webkit-scrollbar-track{background:transparent}
+
+@media print{
+  body{overflow:visible;background:#fff;color:#000}
+  .topbar,#left,#right,#planWrap,#sectionView,#settingsView,.modal,#reportTools{display:none!important}
+  #app,.body,main{display:block;position:static;height:auto;overflow:visible}
+  #reportView{display:block!important;position:static;padding:0;overflow:visible}
+  .card{border:1px solid #bbb;background:#fff;page-break-inside:avoid;max-width:none;margin-bottom:12px}
+  h3.sec{color:#000;border-color:#999}
+  th{background:#eee;color:#000;border-color:#999}
+  td{border-color:#ddd}
+  .stat{background:#fff;border-color:#ccc}.stat span{color:#555}
+  tr.off td{opacity:1;color:#777}
+  .cnt{color:#333;border-color:#999}
+}
+</style>
+</head>
+<body>
+<!-- ProjektVerktyg-brygga (DEMO): datalistor för dropdown-fälten i
+     inspektorn, fyllda av pvSyncCatalogs() nedan – speglar
+     ProjektVerktygs egna dropdown-kataloger + produktkatalogen, så man
+     slipper skriva allt manuellt. Fritext fungerar fortfarande (en
+     datalist begränsar inte vad man kan skriva, bara vad som föreslås). -->
+<datalist id="pvcat-system"></datalist>
+<datalist id="pvcat-komponenttyp"></datalist>
+<datalist id="pvcat-signaltyp"></datalist>
+<datalist id="pvcat-kabeltyp"></datalist>
+<datalist id="pvcat-produkttyp"></datalist>
+<datalist id="pvcat-produkt"></datalist>
+<div id="app">
+  <div class="topbar">
+    <div class="brand">Ritning<small id="brandName">Nytt projekt</small></div>
+    <button id="btnPlan" class="on">Planvy</button>
+    <button id="btnSection">Sektionsvy</button>
+    <button id="btnReport">Sammanställning</button>
+    <button id="btnSettings">Inställningar</button>
+    <div class="sep"></div>
+    <button id="btnNew" style="display:none">Nytt</button>
+    <button id="btnOpen" title="Läs in en ritning (.sro.json) från dagens program. Ersätter ritningen i projektet.">Importera…</button>
+    <button id="btnSave" title="Ladda ner ritningen som fil (utan PDF-bakgrunder)">Ladda ner</button>
+    <span id="pvSparstatus" class="muted" style="font-size:11px;min-width:90px"></span>
+    <button id="btnCsv">Importera CSV</button>
+    <button id="btnHelp">?</button>
+    <div class="grow"></div>
+    <div class="searchwrap">
+      <input type="text" id="search" placeholder="Sök beteckning, typ, rum…" autocomplete="off">
+      <span class="cnt" id="searchCnt"></span>
+    </div>
+  </div>
+
+  <div class="body">
+    <aside id="left">
+      <div class="phead"><span class="grow">Struktur</span><button class="ghost" id="addBuilding" title="Lägg till byggnad">+ Byggnad</button></div>
+      <div class="pbody"><div id="tree"></div></div>
+      <div class="phead split">
+        <div class="tabs"><button id="tabPool" class="on">Att placera</button><button id="tabPal">Palett</button></div>
+        <button class="ghost" id="pvRequestSync" style="margin-left:auto" title="Hämta om alla komponenter från Komponenter – bra om något tagits bort av misstag eller inte dykt upp i kön ännu">↻ Uppdatera</button>
+      </div>
+      <div class="pbody" style="flex:0 0 260px">
+        <div id="poolWrap"></div>
+        <div id="palWrap" style="display:none"><div id="palette"></div>
+          <div class="hint">Dra en typ till planvyn, eller klicka för att lägga den på markerat rum eller plan. Ögat döljer alla av samma typ.</div></div>
+      </div>
+    </aside>
+
+    <main>
+      <div id="planWrap">
+        <canvas id="pdfCanvas"></canvas>
+        <svg id="overlay" xmlns="http://www.w3.org/2000/svg"></svg>
+        <div id="chH" class="crosshair-h"></div>
+        <div id="chV" class="crosshair-v"></div>
+        <div id="busy">Renderar…</div>
+        <div id="empty"></div>
+        <div id="planTools">
+          <div class="toolgrp">
+            <button id="btnImport">Lägg till PDF</button>
+            <button id="btnRect" title="Rita rektangulärt rum (R)">▭ Rum</button>
+            <button id="btnPoly" title="Rita polygonrum (P)">⬠ Polygon</button>
+            <button id="btnCable" title="Rita kabel (K)">╱ Kabel</button>
+            <button id="btnJunction" title="Lägg till kopplingspunkt (J) – hör bara till ritningen, läggs ALDRIG till i Komponenter">◆ Kopplingspunkt</button>
+            <button id="btnFit" title="Anpassa (F)">Anpassa</button>
+            <button id="btnPlanPdf" title="Exportera denna planvy till PDF">PDF</button>
+          </div>
+          <div class="toolgrp"><span class="lab">Bakgrund</span><span id="bgBtns" style="display:flex;gap:4px"></span></div>
+          <div class="toolgrp"><span class="lab">Linjer</span><span id="inkBtns" style="display:flex;gap:4px"></span></div>
+          <div class="toolgrp"><span class="lab">Komponenter</span><span id="compBtns" style="display:flex;gap:4px"></span></div>
+          <div class="toolgrp" id="layersPanel"></div>
+          <div class="toolgrp" id="instLayersPanel"></div>
+        </div>
+        <div id="planHud"></div>
+      </div>
+      <div class="viewpane" id="sectionView"></div>
+      <div class="viewpane" id="reportView"></div>
+      <div class="viewpane" id="settingsView"></div>
+    </main>
+
+    <aside id="right">
+      <div class="phead">Egenskaper</div>
+      <div class="pbody" id="inspector"></div>
+    </aside>
+  </div>
+</div>
+
+<div class="modal" id="mHelp"><div class="box" style="width:min(620px,94vw)">
+  <header>Navigering och kortkommandon<span style="flex:1"></span><button class="ghost" data-close>✕</button></header>
+  <div class="content helpgrid">
+    <span class="kbd">Hjul</span><span>Zooma in och ut mot muspekaren</span>
+    <span class="kbd">Ctrl + hjul</span><span>Panorera upp och ned</span>
+    <span class="kbd">Ctrl + Shift + hjul</span><span>Panorera i sidled</span>
+    <span class="kbd">Mitthjul dra</span><span>Panorera fritt</span>
+    <span class="kbd">R</span><span>Rektangulärt rum</span>
+    <span class="kbd">P</span><span>Polygonrum: klicka ut hörnen</span>
+    <span class="kbd">Dubbelklick / högerklick / Enter</span><span>Avsluta polygonen. Klick på första punkten fungerar också</span>
+    <span class="kbd">Backspace</span><span>Ångra senaste brytpunkten medan du ritar</span>
+    <span class="kbd">Alt + klick på hörn</span><span>Ta bort brytpunkt</span>
+    <span class="kbd">Klick på ring mellan hörn</span><span>Lägg till brytpunkt</span>
+    <span class="kbd">K</span><span>Klarmarkera markerad komponent eller rum</span>
+    <span class="kbd">F</span><span>Anpassa planen till fönstret</span>
+    <span class="kbd">Ctrl + C / V</span><span>Kopiera och klistra in</span>
+    <span class="kbd">Ctrl + S</span><span>Spara projektfilen</span>
+    <span class="kbd">Delete</span><span>Ta bort markerat objekt</span>
+    <span class="kbd">Esc</span><span>Avmarkera, avbryt verktyg och avsluta lägesjustering</span>
+    <span class="kbd">Shift + klick på öga</span><span>Visa endast det bakgrundslagret</span>
+    <span class="kbd">Piltangenter</span><span>Finjustera lagrets läge, med Shift tio gånger så mycket</span>
+  </div>
+  <footer><button data-close>Stäng</button></footer>
+</div></div>
+
+<div class="modal" id="mCsv"><div class="box">
+  <header>Importera komponentlista<span style="flex:1"></span><button class="ghost" data-close>✕</button></header>
+  <div class="content" id="csvBody"></div>
+  <footer><span id="csvInfo" class="muted" style="flex:1;font-size:11.5px"></span>
+    <button data-close>Avbryt</button><button id="csvGo" class="on">Importera</button></footer>
+</div></div>
+
+<div class="modal" id="mLayerExport"><div class="box" style="width:min(420px,92vw)">
+  <header>Installationslager i exporten<span style="flex:1"></span><button class="ghost" data-close>✕</button></header>
+  <div class="content" id="layerExportBody"></div>
+  <footer><button data-close>Avbryt</button><button id="layerExportGo" class="on">Fortsätt</button></footer>
+</div></div>
+
+<input type="file" id="filePdf" accept="application/pdf" multiple style="display:none">
+<input type="file" id="fileProj" accept=".json,.sro,application/json" style="display:none">
+<input type="file" id="fileCsv" accept=".csv,.txt,text/csv" style="display:none">
+
+<script>
+"use strict";
+pdfjsLib.GlobalWorkerOptions.workerSrc=new URL('lib/pdf.worker.min.js',location.href).href;
+
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const uid=p=>p+'_'+Math.random().toString(36).slice(2,9);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+const deep=o=>JSON.parse(JSON.stringify(o));
+const norm=s=>String(s==null?'':s).trim().toLowerCase();
+
+/* ---------- ikoner ---------- */
+const IP={
+ bld:'<path d="M3 14V2.5h7V14M10 6.5h3V14M5.2 5h1.4M8 5h.9M5.2 7.5h1.4M8 7.5h.9M5.2 10h1.4M8 10h.9"/>',
+ floor:'<path d="M2 4.5h12M2 8h12M2 11.5h12"/>',
+ room:'<path d="M2.5 5.5L6 3.5l7.5 2v7l-4 2-7-2z"/>',
+ eye:'<path d="M1.6 8S4.2 4.2 8 4.2 14.4 8 14.4 8 11.8 11.8 8 11.8 1.6 8 1.6 8z"/><circle cx="8" cy="8" r="1.9"/>',
+ eyeOff:'<path d="M1.6 8S4.2 4.2 8 4.2c1.1 0 2 .3 2.8.7M14.4 8s-2.6 3.8-6.4 3.8c-1.1 0-2-.3-2.8-.7"/><path d="M2.4 2.4l11.2 11.2"/>',
+ pen:'<path d="M11.4 2.6l2 2L6 12l-3 1 1-3z"/>',
+ trash:'<path d="M3 4.5h10M6.3 4.5V3h3.4v1.5M4.6 4.5l.6 9h5.6l.6-9"/>',
+ plus:'<path d="M8 3.2v9.6M3.2 8h9.6"/>',
+ up:'<path d="M4.5 9.8L8 6.3l3.5 3.5"/>',
+ down:'<path d="M4.5 6.2L8 9.7l3.5-3.5"/>',
+ copy:'<rect x="5.5" y="5.5" width="8" height="8" rx="1"/><path d="M10.5 5.5v-2a1 1 0 00-1-1H3.5a1 1 0 00-1 1v6a1 1 0 001 1h2"/>',
+ move:'<path d="M8 2v12M2 8h12M8 2L6 4M8 2l2 2M8 14l-2-2M8 14l2-2M2 8l2-2M2 8l2 2M14 8l-2-2M14 8l-2 2"/>',
+ check:'<path d="M3 8.5l3.4 3.4L13 5.2"/>'
+};
+const ic=k=>`<svg class="i" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round">${IP[k]}</svg>`;
+
+/* ---------- symboler: ren path-data, används av både SVG och canvas ---------- */
+const C=(r)=>`M0,-${r} A${r},${r} 0 1,1 0,${r} A${r},${r} 0 1,1 0,-${r} Z`;
+const SHAPES={
+ circle:{n:'Cirkel',d:C(8)},
+ circleDot:{n:'Cirkel med punkt',d:C(8),mk:C(3)},
+ circleBar:{n:'Cirkel med streck',d:C(8),mk:'M-5,0 H5'},
+ square:{n:'Kvadrat',d:'M-7.5,-7.5 H7.5 V7.5 H-7.5 Z'},
+ squareCross:{n:'Kvadrat med kryss',d:'M-7.5,-7.5 H7.5 V7.5 H-7.5 Z',mk:'M-4.4,-4.4 L4.4,4.4 M4.4,-4.4 L-4.4,4.4'},
+ diamond:{n:'Romb',d:'M0,-9 L9,0 L0,9 L-9,0 Z'},
+ diamondDot:{n:'Romb med punkt',d:'M0,-9 L9,0 L0,9 L-9,0 Z',mk:C(2.6)},
+ triangle:{n:'Triangel uppåt',d:'M0,-9 L8.5,7 L-8.5,7 Z'},
+ triangleDown:{n:'Triangel nedåt',d:'M0,9 L8.5,-7 L-8.5,-7 Z'},
+ hex:{n:'Hexagon',d:'M8,0 L4,7 L-4,7 L-8,0 L-4,-7 L4,-7 Z'},
+ hexBar:{n:'Hexagon med streck',d:'M8,0 L4,7 L-4,7 L-8,0 L-4,-7 L4,-7 Z',mk:'M0,-4.5 V4.5'},
+ pentagon:{n:'Pentagon',d:'M0,-9 L8.6,-2.8 L5.3,7.3 L-5.3,7.3 L-8.6,-2.8 Z'}
+};
+const shp=t=>SHAPES[t.shape]||SHAPES.circle;
+const symSvg=t=>{const s=shp(t);return `<path class="sym" d="${s.d}"/>`+(s.mk?`<path class="mk" d="${s.mk}"/>`:'');};
+function glyph(t,cls){
+  const s=shp(t);
+  return `<svg class="${cls||''}" viewBox="-11 -11 22 22"><path fill="currentColor" d="${s.d}"/>`+
+    (s.mk?`<path fill="none" stroke="#0d1014" stroke-width="2" d="${s.mk}"/>`:'')+`</svg>`;
+}
+
+/* ---------- modell ---------- */
+// Endast EN generisk typ – Komponenttyp (och alla andra
+// komponentlista-fält) hanteras numera som vanliga inspektor-fält,
+// synkade mot ProjektVerktyg, istället för att styra vilken "typ"
+// (ikon/färg) en komponent har på ritningen. Se pvSync/pvApplyUpdate
+// nedan och inspektorns "Komponenttyp"-fält.
+const DEFAULT_TYPES=[
+ {id:'t_komponent',code:'KO',name:'Komponent',shape:'circle',attrs:[],models:[],hidden:false}
+];
+const BG_PRESETS=[{k:'white',c:'#ffffff',n:'Vit'},{k:'gray',c:'#8b939d',n:'Grå'},{k:'navy',c:'#0e1c2c',n:'Mörkblå'},{k:'black',c:'#000000',n:'Svart'}];
+const INK_PRESETS=[{k:'white',c:'#ffffff',n:'Vit'},{k:'gray',c:'#b6bec8',n:'Grå'},{k:'black',c:'#000000',n:'Svart'}];
+const COMP_PRESETS=[{k:'white',c:'#ffffff',n:'Vit'},{k:'black',c:'#000000',n:'Svart'},{k:'red',c:'#e63946',n:'Röd'},{k:'blue',c:'#3b82f6',n:'Blå'},{k:'green',c:'#37c26a',n:'Grön'},{k:'yellow',c:'#f2c53d',n:'Gul'},{k:'pink',c:'#ec4899',n:'Rosa'},{k:'turquoise',c:'#14b8a6',n:'Turkos'},{k:'darkgreen',c:'#14532d',n:'Mörkgrön'},{k:'darkblue',c:'#1e3a8a',n:'Mörkblå'},{k:'purple',c:'#9333ea',n:'Lila'},{k:'orange',c:'#f97316',n:'Orange'}];
+const DONE_COLOR='#37c26a';
+const pick=(arr,k,d)=>(arr.find(x=>x.k===k)||arr[d]).c;
+
+function newFloor(name){return {id:uid('f'),name,layers:[],ref:null,rooms:[],components:[],hidden:false,instLayers:[],cables:[],junctionPoints:[]};}
+function newProject(){
+  const b={id:uid('b'),name:'Byggnad A',hidden:false,floors:[newFloor('Plan 1')]};
+  return {v:4,name:'Nytt projekt',types:deep(DEFAULT_TYPES),imports:[],
+    settings:{bg:'navy',ink:'white',comp:'white',symScale:1,showLabels:true},buildings:[b]};
+}
+function migrate(p){
+  p.imports=p.imports||[];
+  (p.types||[]).forEach(t=>{
+    if(!t.attrs)t.attrs=(t.fields||[]).map(f=>({key:f,type:'text'}));
+    delete t.fields;
+    t.models=t.models||[];
+    if(t.hidden===undefined)t.hidden=false;
+  });
+  p.buildings.forEach(b=>{
+    if(b.hidden===undefined)b.hidden=false;
+    b.floors.forEach(f=>{
+      if(!f.layers){
+        f.layers=[];
+        if(f.pdf)f.layers.push({id:uid('l'),name:f.pdf.name,b64:f.pdf.b64,page:f.pdf.page||1,pages:f.pdf.pages||1,visible:true,opacity:1,ox:0,oy:0,k:1});
+        delete f.pdf;
+      }
+      f.layers.forEach(l=>{
+        if(l.visible===undefined)l.visible=true;
+        if(l.opacity==null)l.opacity=1;
+        l.ox=l.ox||0;l.oy=l.oy||0;l.k=l.k||1;
+      });
+      if(f.ref===undefined)f.ref=null;
+      if(f.hidden===undefined)f.hidden=false;
+      // Installationslager (kablar, se Steg 105) – skilt begrepp från
+      // f.layers ovan (som är uppladdade PDF-bakgrunder, oturligt nog
+      // samma ord men helt olika saker).
+      if(!f.instLayers)f.instLayers=[];
+      f.instLayers.forEach(l=>{if(l.dash===undefined)l.dash=false;});
+      if(!f.cables)f.cables=[];
+      if(!f.junctionPoints)f.junctionPoints=[];
+      f.cables.forEach(c=>{
+        if(c.kabeltyp===undefined)c.kabeltyp='';
+        if(c.startCompId===undefined)c.startCompId=null;
+        if(c.endCompId===undefined)c.endCompId=null;
+        if(c.startJunctionId===undefined)c.startJunctionId=null;
+        if(c.endJunctionId===undefined)c.endJunctionId=null;
+      });
+      f.rooms.forEach(r=>{
+        if(!r.points){r.points=[[r.x,r.y],[r.x+r.w,r.y],[r.x+r.w,r.y+r.h],[r.x,r.y+r.h]];r.rect=true;
+          delete r.x;delete r.y;delete r.w;delete r.h;}
+        if(r.done===undefined)r.done=false;
+        if(r.hidden===undefined)r.hidden=false;
+      });
+      f.components.forEach(c=>{
+        if(c.done===undefined)c.done=false;
+        if(!c.source)c.source='manual';
+        if(!c.data)c.data={};
+      });
+    });
+  });
+  return p;
+}
+let P=newProject();
+const ui={view:'plan',bldId:null,floorId:null,sel:null,tool:'select',collapsed:new Set(),search:'',clip:null,
+          adjust:null,poolTab:'pool',typeSel:null,poly:null,csv:null};
+
+const typeById=id=>P.types.find(t=>t.id===id)||{id,code:'??',name:'Okänd typ',shape:'circle',attrs:[],models:[],hidden:false};
+function eachFloor(fn){P.buildings.forEach(b=>b.floors.forEach(f=>fn(f,b)));}
+function findFloor(id){let r=null;eachFloor((f,b)=>{if(f.id===id)r={floor:f,bld:b};});return r;}
+function findComp(id){let r=null;eachFloor((f,b)=>{const c=f.components.find(c=>c.id===id);if(c)r={comp:c,floor:f,bld:b};});return r;}
+function findRoom(id){let r=null;eachFloor((f,b)=>{const m=f.rooms.find(x=>x.id===id);if(m)r={room:m,floor:f,bld:b};});return r;}
+const curFloor=()=>{const r=findFloor(ui.floorId);return r?r.floor:null;};
+const curBld=()=>{const r=findFloor(ui.floorId);return r?r.bld:(P.buildings.find(b=>b.id===ui.bldId)||null);};
+
+function compVisible(c,floor,bld){
+  if(c.hidden||typeById(c.typeId).hidden)return false;
+  if(floor&&floor.hidden)return false;
+  if(bld&&bld.hidden)return false;
+  if(c.roomId&&floor){const r=floor.rooms.find(x=>x.id===c.roomId);if(r&&r.hidden)return false;}
+  return true;
+}
+function nextTag(bld,type){
+  let max=0;const re=new RegExp('^'+type.code.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'0*(\\d+)$','i');
+  bld.floors.forEach(f=>f.components.forEach(c=>{const m=re.exec(c.tag||'');if(m)max=Math.max(max,parseInt(m[1],10));}));
+  return type.code+String(max+1).padStart(2,'0');
+}
+
+/// Sorterar en lista komponenter på Komponenttyp (grupperat, blanka
+/// sist) för tabellvisning vid export, och ger varje komponent ett
+/// unikt, LÖPANDE nummer (1..N) i den ordningen. SAMMA nummer används
+/// både som markör på ritningen och som första kolumn i exportens
+/// tabell, se renderPlanCanvas/exportRoomsPDF/exportPlanPDF. Unika
+/// nummer (inte typspecifika sviter) valdes medvetet – ett nummer
+/// pekar då alltid entydigt på EN specifik komponent, och krockar
+/// aldrig oavsett hur tätt komponenterna sitter.
+function numreraKomponenter(list){
+  const sorted=[...list].sort((a,b)=>{
+    const ta=(a.pvKomponenttyp||'').trim(), tb=(b.pvKomponenttyp||'').trim();
+    if(!ta&&tb)return 1;
+    if(ta&&!tb)return -1;
+    const c=ta.localeCompare(tb,'sv');
+    if(c)return c;
+    return (a.tag||'').localeCompare(b.tag||'','sv');
+  });
+  const numbering=new Map();
+  sorted.forEach((c,i)=>numbering.set(c.id,i+1));
+  return {sorted,numbering};
+}
+
+/// Ritar komponenttabellen (Nr/Beteckning/Komponenttyp/Produkttyp/
+/// Monteringsanvisning) på en jsPDF-sida, med sidbrytning om listan är
+/// lång (kolumnrubrikerna ritas om på varje ny sida). Delad mellan
+/// rumsvy- och planvy-exporten (se exportRoomsPDF/exportPlanPDF/
+/// exportAllPlansPDF), så de alltid ser likadana ut. `sorted`/
+/// `numbering` kommer från numreraKomponenter – räknas ut EN gång per
+/// export och återanvänds både här och som markörnummer på ritningen.
+/// placeringCol (valfri): {header, get(c)} – en extra kolumn, används
+/// för Placering (vilket rum komponenten tillhör) i planvy-exporten.
+/// Rumsvy-exporten behöver den inte (hela sidan ÄR rummet redan).
+function ritaKomponentTabell(pdf,PW,PH,M,y,sorted,numbering,placeringCol){
+  const cols=placeringCol
+    ?[{t:'Nr',w:22},{t:'Beteckning',w:78},{t:'Komponenttyp',w:100},{t:'Produkttyp',w:82},{t:placeringCol.header,w:82},{t:'Monteringsanvisning',w:114}]
+    :[{t:'Nr',w:26},{t:'Beteckning',w:90},{t:'Komponenttyp',w:130},{t:'Produkttyp',w:110},{t:'Monteringsanvisning',w:132}];
+  const ritaRubriker=()=>{
+    pdf.setFontSize(8);pdf.setTextColor(90);
+    let x=M;cols.forEach(c=>{pdf.text(c.t.toUpperCase(),x,y);x+=c.w;});
+    y+=4;pdf.setDrawColor(180);pdf.line(M,y,PW-M,y);y+=12;pdf.setFontSize(9);
+  };
+  ritaRubriker();
+  if(!sorted.length){pdf.setTextColor(150);pdf.text('Inga komponenter.',M,y);y+=14;return y;}
+  sorted.forEach(c=>{
+    if(y>PH-M-30){pdf.addPage();y=M;ritaRubriker();}
+    pdf.setTextColor(c.done?40:30,c.done?140:30,c.done?70:30);
+    let x2=M;
+    const cells=[String(numbering.get(c.id)),c.tag,c.pvKomponenttyp||'—',c.pvProdukttyp||'—'];
+    if(placeringCol)cells.push(placeringCol.get(c)||'—');
+    cells.push(c.pvMonteringsanvisning||'—');
+    cells.forEach((v,i)=>{
+      const w=cols[i].w;
+      const lines=pdf.splitTextToSize(String(v),w-6);
+      pdf.text(lines.slice(0,2),x2,y);
+      x2+=w;
+    });
+    y+=Math.max(13,12);
+    pdf.setDrawColor(232);pdf.line(M,y-4,PW-M,y-4);
+  });
+  return y;
+}
+
+/* geometri */
+function bbox(pts){
+  let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
+  pts.forEach(p=>{x0=Math.min(x0,p[0]);y0=Math.min(y0,p[1]);x1=Math.max(x1,p[0]);y1=Math.max(y1,p[1]);});
+  return {x:x0,y:y0,w:x1-x0,h:y1-y0};
+}
+function inPoly(pts,x,y){
+  let inside=false;
+  for(let i=0,j=pts.length-1;i<pts.length;j=i++){
+    const xi=pts[i][0],yi=pts[i][1],xj=pts[j][0],yj=pts[j][1];
+    if(((yi>y)!==(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi)+xi))inside=!inside;
+  }
+  return inside;
+}
+/* Tyngdpunkt för etikettplacering. Faller tillbaka på rektangelns mitt och sedan på
+   hörnens medelvärde om polygonen är konkav så att tyngdpunkten hamnar utanför. */
+function centroid(pts){
+  let a=0,cx=0,cy=0;
+  for(let i=0,j=pts.length-1;i<pts.length;j=i++){
+    const f=pts[j][0]*pts[i][1]-pts[i][0]*pts[j][1];
+    a+=f;cx+=(pts[j][0]+pts[i][0])*f;cy+=(pts[j][1]+pts[i][1])*f;
+  }
+  if(Math.abs(a)>1e-6){
+    const c=[cx/(3*a),cy/(3*a)];
+    if(inPoly(pts,c[0],c[1]))return c;
+  }
+  const bb=bbox(pts),m=[bb.x+bb.w/2,bb.y+bb.h/2];
+  if(inPoly(pts,m[0],m[1]))return m;
+  let sx=0,sy=0;pts.forEach(p=>{sx+=p[0];sy+=p[1];});
+  return [sx/pts.length,sy/pts.length];
+}
+const ptsAttr=pts=>pts.map(p=>p[0].toFixed(2)+','+p[1].toFixed(2)).join(' ');
+
+/* =======================================================================
+   PDF-LAGER
+   ======================================================================= */
+const cache=new Map();
+const canvas=$('#pdfCanvas'), ctx=canvas.getContext('2d');
+const svg=$('#overlay');
+const view={scale:1,tx:0,ty:0};
+let stack=[], ref=null, cw=0, ch=0, dpr=1;
+
+function bytesToB64(b){let s='';const CH=0x8000;for(let i=0;i<b.length;i+=CH)s+=String.fromCharCode.apply(null,b.subarray(i,i+CH));return btoa(s);}
+function b64ToBytes(b64){const bin=atob(b64);const a=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)a[i]=bin.charCodeAt(i);return a;}
+const busyEl=$('#busy');let busyN=0;
+function busy(on,msg){busyN=Math.max(0,busyN+(on?1:-1));if(msg)busyEl.textContent=msg;else if(!busyN)busyEl.textContent='Renderar…';busyEl.style.display=busyN?'block':'none';}
+let flashT=null;
+function flash(msg){
+  busyEl.textContent=msg;busyEl.style.display='block';
+  clearTimeout(flashT);
+  flashT=setTimeout(()=>{busyEl.textContent='Renderar…';busyEl.style.display=busyN?'block':'none';},1600);
+}
+async function ensureDoc(layer){
+  let e=cache.get(layer.id);
+  if(e&&e.doc)return e;
+  busy(true);
+  try{
+    if(!layer.b64&&layer.fileId){
+      const vard=pvVard();
+      if(!vard)throw new Error('PDF-filen finns i projektet men kan inte hämtas här.');
+      const buf=await vard.hamtaPdf(layer.fileId);
+      layer.b64=bytesToB64(new Uint8Array(buf));
+    }
+    const doc=await pdfjsLib.getDocument({data:b64ToBytes(layer.b64)}).promise;
+    const page=await doc.getPage(clamp(layer.page||1,1,doc.numPages));
+    const vp=page.getViewport({scale:1});
+    layer.pages=doc.numPages;
+    e={doc,page,pageW:vp.width,pageH:vp.height,bitmap:null,lum:null,img:null,ctx:null,renderScale:0,busy:false,pending:null,detail:null,task:null};
+    cache.set(layer.id,e);return e;
+  }catch(err){alert('Kunde inte läsa "'+layer.name+'": '+err.message);return null;}
+  finally{busy(false);}
+}
+function toLum(img){const d=img.data,n=img.width*img.height,l=new Uint8ClampedArray(n);
+  for(let i=0,p=0;i<n;i++,p+=4)l[i]=(d[p]*77+d[p+1]*151+d[p+2]*28)>>8;return l;}
+function hexRGB(h){return[parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];}
+function applyColors(o){
+  if(!o||!o.lum)return;
+  const bg=hexRGB(pick(BG_PRESETS,P.settings.bg,2)), ink=hexRGB(pick(INK_PRESETS,P.settings.ink,0));
+  const d=o.img.data,l=o.lum,n=l.length,LO=55,HI=195,sp=HI-LO;
+  for(let i=0,p=0;i<n;i++,p+=4){
+    let t=(l[i]-LO)/sp;t=t<0?0:t>1?1:t;
+    d[p]=ink[0]+(bg[0]-ink[0])*t;d[p+1]=ink[1]+(bg[1]-ink[1])*t;d[p+2]=ink[2]+(bg[2]-ink[2])*t;d[p+3]=255;
+  }
+  o.ctx.putImageData(o.img,0,0);
+}
+const BASE_MAXPX=14e6;
+const detailBudget=()=>{
+  const n=Math.max(1,stack.filter(s=>s.layer.visible&&s.layer.opacity>0.02).length);
+  return Math.max(6e6,22e6/n);
+};
+async function renderBase(e,wanted){
+  if(e.busy){e.pending=wanted;return;}
+  let s=wanted;const area=e.pageW*e.pageH;
+  if(area*s*s>BASE_MAXPX)s=Math.sqrt(BASE_MAXPX/area);
+  s=clamp(s,0.15,16);
+  if(e.bitmap&&Math.abs(s-e.renderScale)/e.renderScale<0.1)return;
+  e.busy=true;busy(true);
+  try{
+    const vp=e.page.getViewport({scale:s});
+    const c=document.createElement('canvas');
+    c.width=Math.max(1,Math.ceil(vp.width));c.height=Math.max(1,Math.ceil(vp.height));
+    const cx=c.getContext('2d',{willReadFrequently:true});
+    cx.fillStyle='#fff';cx.fillRect(0,0,c.width,c.height);
+    await e.page.render({canvasContext:cx,viewport:vp}).promise;
+    e.img=cx.getImageData(0,0,c.width,c.height);e.lum=toLum(e.img);
+    e.bitmap=c;e.ctx=cx;e.renderScale=s;
+    applyColors(e);
+  }catch(err){console.warn(err);}
+  finally{e.busy=false;busy(false);const q=e.pending;e.pending=null;if(q)await renderBase(e,q);else draw();}
+}
+let detailT=null,detailToken=0;
+function scheduleDetail(){clearTimeout(detailT);detailT=setTimeout(renderDetails,190);}
+async function renderDetails(){
+  const token=++detailToken, budget=detailBudget();
+  for(const s of stack){
+    if(token!==detailToken)return;
+    const l=s.layer,e=s.entry;
+    if(!l.visible||l.opacity<=0.02||!e.bitmap){e.detail=null;continue;}
+    const want=view.scale*l.k*dpr;
+    if(want<=e.renderScale*1.02){if(e.detail){e.detail=null;draw();}continue;}
+    const a=s2w(0,0),b=s2w(cw,ch);
+    const padX=(b.x-a.x)*0.15,padY=(b.y-a.y)*0.15;
+    let x0=(a.x-padX-l.ox)/l.k, x1=(b.x+padX-l.ox)/l.k;
+    let y0=(a.y-padY-l.oy)/l.k, y1=(b.y+padY-l.oy)/l.k;
+    x0=Math.max(0,x0);y0=Math.max(0,y0);x1=Math.min(e.pageW,x1);y1=Math.min(e.pageH,y1);
+    if(x1-x0<1||y1-y0<1){e.detail=null;continue;}
+    let sc=Math.min(want,24);
+    const area=(x1-x0)*(y1-y0);
+    if(area*sc*sc>budget)sc=Math.sqrt(budget/area);
+    if(e.task){try{e.task.cancel();}catch(_){}e.task=null;}
+    busy(true);
+    try{
+      const c=document.createElement('canvas');
+      c.width=Math.max(1,Math.ceil((x1-x0)*sc));c.height=Math.max(1,Math.ceil((y1-y0)*sc));
+      const cx=c.getContext('2d',{willReadFrequently:true});
+      cx.fillStyle='#fff';cx.fillRect(0,0,c.width,c.height);
+      const vp=e.page.getViewport({scale:sc});
+      const task=e.page.render({canvasContext:cx,viewport:vp,transform:[1,0,0,1,-x0*sc,-y0*sc]});
+      e.task=task;await task.promise;e.task=null;
+      if(token!==detailToken)continue;
+      const o={canvas:c,ctx:cx,img:cx.getImageData(0,0,c.width,c.height)};
+      o.lum=toLum(o.img);applyColors(o);
+      e.detail=Object.assign(o,{x0,y0,x1,y1,floorId:ui.floorId});
+      draw();
+    }catch(err){if(err&&err.name!=='RenderingCancelledException')console.warn(err);}
+    finally{busy(false);}
+  }
+}
+function resize(){
+  const r=$('#planWrap').getBoundingClientRect();
+  cw=Math.max(1,r.width);ch=Math.max(1,r.height);dpr=window.devicePixelRatio||1;
+  canvas.width=Math.round(cw*dpr);canvas.height=Math.round(ch*dpr);
+  svg.setAttribute('viewBox','0 0 '+cw+' '+ch);
+  draw();scheduleDetail();
+}
+function draw(){
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.fillStyle='#090b0e';ctx.fillRect(0,0,cw,ch);
+  ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
+  stack.forEach(({layer:l,entry:e})=>{
+    if(!l.visible||l.opacity<=0.01||!e.bitmap)return;
+    ctx.globalAlpha=l.opacity;
+    const p=w2s(l.ox,l.oy);
+    ctx.drawImage(e.bitmap,p.x,p.y,e.pageW*l.k*view.scale,e.pageH*l.k*view.scale);
+    if(e.detail&&e.detail.floorId===ui.floorId){
+      const d=e.detail,q=w2s(l.ox+d.x0*l.k,l.oy+d.y0*l.k);
+      ctx.drawImage(d.canvas,q.x,q.y,(d.x1-d.x0)*l.k*view.scale,(d.y1-d.y0)*l.k*view.scale);
+    }
+    if(ui.adjust===l.id){
+      ctx.globalAlpha=1;ctx.strokeStyle='#2ec4b6';ctx.setLineDash([7,5]);ctx.lineWidth=1.5;
+      ctx.strokeRect(p.x,p.y,e.pageW*l.k*view.scale,e.pageH*l.k*view.scale);ctx.setLineDash([]);
+    }
+  });
+  ctx.globalAlpha=1;
+  updateTransform();hud();
+}
+function worldBox(){
+  let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
+  stack.forEach(({layer:l,entry:e})=>{
+    if(!l.visible)return;
+    x0=Math.min(x0,l.ox);y0=Math.min(y0,l.oy);
+    x1=Math.max(x1,l.ox+e.pageW*l.k);y1=Math.max(y1,l.oy+e.pageH*l.k);
+  });
+  // Räknar även in komponentpositioner – sedan Steg 103 (fri placering,
+  // inte längre låst till PDF-sidans/standardytans 0-1-intervall) kan en
+  // komponent sitta utanför PDF-lagrens yta. Utan detta hade en sådan
+  // komponent klippts bort helt vid export (worldBox styr
+  // beskärningsytan). Liten marginal (5 % av bredd/höjd) så markören
+  // inte hamnar exakt på kanten.
+  const f=curFloor();
+  if(f&&f.ref){
+    f.components.forEach(c=>{
+      if(c.x==null)return;
+      const wx=c.x*f.ref.w,wy=c.y*f.ref.h;
+      x0=Math.min(x0,wx);y0=Math.min(y0,wy);x1=Math.max(x1,wx);y1=Math.max(y1,wy);
+    });
+  }
+  if(!isFinite(x0))return ref?{x:0,y:0,w:ref.w,h:ref.h}:null;
+  const mx=(x1-x0)*0.05+20,my=(y1-y0)*0.05+20;
+  return {x:x0-mx,y:y0-my,w:(x1-x0)+mx*2,h:(y1-y0)+my*2};
+}
+function fitView(){
+  const b=worldBox();if(!b)return;
+  const s=Math.min(cw/b.w,ch/b.h)*0.94;
+  view.scale=s;view.tx=(cw-b.w*s)/2-b.x*s;view.ty=(ch-b.h*s)/2-b.y*s;
+  stack.forEach(({entry:e})=>{e.detail=null;});
+  scheduleDetail();draw();
+}
+const w2s=(x,y)=>({x:x*view.scale+view.tx,y:y*view.scale+view.ty});
+const s2w=(x,y)=>({x:(x-view.tx)/view.scale,y:(y-view.ty)/view.scale});
+function hud(){
+  const f=curFloor();
+  if(!f){$('#planHud').textContent='Ingen plan vald';return;}
+  const nv=f.layers.filter(l=>l.visible).length;
+  const dn=f.components.filter(c=>c.done).length;
+  $('#planHud').innerHTML=`<b>${esc(curBld()?curBld().name:'')}</b> › ${esc(f.name)} <span class="muted">|</span> ${Math.round(view.scale*100)} % <span class="muted">|</span> ${nv}/${f.layers.length} bakgrunder <span class="muted">|</span> ${f.components.length} komp · ${f.rooms.length} rum <span class="muted">|</span> <span style="color:var(--done)">${dn} klara</span>`;
+}
+let baseT=null;
+function scheduleBase(){
+  clearTimeout(baseT);
+  baseT=setTimeout(()=>{
+    stack.forEach(({layer:l,entry:e})=>{
+      if(!l.visible||!e.bitmap)return;
+      const w=view.scale*l.k*dpr;
+      if(w<e.renderScale*0.3)renderBase(e,w*1.5);
+    });
+  },500);
+}
+
+/* =======================================================================
+   LAGERPANEL
+   ======================================================================= */
+function renderLayers(){
+  const f=curFloor();
+  const head=`<div class="lhead"><span class="lab">Bakgrunder</span>
+    <button class="ghost" id="lAdd" title="Lägg till PDF">${ic('plus')}</button></div>`;
+  if(!f||!f.layers.length){
+    $('#layersPanel').innerHTML=head+`<div class="lempty">${f?'Ingen PDF importerad ännu.':'Inget plan valt.'}</div>`;
+    const b=$('#lAdd');if(b)b.onclick=importPdf;return;
+  }
+  const rows=[...f.layers].reverse().map(l=>{
+    const pct=Math.round(l.opacity*100), adj=ui.adjust===l.id;
+    return `<div class="lrow${adj?' adj':''}${l.visible?'':' hidden'}" data-layer="${l.id}">
+      <div class="l1">
+        <button class="ghost${l.visible?'':' act'}" data-l="eye" title="${l.visible?'Släck':'Tänd'} · Shift för endast denna">${ic(l.visible?'eye':'eyeOff')}</button>
+        <span class="lname" data-l="ren" title="${esc(l.name)}">${esc(l.name)}</span>
+        <button class="ghost${adj?' act':''}" data-l="adjust" title="Justera lagrets läge">${ic('move')}</button>
+        <button class="ghost" data-l="up" title="Flytta upp">${ic('up')}</button>
+        <button class="ghost" data-l="down" title="Flytta ned">${ic('down')}</button>
+        <button class="ghost" data-l="del" title="Ta bort">${ic('trash')}</button>
+      </div>
+      <div class="l2"><input type="range" min="0" max="100" value="${pct}" data-l="op"><span class="lpct">${pct} %</span></div>
+      ${adj?`<div class="l3">
+        <div><label>X</label><input type="number" data-l="ox" value="${Math.round(l.ox)}" step="1"></div>
+        <div><label>Y</label><input type="number" data-l="oy" value="${Math.round(l.oy)}" step="1"></div>
+        <div><label>Skala %</label><input type="number" data-l="k" value="${(l.k*100).toFixed(1)}" step="0.5"></div>
+        <button data-l="reset">Noll</button></div>
+        ${l.pages>1?`<div class="l3" style="grid-template-columns:1fr"><div><label>Sida av ${l.pages}</label><input type="number" data-l="page" value="${l.page}" min="1" max="${l.pages}"></div></div>`:''}`:''}
+    </div>`;
+  }).join('');
+  $('#layersPanel').innerHTML=head+rows;
+  $('#lAdd').onclick=importPdf;
+}
+$('#layersPanel').addEventListener('click',async e=>{
+  const row=e.target.closest('[data-layer]'),btn=e.target.closest('[data-l]');
+  if(!row||!btn)return;
+  const act=btn.dataset.l,f=curFloor(),id=row.dataset.layer;
+  const l=f.layers.find(x=>x.id===id);if(!l)return;
+  const i=f.layers.indexOf(l);
+  if(act==='eye'){
+    if(e.shiftKey){const solo=!(l.visible&&f.layers.filter(x=>x.visible).length===1);
+      f.layers.forEach(x=>x.visible=solo?x.id===id:true);}
+    else l.visible=!l.visible;
+    renderLayers();scheduleDetail();draw();
+  }else if(act==='ren'){
+    const v=prompt('Namn på bakgrund:',l.name);if(v!=null&&v.trim()){l.name=v.trim();renderLayers();}
+  }else if(act==='adjust'){
+    ui.adjust=ui.adjust===id?null:id;
+    $('#planWrap').classList.toggle('adjusting',!!ui.adjust);
+    renderLayers();draw();
+    if(ui.adjust)flash('Justera läge: dra i planen eller använd piltangenter');
+  }else if(act==='up'||act==='down'){
+    const j=act==='up'?i+1:i-1;
+    if(j<0||j>=f.layers.length)return;
+    f.layers.splice(i,1);f.layers.splice(j,0,l);
+    await loadStack(f);renderLayers();draw();
+  }else if(act==='del'){
+    if(!confirm('Ta bort bakgrunden "'+l.name+'"?'))return;
+    f.layers.splice(i,1);cache.delete(id);
+    if(ui.adjust===id){ui.adjust=null;$('#planWrap').classList.remove('adjusting');}
+    await loadStack(f);renderLayers();drawEmpty();draw();refresh();
+  }else if(act==='reset'){l.ox=0;l.oy=0;l.k=1;renderLayers();scheduleDetail();draw();}
+});
+$('#layersPanel').addEventListener('input',e=>{
+  const row=e.target.closest('[data-layer]');if(!row||e.target.dataset.l!=='op')return;
+  const l=curFloor().layers.find(x=>x.id===row.dataset.layer);if(!l)return;
+  l.opacity=+e.target.value/100;
+  row.querySelector('.lpct').textContent=Math.round(l.opacity*100)+' %';
+  draw();
+});
+$('#layersPanel').addEventListener('change',async e=>{
+  const row=e.target.closest('[data-layer]');if(!row)return;
+  const f=curFloor(),l=f.layers.find(x=>x.id===row.dataset.layer);if(!l)return;
+  const k=e.target.dataset.l;
+  if(k==='ox')l.ox=+e.target.value;
+  else if(k==='oy')l.oy=+e.target.value;
+  else if(k==='k')l.k=Math.max(0.05,+e.target.value/100);
+  else if(k==='page'){l.page=clamp(+e.target.value,1,l.pages);cache.delete(l.id);await loadStack(f);renderLayers();}
+  else return;
+  scheduleDetail();draw();
+});
+
+/* =======================================================================
+   OVERLAY
+   ======================================================================= */
+function overlayColors(){
+  const cc=pick(COMP_PRESETS,P.settings.comp,0);
+  const [r,g,b]=hexRGB(cc);
+  svg.style.setProperty('--cc',cc);
+  svg.style.setProperty('--ol',(r*77+g*151+b*28)/256>140?'#0b0e12':'#f2f6fa');
+}
+function buildOverlay(){
+  const f=curFloor();
+  if(!f||!ref){svg.innerHTML='';return;}
+  const bld=curBld();
+  overlayColors();
+  const rooms=f.rooms.filter(r=>!r.hidden&&!f.hidden&&!bld.hidden).map(r=>{
+    const cls='roomShape'+(ui.sel&&ui.sel.id===r.id?' sel':'')+(isHit(r,'room')?' hit':'')+(r.done?' done':'');
+    const c=centroid(r.points);
+    return `<g data-room="${r.id}"><polygon class="${cls}" points="${ptsAttr(r.points)}"/>`+
+      `<text class="roomLbl rlab${r.done?' done':''}" x="${c[0].toFixed(2)}" y="${c[1].toFixed(2)}" text-anchor="middle" dominant-baseline="central">${esc(r.name)}${r.done?' ✓':''}</text></g>`;
+  }).join('');
+  const cables=f.cables.filter(c=>{
+    const l=f.instLayers.find(x=>x.id===c.layerId);
+    return l&&l.visible;
+  }).map(c=>{
+    const l=f.instLayers.find(x=>x.id===c.layerId);
+    const pts=cableRenderPoints(c,f);
+    const cls='cableLine'+(ui.sel&&ui.sel.kind==='cable'&&ui.sel.id===c.id?' sel':'');
+    const dashStyle=l.dash?'stroke-dasharray:8 5;':'';
+    return `<g data-cable="${c.id}"><polyline class="${cls}" points="${ptsAttr(pts)}" style="stroke:${l.color};${dashStyle}"/></g>`;
+  }).join('');
+  const junctions=f.junctionPoints.map(j=>{
+    const cls='junctionPt'+(ui.sel&&ui.sel.kind==='junction'&&ui.sel.id===j.id?' sel':'');
+    const wx=j.x*f.ref.w,wy=j.y*f.ref.h,s=5/view.scale;
+    return `<g data-junction="${j.id}"><rect class="${cls}" x="${(wx-s).toFixed(2)}" y="${(wy-s).toFixed(2)}" width="${(s*2).toFixed(2)}" height="${(s*2).toFixed(2)}" transform="rotate(45 ${wx.toFixed(2)} ${wy.toFixed(2)})"/></g>`;
+  }).join('');
+  const k=P.settings.symScale||1;
+  const comps=f.components.filter(c=>c.x!=null&&compVisible(c,f,bld)).map(c=>{
+    const t=typeById(c.typeId);
+    const cls='comp'+(ui.sel&&ui.sel.id===c.id?' sel':'')+(isHit(c,'comp')?' hit':'')+(c.done?' done':'');
+    return `<g class="${cls}" data-comp="${c.id}"><g transform="scale(${k})">`+
+      `<circle class="ring" r="13"/>${symSvg(t)}`+
+      (P.settings.showLabels!==false?`<text x="12" y="4.5" font-size="11">${esc(c.tag)}</text>`:'')+
+      `</g></g>`;
+  }).join('');
+  svg.innerHTML=`<g id="wg">${rooms}${cables}${junctions}</g><g id="tg"></g><g id="hg"></g><g id="cg">${comps}</g>`;
+  updateTransform();
+}
+function updateTransform(){
+  const wg=svg.querySelector('#wg');if(!wg||!ref)return;
+  const s=view.scale;
+  wg.setAttribute('transform',`translate(${view.tx},${view.ty}) scale(${s})`);
+  wg.setAttribute('font-size',(12/s).toFixed(3));
+  const tg=svg.querySelector('#tg');
+  if(tg){
+    tg.setAttribute('transform',`translate(${view.tx},${view.ty}) scale(${s})`);
+    if(ui.poly)polyPreview();
+  }
+  svg.querySelectorAll('.rlab').forEach(t=>t.setAttribute('stroke-width',(3/s).toFixed(3)));
+  svg.querySelectorAll('[data-comp]').forEach(g=>{
+    const r=findComp(g.dataset.comp);if(!r)return;
+    const p=w2s(r.comp.x*ref.w,r.comp.y*ref.h);
+    g.setAttribute('transform',`translate(${p.x.toFixed(2)},${p.y.toFixed(2)})`);
+  });
+  drawHandles();
+}
+function drawHandles(){
+  const hg=svg.querySelector('#hg');if(!hg)return;hg.innerHTML='';
+  if(!ui.sel)return;
+  if(ui.sel.kind==='room'){
+    const r=findRoom(ui.sel.id);if(!r||r.floor.id!==ui.floorId||r.room.hidden)return;
+    const pts=r.room.points;
+    let h='';
+    pts.forEach((p,i)=>{const q=w2s(p[0],p[1]);
+      h+=`<rect class="vtx" data-v="${i}" x="${q.x-4}" y="${q.y-4}" width="8" height="8"/>`;});
+    pts.forEach((p,i)=>{
+      const n=pts[(i+1)%pts.length];
+      const q=w2s((p[0]+n[0])/2,(p[1]+n[1])/2);
+      h+=`<circle class="vmid" data-m="${i}" cx="${q.x}" cy="${q.y}" r="3.5"/>`;
+    });
+    hg.innerHTML=h;
+  }else if(ui.sel.kind==='cable'){
+    const r=findCable(ui.sel.id);if(!r||r.floor.id!==ui.floorId)return;
+    const pts=cableRenderPoints(r.cable,r.floor);
+    let h='';
+    pts.forEach((p,i)=>{const q=w2s(p[0],p[1]);
+      h+=`<rect class="vtx" data-v="${i}" x="${q.x-4}" y="${q.y-4}" width="8" height="8"/>`;});
+    // INGEN modulär vmid mellan sista och första punkten – en kabel är
+    // en öppen sträcka, inte en sluten form som ett rum.
+    for(let i=0;i<pts.length-1;i++){
+      const a=pts[i],b=pts[i+1];
+      const q=w2s((a[0]+b[0])/2,(a[1]+b[1])/2);
+      h+=`<circle class="vmid" data-m="${i}" cx="${q.x}" cy="${q.y}" r="3.5"/>`;
+    }
+    hg.innerHTML=h;
+  }
+}
+function isHit(o,kind){
+  if(!ui.search)return false;
+  const q=ui.search.toLowerCase();
+  if(kind==='comp'){const t=typeById(o.typeId);
+    return (o.tag||'').toLowerCase().indexOf(q)>=0||t.code.toLowerCase().indexOf(q)>=0||t.name.toLowerCase().indexOf(q)>=0;}
+  return (o.name||'').toLowerCase().indexOf(q)>=0;
+}
+
+/* =======================================================================
+   PLANINTERAKTION
+   ======================================================================= */
+const wrap=$('#planWrap');
+wrap.addEventListener('wheel',e=>{
+  e.preventDefault();if(!stack.length)return;
+  if(e.ctrlKey||e.metaKey){
+    if(e.shiftKey)view.tx-=e.deltaY;else{view.ty-=e.deltaY;view.tx-=e.deltaX;}
+    scheduleDetail();
+  }else if(e.shiftKey&&Math.abs(e.deltaX)<1){view.tx-=e.deltaY;scheduleDetail();}
+  else{
+    const r=wrap.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;
+    const before=s2w(mx,my);
+    view.scale=clamp(view.scale*Math.pow(1.0016,-e.deltaY*(e.deltaMode===1?16:1)),0.03,40);
+    const after=s2w(mx,my);
+    view.tx+=(after.x-before.x)*view.scale;view.ty+=(after.y-before.y)*view.scale;
+    scheduleDetail();scheduleBase();
+  }
+  draw();
+},{passive:false});
+
+let drag=null;
+wrap.addEventListener('pointerdown',e=>{
+  if(!stack.length)return;
+  const r=wrap.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;
+  if(e.button===1||e.button===2||(e.button===0&&e.altKey&&!e.target.closest('.vtx'))){
+    if(e.button===2&&ui.tool==='poly'&&ui.poly){e.preventDefault();polyFinish();return;}
+    if(e.button===2&&ui.tool==='cable'&&ui.poly){e.preventDefault();cableFinish();return;}
+    drag={mode:'pan',mx,my,tx:view.tx,ty:view.ty};wrap.setPointerCapture(e.pointerId);e.preventDefault();return;}
+  if(e.button!==0)return;
+  if(ui.adjust){
+    const l=curFloor().layers.find(x=>x.id===ui.adjust);
+    if(l){drag={mode:'layer',layer:l,start:s2w(mx,my),o:{ox:l.ox,oy:l.oy}};wrap.setPointerCapture(e.pointerId);return;}
+  }
+  if(ui.tool==='poly'){polyClick(s2w(mx,my),e);return;}
+  if(ui.tool==='cable'){cableClick(s2w(mx,my),e);return;}
+  if(ui.tool==='junction'){
+    const f=curFloor();if(!f)return;
+    const p=s2w(mx,my);
+    const jp={id:uid('jp'),x:p.x/f.ref.w,y:p.y/f.ref.h};
+    f.junctionPoints.push(jp);
+    select({kind:'junction',id:jp.id});
+    refresh();
+    return;
+  }
+  const vtx=e.target.closest('.vtx');
+  if(vtx){
+    const i=+vtx.dataset.v;
+    if(ui.sel.kind==='cable'){
+      const r=findCable(ui.sel.id),cbl=r.cable,fl=r.floor;
+      if(e.altKey){
+        if(cbl.points.length>2){cbl.points.splice(i,1);
+          if(i===0){cbl.startCompId=null;cbl.startJunctionId=null;} // första punkten togs bort – gammal koppling gäller inte längre
+          if(i===cbl.points.length){cbl.endCompId=null;cbl.endJunctionId=null;}
+          buildOverlay();refresh();}
+        return;
+      }
+      // Drar man i en ändpunkt som är knuten till en komponent ELLER
+      // kopplingspunkt lösgörs kopplingen – men uppdaterar FÖRST den
+      // råa lagrade punkten till den nuvarande (levande) positionen,
+      // annars hade handtaget "hoppat" från sin visade plats till en
+      // inaktuell lagrad punkt i samma ögonblick man börjar dra.
+      if((i===0&&(cbl.startCompId||cbl.startJunctionId))||(i===cbl.points.length-1&&(cbl.endCompId||cbl.endJunctionId))){
+        const rendered=cableRenderPoints(cbl,fl);
+        cbl.points[i]=rendered[i];
+        if(i===0){cbl.startCompId=null;cbl.startJunctionId=null;}
+        if(i===cbl.points.length-1){cbl.endCompId=null;cbl.endJunctionId=null;}
+      }
+      drag={mode:'vtx',kind:'cable',cable:cbl,i,start:s2w(mx,my),o:deep(cbl.points)};
+      wrap.setPointerCapture(e.pointerId);return;
+    }
+    const rr=findRoom(ui.sel.id).room;
+    if(e.altKey){
+      if(rr.points.length>3){rr.points.splice(i,1);rr.rect=false;buildOverlay();reassignFloor();refresh();}
+      return;
+    }
+    drag={mode:'vtx',kind:'room',room:rr,i,start:s2w(mx,my),o:deep(rr.points)};
+    wrap.setPointerCapture(e.pointerId);return;
+  }
+  const mid=e.target.closest('.vmid');
+  if(mid){
+    const i=+mid.dataset.m;
+    if(ui.sel.kind==='cable'){
+      const r=findCable(ui.sel.id),cbl=r.cable;
+      const a=cbl.points[i],b=cbl.points[i+1];
+      cbl.points.splice(i+1,0,[(a[0]+b[0])/2,(a[1]+b[1])/2]);
+      buildOverlay();
+      drag={mode:'vtx',kind:'cable',cable:cbl,i:i+1,start:s2w(mx,my),o:deep(cbl.points)};
+      wrap.setPointerCapture(e.pointerId);return;
+    }
+    const rr=findRoom(ui.sel.id).room;
+    const a=rr.points[i],b=rr.points[(i+1)%rr.points.length];
+    rr.points.splice(i+1,0,[(a[0]+b[0])/2,(a[1]+b[1])/2]);rr.rect=false;
+    buildOverlay();
+    drag={mode:'vtx',kind:'room',room:rr,i:i+1,start:s2w(mx,my),o:deep(rr.points)};
+    wrap.setPointerCapture(e.pointerId);return;
+  }
+  const cg=e.target.closest('[data-comp]');
+  if(cg){const c=findComp(cg.dataset.comp).comp;select({kind:'comp',id:c.id});
+    drag={mode:'comp',comp:c,start:s2w(mx,my),o:{x:c.x,y:c.y}};wrap.setPointerCapture(e.pointerId);return;}
+  const jdg=e.target.closest('[data-junction]');
+  if(jdg){const jp=findJunction(jdg.dataset.junction).junction;select({kind:'junction',id:jp.id});
+    drag={mode:'junction',junction:jp,start:s2w(mx,my),o:{x:jp.x,y:jp.y}};wrap.setPointerCapture(e.pointerId);return;}
+  if(ui.tool==='rect'){
+    const p=s2w(mx,my);
+    const room={id:uid('r'),name:'Rum '+(curFloor().rooms.length+1),points:[[p.x,p.y],[p.x,p.y],[p.x,p.y],[p.x,p.y]],rect:true,hidden:false,done:false};
+    curFloor().rooms.push(room);select({kind:'room',id:room.id});buildOverlay();
+    drag={mode:'newrect',room,start:p};wrap.setPointerCapture(e.pointerId);return;}
+  const rg=e.target.closest('[data-room]');
+  if(rg){const rr=findRoom(rg.dataset.room).room;select({kind:'room',id:rr.id});
+    drag={mode:'room',room:rr,start:s2w(mx,my),o:deep(rr.points),
+      withComps:curFloor().components.filter(c=>c.roomId===rr.id&&c.x!=null).map(c=>({c,x:c.x,y:c.y}))};
+    wrap.setPointerCapture(e.pointerId);return;}
+  const cbg=e.target.closest('[data-cable]');
+  if(cbg){select({kind:'cable',id:cbg.dataset.cable});return;}
+  select(null);
+});
+wrap.addEventListener('pointermove',e=>{
+  const r=wrap.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;
+  if(wrap.classList.contains('drawing')){
+    $('#chH').style.top=my+'px';
+    $('#chV').style.left=mx+'px';
+  }
+  if(ui.tool==='poly'&&ui.poly){polyPreview(s2w(mx,my));return;}
+  if(ui.tool==='cable'&&ui.poly){polyPreview(s2w(mx,my));return;}
+  if(!drag)return;
+  if(drag.mode==='pan'){view.tx=drag.tx+(mx-drag.mx);view.ty=drag.ty+(my-drag.my);scheduleDetail();draw();return;}
+  const p=s2w(mx,my),dx=p.x-drag.start.x,dy=p.y-drag.start.y;
+  if(drag.mode==='layer'){drag.layer.ox=drag.o.ox+dx;drag.layer.oy=drag.o.oy+dy;draw();}
+  else if(drag.mode==='comp'){
+    // Ingen 0-1-begränsning här längre (se Steg 103) – man ska kunna
+    // placera/dra komponenter fritt, även utanför den ursprungliga
+    // referensytan (PDF-sidan eller standard-tomytan).
+    drag.comp.x=drag.o.x+dx/ref.w;drag.comp.y=drag.o.y+dy/ref.h;
+    drag.moved=true;updateTransform();
+  }else if(drag.mode==='junction'){
+    // Kopplingspunkter renderas som statisk markup inuti wg (samma
+    // mönster som rum), inte med en egen transform som komponenter –
+    // buildOverlay() bygger om SVG:n så positionen syns direkt. Kablar
+    // knutna hit (cableRenderPoints) följer automatiskt med.
+    drag.junction.x=drag.o.x+dx/ref.w;drag.junction.y=drag.o.y+dy/ref.h;
+    buildOverlay();
+  }else if(drag.mode==='room'){
+    drag.room.points=drag.o.map(q=>[q[0]+dx,q[1]+dy]);
+    drag.withComps.forEach(w=>{w.c.x=w.x+dx/ref.w;w.c.y=w.y+dy/ref.h;});
+    buildOverlay();
+  }else if(drag.mode==='newrect'){
+    const m=drag.room,x0=Math.min(drag.start.x,p.x),y0=Math.min(drag.start.y,p.y),
+          x1=Math.max(drag.start.x,p.x),y1=Math.max(drag.start.y,p.y);
+    m.points=[[x0,y0],[x1,y0],[x1,y1],[x0,y1]];buildOverlay();
+  }else if(drag.mode==='vtx'&&drag.kind==='cable'){
+    drag.cable.points[drag.i]=[drag.o[drag.i][0]+dx,drag.o[drag.i][1]+dy];
+    buildOverlay();
+  }else if(drag.mode==='vtx'){
+    const m=drag.room,n=m.points.length,i=drag.i,o=drag.o;
+    m.points[i]=[o[i][0]+dx,o[i][1]+dy];
+    if(m.rect&&n===4){
+      const prev=(i+3)%4,next=(i+1)%4;
+      if(Math.abs(o[prev][0]-o[i][0])<0.001){m.points[prev]=[m.points[i][0],o[prev][1]];m.points[next]=[o[next][0],m.points[i][1]];}
+      else{m.points[next]=[m.points[i][0],o[next][1]];m.points[prev]=[o[prev][0],m.points[i][1]];}
+    }
+    buildOverlay();
+  }
+});
+wrap.addEventListener('pointerup',e=>{
+  if(!drag)return;const d=drag;drag=null;
+  try{wrap.releasePointerCapture(e.pointerId);}catch(_){}
+  if(d.mode==='layer'){renderLayers();scheduleDetail();draw();return;}
+  if(d.mode==='comp'&&d.moved){assignRoom(d.comp);refresh();}
+  if(d.mode==='junction'){refresh();}
+  if(d.mode==='newrect'){
+    const bb=bbox(d.room.points);
+    if(bb.w<8||bb.h<8){const f=curFloor();f.rooms=f.rooms.filter(r=>r.id!==d.room.id);select(null);}
+    else reassignFloor();
+    setTool('select');refresh();
+  }
+  if(d.mode==='room'||d.mode==='vtx'){reassignFloor();refresh();}
+});
+wrap.addEventListener('dblclick',e=>{
+  if(ui.tool==='poly'&&ui.poly){polyFinish();return;}
+  if(ui.tool==='cable'&&ui.poly){cableFinish();return;}
+  if(ui.tool!=='select')return;
+  const cbg=e.target.closest('[data-cable]');
+  if(!cbg)return;
+  const r=findCable(cbg.dataset.cable);if(!r)return;
+  const cbl=r.cable,fl=r.floor;
+  const rr=wrap.getBoundingClientRect(),p=s2w(e.clientX-rr.left,e.clientY-rr.top);
+  const pts=cableRenderPoints(cbl,fl);
+  const idx=nearestSegment(pts,p);
+  cbl.points.splice(idx+1,0,[p.x,p.y]);
+  select({kind:'cable',id:cbl.id});
+  refresh();
+});
+wrap.addEventListener('contextmenu',e=>e.preventDefault());
+
+function reassignFloor(){const f=curFloor();if(f)f.components.forEach(c=>{if(c.x!=null)assignRoom(c);});}
+function assignRoom(c){
+  const f=curFloor();if(!f||!ref||c.x==null)return;
+  const x=c.x*ref.w,y=c.y*ref.h;let hit=null;
+  for(let i=f.rooms.length-1;i>=0;i--){if(inPoly(f.rooms[i].points,x,y)){hit=f.rooms[i];break;}}
+  c.roomId=hit?hit.id:null;
+}
+/* polygonverktyg.
+   Dubbelklick detekteras i egen regi eftersom webbläsarens dblclick kräver att båda
+   klicken träffar samma DOM-element, vilket inte håller när förhandsvisningen ritas om. */
+function polyClick(p,e){
+  const now=Date.now();
+  if(!ui.poly)ui.poly={pts:[],cursor:p,lastT:0,lastP:null};
+  const q=ui.poly;
+  const near=(a,b)=>Math.hypot(p.x-a,p.y-b)*view.scale;
+  if(q.pts.length>=3&&q.lastP&&now-q.lastT<450&&near(q.lastP[0],q.lastP[1])<9){polyFinish();return;}
+  if(q.pts.length>=3&&near(q.pts[0][0],q.pts[0][1])<14){polyFinish();return;}
+  q.pts.push([p.x,p.y]);
+  q.lastT=now;q.lastP=[p.x,p.y];
+  polyPreview(p);
+}
+function polyUndo(){
+  if(!ui.poly||!ui.poly.pts.length)return;
+  ui.poly.pts.pop();ui.poly.lastP=null;
+  polyPreview();
+}
+function polyPreview(p){
+  if(!ui.poly)return;
+  if(p)ui.poly.cursor=p;
+  const tg=svg.querySelector('#tg');if(!tg)return;
+  const c=ui.poly.cursor, s=view.scale, r=5/s;
+  const pts=c?ui.poly.pts.concat([[c.x,c.y]]):ui.poly.pts.slice();
+  const isCable=ui.tool==='cable';
+  let h=pts.length>1?(isCable
+    ?`<polyline class="tmpLine" points="${ptsAttr(pts)}"/>`
+    :`<polygon class="tmp" points="${ptsAttr(pts)}"/>`):'';
+  ui.poly.pts.forEach((v,i)=>{
+    h+=`<circle class="pvtx${i===0?' first':''}" cx="${v[0].toFixed(2)}" cy="${v[1].toFixed(2)}" r="${(i===0?r*1.6:r).toFixed(3)}" stroke-width="${(1.6/s).toFixed(3)}"/>`;
+  });
+  tg.innerHTML=h;
+  tg.setAttribute('transform',`translate(${view.tx},${view.ty}) scale(${s})`);
+}
+function polyFinish(){
+  if(!ui.poly)return;
+  const pts=ui.poly.pts;
+  ui.poly=null;
+  const tg=svg.querySelector('#tg');if(tg)tg.innerHTML='';
+  if(pts.length>=3){
+    const f=curFloor();
+    const room={id:uid('r'),name:'Rum '+(f.rooms.length+1),points:pts,rect:false,hidden:false,done:false};
+    f.rooms.push(room);select({kind:'room',id:room.id});reassignFloor();
+  }
+  setTool('select');refresh();
+}
+function polyCancel(){ui.poly=null;const tg=svg.querySelector('#tg');if(tg)tg.innerHTML='';setTool('select');}
+
+/* =======================================================================
+   INSTALLATIONSLAGER & KABLAR
+   ======================================================================= */
+// Skilt begrepp från f.layers ovan (uppladdade PDF-bakgrunder) – detta
+// är egna, namngivna och färgsatta lager man själv skapar för att
+// organisera olika sorters kablar (t.ex. "Kommunikation" i blått, "230V"
+// i rött), med tänd/släck-koppling precis som PDF-bakgrunderna. Kablar
+// hör till PLANET (f.cables), med en layerId-referens – samma mönster
+// som komponenter hör till plan med en roomId-referens.
+
+const INST_LAYER_COLORS=['#3b82f6','#e63946','#37c26a','#f2c53d','#9333ea','#14b8a6','#f97316','#ec4899'];
+
+function activeInstLayer(f){
+  if(!f||!f.instLayers.length)return null;
+  return f.instLayers.find(l=>l.id===ui.activeInstLayer)||f.instLayers[0];
+}
+
+function renderInstLayers(){
+  const f=curFloor();
+  const head=`<div class="lhead"><span class="lab">Installationslager</span>
+    <button class="ghost" id="ilAdd" title="Nytt lager">${ic('plus')}</button></div>`;
+  if(!f){$('#instLayersPanel').innerHTML=head+`<div class="lempty">Inget plan valt.</div>`;return;}
+  const active=activeInstLayer(f);
+  const rows=f.instLayers.map(l=>{
+    const n=f.cables.filter(c=>c.layerId===l.id).length;
+    const isActive=active&&active.id===l.id;
+    return `<div class="lrow${l.visible?'':' hidden'}${isActive?' adj':''}" data-il="${l.id}">
+      <div class="l1">
+        <button class="ghost${l.visible?'':' act'}" data-ila="eye" title="${l.visible?'Släck':'Tänd'}">${ic(l.visible?'eye':'eyeOff')}</button>
+        <span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:${l.color};margin:0 6px;flex:0 0 auto"></span>
+        <span class="lname" data-ila="ren" title="${esc(l.name)}">${esc(l.name)}</span>
+        <span class="muted" style="font-size:10.5px;margin-left:4px">${n} st</span>
+        <button class="ghost" data-ila="dash" title="Linjestil: ${l.dash?'streckad':'solid'} – klicka för att växla" style="font-family:monospace">${l.dash?'┄':'—'}</button>
+        <button class="ghost${isActive?' act':''}" data-ila="pick" title="Aktivt lager – nya kablar hamnar här">${isActive?'●':'○'}</button>
+        <button class="ghost" data-ila="del" title="Ta bort lager (och dess kablar)">${ic('trash')}</button>
+      </div></div>`;
+  }).join('');
+  // Inline-formulär för nytt lager – byggs NEDÅT i panelen istället för
+  // en centrerad prompt()-dialog (som tidigare hamnade mitt i ritytan).
+  const addForm=ui.addingInstLayer?`<div class="lrow adj" style="padding:8px">
+      <input type="text" id="ilNewName" placeholder="Namn på lager, t.ex. Kommunikation" style="width:100%;margin-bottom:6px">
+      <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px">
+        ${INST_LAYER_COLORS.map((c,i)=>`<button class="sw-btn${i===0?' on':''}" data-ilcolor="${c}" style="background:${c}"></button>`).join('')}
+      </div>
+      <div style="display:flex;gap:4px;margin-bottom:8px">
+        <button class="ghost on" id="ilNewSolid" style="font-family:monospace">— Solid</button>
+        <button class="ghost" id="ilNewDash" style="font-family:monospace">┄ Streckad</button>
+      </div>
+      <div class="field row"><button id="ilNewGo" class="on">Lägg till</button><button id="ilNewCancel">Avbryt</button></div>
+    </div>`:'';
+  $('#instLayersPanel').innerHTML=head+rows+addForm+
+    (f.instLayers.length?'':`<div class="lempty">Inga installationslager ännu – skapa ett för att kunna rita kablar.</div>`);
+  $('#ilAdd').onclick=()=>{ui.addingInstLayer=true;renderInstLayers();};
+  if(ui.addingInstLayer){
+    let valdFarg=INST_LAYER_COLORS[0],valdDash=false;
+    const nameInput=$('#ilNewName');
+    nameInput.focus();
+    $$('#instLayersPanel [data-ilcolor]').forEach(b=>b.onclick=()=>{
+      valdFarg=b.dataset.ilcolor;
+      $$('#instLayersPanel [data-ilcolor]').forEach(x=>x.classList.toggle('on',x===b));
+    });
+    $('#ilNewSolid').onclick=()=>{valdDash=false;$('#ilNewSolid').classList.add('on');$('#ilNewDash').classList.remove('on');};
+    $('#ilNewDash').onclick=()=>{valdDash=true;$('#ilNewDash').classList.add('on');$('#ilNewSolid').classList.remove('on');};
+    const go=()=>{
+      const namn=nameInput.value.trim();
+      if(!namn){nameInput.focus();return;}
+      const l={id:uid('il'),name:namn,color:valdFarg,visible:true,dash:valdDash};
+      f.instLayers.push(l);ui.activeInstLayer=l.id;ui.addingInstLayer=false;
+      renderInstLayers();buildOverlay();
+    };
+    $('#ilNewGo').onclick=go;
+    nameInput.onkeydown=e=>{
+      if(e.key==='Enter'){e.preventDefault();go();}
+      if(e.key==='Escape'){ui.addingInstLayer=false;renderInstLayers();}
+    };
+    $('#ilNewCancel').onclick=()=>{ui.addingInstLayer=false;renderInstLayers();};
+  }
+}
+
+$('#instLayersPanel').addEventListener('click',e=>{
+  const row=e.target.closest('[data-il]'),btn=e.target.closest('[data-ila]');
+  if(!row)return;
+  const f=curFloor(),id=row.dataset.il,l=f.instLayers.find(x=>x.id===id);if(!l)return;
+  if(!btn){ui.activeInstLayer=id;renderInstLayers();return;}
+  const act=btn.dataset.ila;
+  if(act==='eye'){l.visible=!l.visible;renderInstLayers();buildOverlay();draw();}
+  else if(act==='ren'){const v=prompt('Namn på installationslager:',l.name);if(v!=null&&v.trim()){l.name=v.trim();renderInstLayers();}}
+  else if(act==='pick'){ui.activeInstLayer=id;renderInstLayers();}
+  else if(act==='dash'){l.dash=!l.dash;renderInstLayers();buildOverlay();}
+  else if(act==='del'){
+    const n=f.cables.filter(c=>c.layerId===id).length;
+    if(!confirm('Ta bort lagret "'+l.name+'"'+(n?' och dess '+n+' kabel(ar)':'')+'?'))return;
+    f.cables=f.cables.filter(c=>c.layerId!==id);
+    f.instLayers=f.instLayers.filter(x=>x.id!==id);
+    if(ui.sel&&ui.sel.kind==='cable'&&!f.cables.some(c=>c.id===ui.sel.id))ui.sel=null;
+    if(ui.activeInstLayer===id)ui.activeInstLayer=f.instLayers[0]?f.instLayers[0].id:null;
+    renderInstLayers();buildOverlay();draw();refresh();
+  }
+});
+
+/// Letar upp en synlig komponent nära en världspunkt, inom ~16
+/// skärmpixlars avstånd (oavsett zoomnivå) – används för att knyta en
+/// kabels ändpunkt till en komponent när man börjar/avslutar ritningen
+/// nära den.
+/// Letar upp den NÄRMASTE anslutningsbara punkten (en synlig komponent
+/// ELLER en kopplingspunkt) inom ~16 skärmpixlar (oavsett zoomnivå) –
+/// används för att knyta en kabels ändpunkt dit när man börjar/avslutar
+/// ritningen nära den. Returnerar {kind:'comp'|'junction', obj} eller
+/// null.
+function findNearbyComponent(p,f,bld){
+  const thresh=16/view.scale;
+  let best=null,bestD=thresh,bestKind=null;
+  f.components.forEach(c=>{
+    if(c.x==null||!compVisible(c,f,bld))return;
+    const wx=c.x*f.ref.w,wy=c.y*f.ref.h;
+    const d=Math.hypot(p.x-wx,p.y-wy);
+    if(d<bestD){bestD=d;best=c;bestKind='comp';}
+  });
+  f.junctionPoints.forEach(j=>{
+    const wx=j.x*f.ref.w,wy=j.y*f.ref.h;
+    const d=Math.hypot(p.x-wx,p.y-wy);
+    if(d<bestD){bestD=d;best=j;bestKind='junction';}
+  });
+  return best?{kind:bestKind,obj:best}:null;
+}
+
+/// Kabelns FAKTISKA ritpunkter just nu – om start/slut är knutna till
+/// en komponent följer de komponentens NUVARANDE position (så kabeln
+/// visuellt hänger med om komponenten flyttas), annars den fritt
+/// ritade punkten.
+function cableRenderPoints(cbl,f){
+  const pts=cbl.points.map(p=>p.slice());
+  if(cbl.startCompId){
+    const c=f.components.find(x=>x.id===cbl.startCompId);
+    if(c&&c.x!=null)pts[0]=[c.x*f.ref.w,c.y*f.ref.h];
+  }else if(cbl.startJunctionId){
+    const j=f.junctionPoints.find(x=>x.id===cbl.startJunctionId);
+    if(j)pts[0]=[j.x*f.ref.w,j.y*f.ref.h];
+  }
+  if(cbl.endCompId){
+    const c=f.components.find(x=>x.id===cbl.endCompId);
+    if(c&&c.x!=null)pts[pts.length-1]=[c.x*f.ref.w,c.y*f.ref.h];
+  }else if(cbl.endJunctionId){
+    const j=f.junctionPoints.find(x=>x.id===cbl.endJunctionId);
+    if(j)pts[pts.length-1]=[j.x*f.ref.w,j.y*f.ref.h];
+  }
+  return pts;
+}
+
+/// Kortaste avstånd från punkt p till linjesegmentet a-b.
+function pointToSegmentDist(p,a,b){
+  const dx=b[0]-a[0],dy=b[1]-a[1];
+  const len2=dx*dx+dy*dy;
+  let t=len2?((p.x-a[0])*dx+(p.y-a[1])*dy)/len2:0;
+  t=Math.max(0,Math.min(1,t));
+  const cx=a[0]+t*dx,cy=a[1]+t*dy;
+  return Math.hypot(p.x-cx,p.y-cy);
+}
+/// Index för det segment (mellan pts[i] och pts[i+1]) som ligger
+/// närmast punkten p – används för att veta VAR en ny brytpunkt ska
+/// infogas när man dubbelklickar mitt på en kabellinje.
+function nearestSegment(pts,p){
+  let best=0,bestD=Infinity;
+  for(let i=0;i<pts.length-1;i++){
+    const d=pointToSegmentDist(p,pts[i],pts[i+1]);
+    if(d<bestD){bestD=d;best=i;}
+  }
+  return best;
+}
+
+/// Enkel, ej lagrad visningsetikett ("Kopplingspunkt 1", "...2" osv.) –
+/// bara ordningen inom planet, inget som synkas eller sparas separat.
+function junctionLabel(f,id){
+  const i=f.junctionPoints.findIndex(x=>x.id===id);
+  return 'Kopplingspunkt '+(i>=0?i+1:'?');
+}
+
+function findJunction(id){
+  for(const b of P.buildings)for(const f of b.floors){
+    const j=f.junctionPoints.find(x=>x.id===id);
+    if(j)return {junction:j,floor:f,bld:b};
+  }
+  return null;
+}
+
+function findCable(id){
+  for(const b of P.buildings)for(const f of b.floors){
+    const c=f.cables.find(x=>x.id===id);
+    if(c)return {cable:c,floor:f,bld:b};
+  }
+  return null;
+}
+
+/// Frågar vilka installationslager som ska vara med i en export – ett
+/// eget litet val PER EXPORT (förvalt enligt tänd/släckt-status just
+/// nu på skärmen, men går att ändra utan att behöva stänga av lager i
+/// panelen först). Returnerar en Promise som ger en array av
+/// lager-id:n att inkludera, eller null om man avbryter exporten.
+/// Om planet inte har några installationslager alls returneras en tom
+/// array direkt, utan att visa dialogen.
+function askCableLayers(floor){
+  return new Promise(resolve=>{
+    if(!floor.instLayers.length){resolve([]);return;}
+    const body=$('#layerExportBody');
+    body.innerHTML=floor.instLayers.map(l=>
+      `<label class="chk" style="display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:13px">
+        <input type="checkbox" data-lyr="${l.id}" ${l.visible?'checked':''}>
+        <span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:${l.color};flex:0 0 auto"></span>
+        <span style="font-family:monospace;font-size:11px" title="${l.dash?'Streckad':'Solid'}">${l.dash?'┄':'—'}</span>
+        ${esc(l.name)} <span class="muted" style="font-size:11px">(${floor.cables.filter(c=>c.layerId===l.id).length} st)</span>
+      </label>`).join('')
+      +'<div class="muted" style="font-size:11.5px;margin-top:4px">Förvalt enligt vad som är tänt/släckt just nu.</div>';
+    const modal=$('#mLayerExport');
+    modal.classList.add('open');
+    let done=false;
+    const finish=val=>{if(done)return;done=true;modal.classList.remove('open');resolve(val);};
+    $('#layerExportGo').onclick=()=>{
+      const ids=[...body.querySelectorAll('[data-lyr]')].filter(i=>i.checked).map(i=>i.dataset.lyr);
+      finish(ids);
+    };
+    modal.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>finish(null));
+  });
+}
+
+function cableClick(p,e){
+  if(!ui.poly)ui.poly={pts:[],cursor:p,lastT:0,lastP:null};
+  const q=ui.poly;
+  const now=Date.now();
+  if(q.pts.length>=2&&q.lastP&&now-q.lastT<450&&Math.hypot(p.x-q.lastP[0],p.y-q.lastP[1])*view.scale<9){cableFinish();return;}
+  q.pts.push([p.x,p.y]);
+  q.lastT=now;q.lastP=[p.x,p.y];
+  polyPreview(p);
+}
+function cableFinish(){
+  if(!ui.poly)return;
+  const pts=ui.poly.pts;
+  ui.poly=null;
+  const tg=svg.querySelector('#tg');if(tg)tg.innerHTML='';
+  if(pts.length>=2){
+    const f=curFloor(),bld=curBld();
+    const layer=activeInstLayer(f);
+    if(!layer){alert('Skapa ett installationslager först (se panelen till höger).');setTool('select');refresh();return;}
+    const startHit=findNearbyComponent({x:pts[0][0],y:pts[0][1]},f,bld);
+    const endHit=findNearbyComponent({x:pts[pts.length-1][0],y:pts[pts.length-1][1]},f,bld);
+    const cbl={id:uid('cbl'),layerId:layer.id,points:pts,kabeltyp:'',
+      startCompId:startHit&&startHit.kind==='comp'?startHit.obj.id:null,
+      endCompId:endHit&&endHit.kind==='comp'?endHit.obj.id:null,
+      startJunctionId:startHit&&startHit.kind==='junction'?startHit.obj.id:null,
+      endJunctionId:endHit&&endHit.kind==='junction'?endHit.obj.id:null};
+    f.cables.push(cbl);select({kind:'cable',id:cbl.id});
+    renderInstLayers();
+  }
+  setTool('select');refresh();
+}
+
+
+wrap.addEventListener('dragover',e=>{if(!ref)return;e.preventDefault();e.dataTransfer.dropEffect='copy';wrap.classList.add('dropping');});
+wrap.addEventListener('dragleave',()=>wrap.classList.remove('dropping'));
+wrap.addEventListener('drop',e=>{
+  e.preventDefault();wrap.classList.remove('dropping');if(!ref)return;
+  const r=wrap.getBoundingClientRect(),p=s2w(e.clientX-r.left,e.clientY-r.top);
+  const nx=p.x/ref.w,ny=p.y/ref.h;
+  const typeId=e.dataTransfer.getData('x/type'),moveId=e.dataTransfer.getData('x/comp'),preset=e.dataTransfer.getData('x/preset');
+  if(typeId){const c=addComponent(curFloor(),typeId,null,preset);c.x=nx;c.y=ny;assignRoom(c);select({kind:'comp',id:c.id});refresh();}
+  else if(moveId){
+    const fc=findComp(moveId);if(!fc)return;
+    if(fc.floor.id!==ui.floorId){fc.floor.components=fc.floor.components.filter(c=>c.id!==moveId);curFloor().components.push(fc.comp);}
+    fc.comp.x=nx;fc.comp.y=ny;assignRoom(fc.comp);select({kind:'comp',id:moveId});refresh();
+  }
+});
+function addComponent(floor,typeId,roomId,presetKomponenttyp){
+  if(!floor)return null;
+  const bld=findFloor(floor.id).bld,t=typeById(typeId);
+  const c={id:uid('c'),typeId,tag:nextTag(bld,t),roomId:roomId||null,x:null,y:null,data:{},modelId:null,
+           hidden:false,done:false,source:'manual'};
+  if(presetKomponenttyp)c.pvKomponenttyp=presetKomponenttyp;
+  floor.components.push(c);
+  pvNotifyNew(c);
+  return c;
+}
+
+/* =======================================================================
+   POOL – att placera
+   ======================================================================= */
+function poolItems(){
+  const f=curFloor();if(!f)return [];
+  return f.components.filter(c=>c.x==null);
+}
+function renderPool(){
+  const f=curFloor();
+  if(!f){$('#poolWrap').innerHTML='<div class="empty-note">Välj ett plan.</div>';return;}
+  const un=poolItems(), tot=f.components.length, placed=tot-un.length;
+  const pct=tot?Math.round(placed/tot*100):100;
+  let h=`<div class="poolbar"><div style="display:flex;font-size:11px;color:var(--txt2)">
+      <span>${placed} av ${tot} placerade</span><span style="margin-left:auto" class="mono">${pct} %</span></div>
+      <div class="bar"><i style="width:${pct}%"></i></div></div>`;
+  if(!un.length){
+    h+=`<div class="pdone">${ic('check')}<div style="margin-top:6px">Allt är utplacerat på ${esc(f.name)}.</div></div>`;
+    $('#poolWrap').innerHTML=h;return;
+  }
+  const grp={};
+  un.forEach(c=>{(grp[c.typeId]=grp[c.typeId]||[]).push(c);});
+  Object.keys(grp).forEach(tid=>{
+    const t=typeById(tid),list=grp[tid];
+    h+=`<div class="pgrp"><h5>${glyph(t,'i')}${esc(t.code)} · ${esc(t.name)}<b>${list.length}</b></h5>`;
+    h+=list.map(c=>`<div class="pitem" draggable="true" data-pool="${c.id}">
+      <span class="gi">${glyph(t,'i')}</span><span class="t">${esc(c.tag)}</span>
+      ${c.wantRoom?`<span class="want">→ ${esc(c.wantRoom)}</span>`:''}
+      <span class="src ${c.source==='import'?'imp':'man'}">${c.source==='import'?'IMP':'NY'}</span>
+      <button class="ghost" data-place="${c.id}" title="Placera mitt på planet (alternativ till att dra ut)">+ Placera</button></div>`).join('');
+    h+='</div>';
+  });
+  $('#poolWrap').innerHTML=h;
+}
+$('#poolWrap').addEventListener('dragstart',e=>{
+  const it=e.target.closest('[data-pool]');if(!it)return;
+  e.dataTransfer.setData('x/comp',it.dataset.pool);e.dataTransfer.effectAllowed='move';
+});
+$('#poolWrap').addEventListener('click',e=>{
+  const place=e.target.closest('[data-place]');
+  if(place){
+    e.stopPropagation();
+    const id=place.dataset.place, fc=findComp(id);
+    if(!fc)return;
+    // Placera mitt på planet, med en liten slumpmässig förskjutning så
+    // flera "+ Placera"-klick i rad inte hamnar exakt ovanpå varandra.
+    fc.comp.x=clamp(0.5+(Math.random()-0.5)*0.2,0,1);
+    fc.comp.y=clamp(0.5+(Math.random()-0.5)*0.2,0,1);
+    assignRoom(fc.comp);
+    select({kind:'comp',id});
+    refresh();
+    return;
+  }
+  const it=e.target.closest('[data-pool]');if(!it)return;
+  select({kind:'comp',id:it.dataset.pool});
+});
+$('#tabPool').onclick=()=>{ui.poolTab='pool';$('#tabPool').classList.add('on');$('#tabPal').classList.remove('on');
+  $('#poolWrap').style.display='';$('#palWrap').style.display='none';renderPool();};
+$('#tabPal').onclick=()=>{ui.poolTab='pal';$('#tabPal').classList.add('on');$('#tabPool').classList.remove('on');
+  $('#poolWrap').style.display='none';$('#palWrap').style.display='';};
+
+/* =======================================================================
+   TRÄD
+   ======================================================================= */
+function select(s){ui.sel=s;buildOverlay();renderTree();renderInspector();if(ui.view==='section')renderSection();}
+const eyeBtn=h=>`<button class="ghost${h?' act':''}" data-act="eye" title="${h?'Visa':'Dölj'}">${ic(h?'eyeOff':'eye')}</button>`;
+const doneBtn=d=>`<button class="ghost${d?' ok':''}" data-act="done" title="${d?'Ångra klarmarkering':'Klarmarkera'}">${ic('check')}</button>`;
+
+function renderTree(){
+  let h='';
+  P.buildings.forEach(b=>{
+    const col=ui.collapsed.has(b.id);
+    h+=node('building',b.id,ic('bld'),b.name,b.floors.length+' plan',isHitName(b.name),b.hidden,false,
+      eyeBtn(b.hidden)+`<button class="ghost" data-act="addFloor" title="Nytt plan">${ic('plus')}</button><button class="ghost" data-act="ren">${ic('pen')}</button><button class="ghost" data-act="del">${ic('trash')}</button>`,col,false,b.hidden);
+    if(col)return;
+    h+='<div class="kids">';
+    b.floors.forEach(f=>{
+      const fc=ui.collapsed.has(f.id);
+      const un=f.components.filter(c=>c.x==null).length;
+      h+=node('floor',f.id,ic('floor'),f.name,(f.layers.length?f.layers.length+' bakgr.':'—')+' · '+f.components.length+(un?' · '+un+' kvar':''),isHitName(f.name),f.hidden||b.hidden,false,
+        eyeBtn(f.hidden)+`<button class="ghost" data-act="up">${ic('up')}</button><button class="ghost" data-act="down">${ic('down')}</button><button class="ghost" data-act="ren">${ic('pen')}</button><button class="ghost" data-act="del">${ic('trash')}</button>`,fc,f.id===ui.floorId,f.hidden);
+      if(fc)return;
+      h+='<div class="kids">';
+      f.rooms.forEach(r=>{
+        const rc=ui.collapsed.has(r.id);
+        const inR=f.components.filter(c=>c.roomId===r.id);
+        const nd=inR.filter(c=>c.done).length;
+        h+=node('room',r.id,ic('room'),r.name,inR.length+' st'+(inR.length?' · '+nd+' klara':''),isHitName(r.name),r.hidden||f.hidden||b.hidden,r.done,
+          eyeBtn(r.hidden)+doneBtn(r.done)+`<button class="ghost" data-act="copy">${ic('copy')}</button><button class="ghost" data-act="ren">${ic('pen')}</button><button class="ghost" data-act="del">${ic('trash')}</button>`,rc,false,r.hidden);
+        if(rc)return;
+        h+='<div class="kids">'+inR.map(c=>compNode(c,f,b)).join('')+'</div>';
+      });
+      const direct=f.components.filter(c=>!c.roomId);
+      if(direct.length)h+='<div class="kids">'+direct.map(c=>compNode(c,f,b)).join('')+'</div>';
+      h+='</div>';
+    });
+    h+='</div>';
+  });
+  $('#tree').innerHTML=h||'<div class="empty-note">Inga byggnader ännu.</div>';
+
+  function node(kind,id,icon,label,sub,hit,off,done,acts,collapsed,active,eyeOn){
+    return `<div class="node${ui.sel&&ui.sel.id===id?' sel':''}${hit?' hit':''}${off?' off':''}${done?' done':''}${eyeOn?' eyeoff':''}" data-kind="${kind}" data-id="${id}">
+      <span class="tw" data-tw="1">${collapsed?'▶':'▼'}</span><span class="gi">${icon}</span>
+      <span class="lbl"${active?' style="color:var(--accent)"':''}>${esc(label)}</span>
+      <span class="sub">${esc(sub)}</span><span class="acts">${acts}</span></div>`;
+  }
+  function compNode(c,f,b){
+    const t=typeById(c.typeId),off=!compVisible(c,f,b);
+    return `<div class="node${ui.sel&&ui.sel.id===c.id?' sel':''}${isHit(c,'comp')?' hit':''}${off?' off':''}${c.done?' done':''}${c.hidden?' eyeoff':''}" data-kind="comp" data-id="${c.id}" draggable="true">
+      <span class="tw"></span><span class="gi">${glyph(t,'i')}</span>
+      <span class="lbl tag">${esc(c.tag)}</span>
+      <span class="src ${c.source==='import'?'imp':'man'}">${c.source==='import'?'IMP':'NY'}</span>
+      <span class="sub">${c.x==null?'ej placerad':esc(t.code)}</span>
+      <span class="acts">${eyeBtn(c.hidden)}${doneBtn(c.done)}<button class="ghost" data-act="copy">${ic('copy')}</button><button class="ghost" data-act="ren">${ic('pen')}</button><button class="ghost" data-act="del">${ic('trash')}</button></span></div>`;
+  }
+}
+const isHitName=n=>!!ui.search&&String(n).toLowerCase().indexOf(ui.search.toLowerCase())>=0;
+
+$('#tree').addEventListener('click',e=>{
+  const n=e.target.closest('.node');if(!n)return;
+  const kind=n.dataset.kind,id=n.dataset.id,act=e.target.closest('[data-act]');
+  if(e.target.dataset.tw&&kind!=='comp'){ui.collapsed.has(id)?ui.collapsed.delete(id):ui.collapsed.add(id);renderTree();return;}
+  if(act){treeAction(act.dataset.act,kind,id);return;}
+  if(kind==='floor')openFloor(id);
+  else if(kind==='room'){const r=findRoom(id);if(r.floor.id!==ui.floorId)openFloor(r.floor.id);}
+  else if(kind==='comp'){const r=findComp(id);if(r.floor.id!==ui.floorId)openFloor(r.floor.id);}
+  else if(kind==='building')ui.bldId=id;
+  select({kind,id});
+});
+function objOf(kind,id){
+  return kind==='building'?P.buildings.find(b=>b.id===id)
+    :kind==='floor'?findFloor(id).floor
+    :kind==='room'?findRoom(id).room
+    :findComp(id).comp;
+}
+function treeAction(act,kind,id){
+  if(act==='eye'){const o=objOf(kind,id);o.hidden=!o.hidden;refresh();return;}
+  if(act==='done'){toggleDone(kind,id);return;}
+  if(act==='copy'){copyNode(kind,id);return;}
+  if(act==='addFloor'){const b=P.buildings.find(x=>x.id===id);const f=newFloor('Plan '+(b.floors.length+1));b.floors.push(f);refresh();openFloor(f.id);return;}
+  if(act==='ren'){
+    const o=objOf(kind,id),k=kind==='comp'?'tag':'name';
+    const v=prompt(kind==='comp'?'Beteckning:':'Namn:',o[k]);
+    if(v!=null&&v.trim()){o[k]=v.trim();refresh();}return;
+  }
+  if(act==='del'){
+    if(kind==='building'){if(!confirm('Ta bort byggnaden med allt innehåll?'))return;
+      const b=P.buildings.find(x=>x.id===id);
+      b.floors.forEach(f=>{f.layers.forEach(l=>cache.delete(l.id));f.components.forEach(c=>{if(c.pvId)pvNotifyDelete(c.pvId);});});
+      P.buildings=P.buildings.filter(x=>x.id!==id);
+      if(!findFloor(ui.floorId)){ui.floorId=null;stack=[];ref=null;svg.innerHTML='';}}
+    if(kind==='floor'){if(!confirm('Ta bort planet med allt innehåll?'))return;
+      const r=findFloor(id);r.floor.layers.forEach(l=>cache.delete(l.id));
+      r.floor.components.forEach(c=>{if(c.pvId)pvNotifyDelete(c.pvId);});
+      r.bld.floors=r.bld.floors.filter(f=>f.id!==id);
+      if(ui.floorId===id){ui.floorId=null;stack=[];ref=null;svg.innerHTML='';}}
+    if(kind==='room'){const r=findRoom(id);r.floor.components.forEach(c=>{if(c.roomId===id)c.roomId=null;});r.floor.rooms=r.floor.rooms.filter(x=>x.id!==id);}
+    if(kind==='comp'){
+      const r=findComp(id);
+      if(!confirm(`Ta bort ${r.comp.tag}?${r.comp.pvId?' Detta tar även bort komponenten i Komponenter – går inte att ångra.':''}`))return;
+      if(r.comp.pvId)pvNotifyDelete(r.comp.pvId);
+      r.floor.components=r.floor.components.filter(c=>c.id!==id);
+    }
+    if(ui.sel&&ui.sel.id===id)ui.sel=null;
+    refresh();renderLayers();drawEmpty();draw();return;
+  }
+  if(act==='up'||act==='down'){
+    const r=findFloor(id),arr=r.bld.floors,i=arr.indexOf(r.floor),j=act==='up'?i-1:i+1;
+    if(j<0||j>=arr.length)return;arr.splice(i,1);arr.splice(j,0,r.floor);refresh();
+  }
+}
+function toggleDone(kind,id){
+  if(kind==='comp'){const c=findComp(id).comp;c.done=!c.done;refresh();pvNotify(c.pvId,{kontrollerad:c.done});return;}
+  else if(kind==='room'){
+    const r=findRoom(id);r.room.done=!r.room.done;
+    if(r.room.done&&confirm('Klarmarkera även alla komponenter i rummet?'))
+      r.floor.components.forEach(c=>{if(c.roomId===id){c.done=true;pvNotify(c.pvId,{kontrollerad:true});}});
+  }else return;
+  refresh();
+}
+$('#tree').addEventListener('dragstart',e=>{
+  const n=e.target.closest('.node[data-kind="comp"]');if(!n)return;
+  e.dataTransfer.setData('x/comp',n.dataset.id);e.dataTransfer.effectAllowed='move';
+});
+$('#tree').addEventListener('dragover',e=>{
+  const n=e.target.closest('.node');if(!n)return;
+  if(n.dataset.kind==='room'||n.dataset.kind==='floor'){e.preventDefault();n.classList.add('dragover');}
+});
+$('#tree').addEventListener('dragleave',e=>{const n=e.target.closest('.node');if(n)n.classList.remove('dragover');});
+$('#tree').addEventListener('drop',e=>{
+  const n=e.target.closest('.node');if(!n)return;n.classList.remove('dragover');
+  const id=e.dataTransfer.getData('x/comp');if(!id)return;
+  e.preventDefault();
+  const src=findComp(id);if(!src)return;
+  let target,roomId=null;
+  if(n.dataset.kind==='room'){const r=findRoom(n.dataset.id);target=r.floor;roomId=r.room.id;}
+  else target=findFloor(n.dataset.id).floor;
+  if(src.floor!==target){src.floor.components=src.floor.components.filter(c=>c.id!==id);target.components.push(src.comp);src.comp.x=null;src.comp.y=null;}
+  src.comp.roomId=roomId;
+  if(roomId&&src.comp.x!=null&&target.id===ui.floorId&&ref){
+    const r=findRoom(roomId).room;
+    if(!inPoly(r.points,src.comp.x*ref.w,src.comp.y*ref.h)){
+      const bb=bbox(r.points);src.comp.x=(bb.x+bb.w/2)/ref.w;src.comp.y=(bb.y+bb.h/2)/ref.h;}
+  }
+  refresh();
+});
+
+/* kopiera / klistra in */
+function copyNode(kind,id){
+  if(kind==='room'){
+    const r=findRoom(id);
+    ui.clip={kind:'room',room:deep(r.room),comps:r.floor.components.filter(c=>c.roomId===id).map(deep)};
+    flash('Rum kopierat · '+ui.clip.comps.length+' komponenter');
+  }else if(kind==='comp'){
+    ui.clip={kind:'comp',comp:deep(findComp(id).comp)};flash('Komponent kopierad');
+  }
+}
+function paste(){
+  const f=curFloor();if(!ui.clip||!f||!ref)return;
+  const bld=findFloor(f.id).bld,off=24;
+  if(ui.clip.kind==='room'){
+    const src=ui.clip.room;
+    const room=Object.assign(deep(src),{id:uid('r'),points:src.points.map(p=>[p[0]+off,p[1]+off]),
+      name:uniqueRoomName(f,src.name),done:false});
+    f.rooms.push(room);
+    ui.clip.comps.forEach(sc=>{
+      // pvId nollställs INNAN den läggs till – annars skulle kopian
+      // aliasera samma KomponentRad som originalet i Komponenter,
+      // istället för att bli en egen ny rad. pvNotifyNew registrerar
+      // den som en genuint ny komponent, se pvAssignId ovan.
+      const c=Object.assign(deep(sc),{id:uid('c'),pvId:null,roomId:room.id,tag:nextTag(bld,typeById(sc.typeId)),done:false,source:'manual'});
+      if(c.x!=null){c.x=c.x+off/ref.w;c.y=c.y+off/ref.h;}
+      f.components.push(c);
+      pvNotifyNew(c);
+    });
+    select({kind:'room',id:room.id});flash('Rum inklistrat');
+  }else{
+    const sc=ui.clip.comp;
+    const c=Object.assign(deep(sc),{id:uid('c'),pvId:null,tag:nextTag(bld,typeById(sc.typeId)),roomId:null,done:false,source:'manual'});
+    if(c.x!=null){c.x=c.x+off/ref.w;c.y=c.y+off/ref.h;}
+    f.components.push(c);assignRoom(c);select({kind:'comp',id:c.id});flash('Komponent inklistrad');
+    pvNotifyNew(c);
+  }
+  refresh();
+}
+function uniqueRoomName(f,name){
+  const base=String(name).replace(/\s*\(kopia \d+\)$/,'');
+  let n=2,x=base+' (kopia 2)';
+  while(f.rooms.some(r=>r.name===x)){n++;x=base+' (kopia '+n+')';}
+  return x;
+}
+
+/* =======================================================================
+   PALETT
+   ======================================================================= */
+// Förinställda komponenter – rena "genvägar" som fyller i Komponenttyp
+// automatiskt när man drar ut dem (de vanligaste fälttyperna). Alla
+// använder fortfarande samma enda ritnings-typ ("Komponent", se
+// DEFAULT_TYPES) – bara Komponenttyp-VÄRDET skiljer, precis som om man
+// dragit ut en vanlig komponent och sedan fyllt i fältet manuellt.
+const PV_PRESETS=[
+  'Temperaturgivare','Tryckgivare','Pump','Ventilställdon','VAV-spjäll',
+  'CAV-spjäll','Brandgasspjäll','Rumsregulator','Rumsgivare',
+  'Rökdetektor','Fläkt','Säkerhetsbrytare','Timer','Närvarogivare'
+];
+
+function renderPalette(){
+  const t=P.types[0]; // en enda generisk typ – se DEFAULT_TYPES
+  let h=`<div class="pal${t.hidden?' off':''}" draggable="true" data-type="${t.id}" title="${esc(t.name)} – Komponenttyp fylls i själv i inspektorn">
+    ${glyph(t,'sw')}<div style="min-width:0"><b>${esc(t.code)}</b><em>${esc(t.name)}</em></div>
+    <button class="ghost eye" data-teye="${t.id}" title="${t.hidden?'Visa alla':'Dölj alla'}">${ic(t.hidden?'eyeOff':'eye')}</button></div>`;
+  h+=PV_PRESETS.map(namn=>
+    `<div class="pal${t.hidden?' off':''}" draggable="true" data-type="${t.id}" data-preset="${esc(namn)}" title="${esc(namn)} – Komponenttyp fylls i automatiskt">
+      ${glyph(t,'sw')}<div style="min-width:0"><b>${esc(namn)}</b></div></div>`).join('');
+  $('#palette').innerHTML=h;
+}
+$('#palette').addEventListener('dragstart',e=>{
+  const p=e.target.closest('.pal');if(!p)return;
+  e.dataTransfer.setData('x/type',p.dataset.type);
+  if(p.dataset.preset)e.dataTransfer.setData('x/preset',p.dataset.preset);
+  e.dataTransfer.effectAllowed='copy';
+});
+$('#palette').addEventListener('click',e=>{
+  const eye=e.target.closest('[data-teye]');
+  if(eye){const t=typeById(eye.dataset.teye);t.hidden=!t.hidden;renderPalette();refresh();return;}
+  // Klick på själva paletteposten placerar INTE längre en komponent –
+  // bara dra-och-släpp gör det numera (enligt önskemål, för att undvika
+  // att man råkar klicka ut komponenter av misstag).
+});
+
+/* =======================================================================
+   INSPEKTOR
+   ======================================================================= */
+function attrInput(t,c,a){
+  const v=c.data[a.key]==null?'':c.data[a.key];
+  const unit=a.unit?` <span class="muted" style="font-size:10px">${esc(a.unit)}</span>`:'';
+  if(a.type==='bool')
+    return `<label class="chk" style="margin-bottom:6px"><input type="checkbox" data-df="${esc(a.key)}" ${v===true||v==='true'?'checked':''}> ${esc(a.key)}</label>`;
+  if(a.type==='select')
+    return `<div style="margin-bottom:6px"><div style="font-size:11px;color:var(--txt3)">${esc(a.key)}${unit}</div>
+      <select data-df="${esc(a.key)}"><option value=""></option>${(a.options||[]).map(o=>`<option${o===v?' selected':''}>${esc(o)}</option>`).join('')}</select></div>`;
+  return `<div style="margin-bottom:6px"><div style="font-size:11px;color:var(--txt3)">${esc(a.key)}${unit}</div>
+    <input type="${a.type==='number'?'number':'text'}" data-df="${esc(a.key)}" value="${esc(v)}"></div>`;
+}
+function renderInspector(){
+  const box=$('#inspector');
+  if(!ui.sel){box.innerHTML='<div class="empty-note">Markera något i strukturen, planvyn eller sektionsvyn.</div>';return;}
+  const kind=ui.sel.kind,id=ui.sel.id;
+  if(kind==='comp'){
+    const r=findComp(id);if(!r){box.innerHTML='';return;}
+    const c=r.comp,t=typeById(c.typeId);
+    box.innerHTML=`
+      <div class="field"><label class="chk"><input type="checkbox" id="iDone" ${c.done?'checked':''}> Klarmarkerad (egenkontroll)</label></div>
+      <div class="field"><label>Beteckning</label><input type="text" id="iTag" class="mono" value="${esc(c.tag)}"></div>
+      <div class="field"><label class="lab-s" style="margin-top:6px">ProjektVerktyg – komponentlistans fält</label></div>
+      <div class="field"><label>Komponenttyp</label><input type="text" id="iKomponenttyp" list="pvcat-komponenttyp" value="${esc(c.pvKomponenttyp||'')}"></div>
+      <div class="field"><label>System</label><input type="text" id="iSystem" list="pvcat-system" value="${esc(c.pvSystem||'')}"></div>
+      <div class="field"><label>Signaltyp</label><input type="text" id="iSignaltyp" list="pvcat-signaltyp" value="${esc(c.pvSignaltyp||'')}"></div>
+      <div class="field"><label>Ansluts till</label><input type="text" id="iAnslutsTill" value="${esc(c.pvAnslutsTill||'')}"></div>
+      <div class="field"><label>Kabeltyp</label><input type="text" id="iKabeltyp" list="pvcat-kabeltyp" value="${esc(c.pvKabeltyp||'')}"></div>
+      <div class="field"><label>Produkttyp</label><input type="text" id="iProdukttyp" list="pvcat-produkttyp" value="${esc(c.pvProdukttyp||'')}"></div>
+      <div class="field"><label>Produkt</label><input type="text" id="iProdukt" list="pvcat-produkt" value="${esc(c.pvProdukt||'')}">
+        <div class="muted" style="font-size:11px;margin-top:4px">Namnet måste matcha en post i produktkatalogen (Inställningar → Produktkatalog) för att räknas med i strömförbrukningen.</div></div>
+      <div class="field"><label>Kabellängd (m)</label><input type="text" id="iKabelLangdMeter" value="${esc(c.pvKabelLangdMeter||'')}"></div>
+      <div class="field"><label>Monteringsanvisning</label><input type="text" id="iMonteringsanvisning" value="${esc(c.pvMonteringsanvisning||'')}">
+        <div class="muted" style="font-size:11px;margin-top:4px">Visas i tabellen vid export av rumsvy.</div></div>
+      <div class="field"><label>Beskrivning</label><input type="text" id="iBeskrivning" value="${esc(c.pvBeskrivning||'')}"></div>
+      <div class="field"><label>Övrigt</label><input type="text" id="iOvrigt" value="${esc(c.pvOvrigt||'')}"></div>
+      <div class="field"><label>Placering</label>
+        <div class="kv"><b>Byggnad</b><span>${esc(r.bld.name)}</span></div>
+        <div class="kv"><b>Plan</b><span>${esc(r.floor.name)}</span></div>
+        <div class="kv"><b>Rum</b><span>${c.roomId?esc(findRoom(c.roomId).room.name):'— direkt på plan'}</span></div>
+        ${c.wantRoom?`<div class="kv"><b>Enligt import</b><span style="color:var(--accent2)">${esc(c.wantRoom)}</span></div>`:''}
+        <div class="kv"><b>På ritning</b><span>${c.x==null?'nej':'ja'}</span></div>
+        <div class="kv"><b>Ursprung</b><span>${c.source==='import'?'Importerad':'Tillagd manuellt'}</span></div></div>
+      ${t.attrs&&t.attrs.length?`<div class="field"><label>Attribut</label>${t.attrs.map(a=>attrInput(t,c,a)).join('')}</div>`:''}
+      <div class="field row"><button id="iCopy">Kopiera</button>${c.x!=null?'<button id="iUnplace">Av ritning</button>':''}<button id="iDel" style="color:var(--danger)">Ta bort</button></div>`;
+    $('#iDone').onchange=e=>{c.done=e.target.checked;refresh();pvNotify(c.pvId,{kontrollerad:c.done});};
+    $('#iTag').onchange=e=>{c.tag=e.target.value.trim()||c.tag;refresh();pvNotify(c.pvId,{beteckning:c.tag});};
+    $('#iKomponenttyp').onchange=e=>{c.pvKomponenttyp=e.target.value;pvNotify(c.pvId,{komponenttyp:c.pvKomponenttyp});};
+    $('#iSystem').onchange=e=>{c.pvSystem=e.target.value;pvNotify(c.pvId,{system:c.pvSystem});};
+    $('#iSignaltyp').onchange=e=>{c.pvSignaltyp=e.target.value;pvNotify(c.pvId,{signaltyp:c.pvSignaltyp});};
+    $('#iAnslutsTill').onchange=e=>{c.pvAnslutsTill=e.target.value;pvNotify(c.pvId,{anslutsTill:c.pvAnslutsTill});};
+    $('#iKabeltyp').onchange=e=>{c.pvKabeltyp=e.target.value;pvNotify(c.pvId,{kabeltyp:c.pvKabeltyp});};
+    $('#iProdukttyp').onchange=e=>{c.pvProdukttyp=e.target.value;pvNotify(c.pvId,{produkttyp:c.pvProdukttyp});};
+    $('#iProdukt').onchange=e=>{c.pvProdukt=e.target.value;pvNotify(c.pvId,{produkt:c.pvProdukt});};
+    $('#iKabelLangdMeter').onchange=e=>{c.pvKabelLangdMeter=e.target.value;pvNotify(c.pvId,{kabelLangdMeter:c.pvKabelLangdMeter});};
+    $('#iMonteringsanvisning').onchange=e=>{c.pvMonteringsanvisning=e.target.value;pvNotify(c.pvId,{monteringsanvisning:c.pvMonteringsanvisning});};
+    $('#iBeskrivning').onchange=e=>{c.pvBeskrivning=e.target.value;pvNotify(c.pvId,{beskrivning:c.pvBeskrivning});};
+    $('#iOvrigt').onchange=e=>{c.pvOvrigt=e.target.value;pvNotify(c.pvId,{ovrigt:c.pvOvrigt});};
+    if($('#iModel'))$('#iModel').onchange=e=>{
+      c.modelId=e.target.value||null;
+      const m=(t.models||[]).find(x=>x.id===c.modelId);
+      if(m)Object.keys(m.values||{}).forEach(k=>{c.data[k]=m.values[k];});
+      refresh();
+    };
+    $$('#inspector [data-df]').forEach(i=>i.onchange=ev=>{
+      const key=ev.target.dataset.df;
+      c.data[key]=ev.target.type==='checkbox'?ev.target.checked:ev.target.value;
+    });
+    $('#iCopy').onclick=()=>copyNode('comp',id);
+    if($('#iUnplace'))$('#iUnplace').onclick=()=>{c.x=null;c.y=null;refresh();};
+    $('#iDel').onclick=()=>{
+      if(!confirm(`Ta bort ${c.tag}?${c.pvId?' Detta tar även bort komponenten i Komponenter – går inte att ångra.':''}`))return;
+      if(c.pvId)pvNotifyDelete(c.pvId);
+      r.floor.components=r.floor.components.filter(x=>x.id!==id);ui.sel=null;refresh();
+    };
+  }else if(kind==='room'){
+    const r=findRoom(id);if(!r){box.innerHTML='';return;}
+    const inR=r.floor.components.filter(c=>c.roomId===id);
+    box.innerHTML=`<div class="field"><label class="chk"><input type="checkbox" id="iDone" ${r.room.done?'checked':''}> Klarmarkerat rum (egenkontroll)</label></div>
+      <div class="field"><label>Rumsnamn</label><input type="text" id="iName" value="${esc(r.room.name)}"></div>
+      <div class="field"><label>Innehåll</label><div class="kv"><b>Komponenter</b><span>${inR.length} st</span></div>
+      <div class="kv"><b>Klarmarkerade</b><span>${inR.filter(c=>c.done).length} st</span></div>
+      <div class="kv"><b>Brytpunkter</b><span>${r.room.points.length}</span></div>
+      <div class="kv"><b>Plan</b><span>${esc(r.floor.name)}</span></div></div>
+      <div class="field row"><button id="iCopy">Kopiera</button><button id="iDel" style="color:var(--danger)">Ta bort rum</button></div>
+      <div class="hint" style="padding:8px 11px">Dra i hörnen för att ändra form. Ringarna mellan hörnen lägger till en brytpunkt, Alt-klick på ett hörn tar bort det.</div>`;
+    $('#iDone').onchange=()=>toggleDone('room',id);
+    $('#iName').onchange=e=>{r.room.name=e.target.value;refresh();};
+    $('#iCopy').onclick=()=>copyNode('room',id);
+    $('#iDel').onclick=()=>treeAction('del','room',id);
+  }else if(kind==='cable'){
+    const r=findCable(id);if(!r){box.innerHTML='';return;}
+    const cbl=r.cable,f=r.floor,l=f.instLayers.find(x=>x.id===cbl.layerId);
+    const startC=cbl.startCompId?f.components.find(x=>x.id===cbl.startCompId):null;
+    const endC=cbl.endCompId?f.components.find(x=>x.id===cbl.endCompId):null;
+    const startLabel=startC?startC.tag:(cbl.startJunctionId?junctionLabel(f,cbl.startJunctionId):'ej knuten');
+    const endLabel=endC?endC.tag:(cbl.endJunctionId?junctionLabel(f,cbl.endJunctionId):'ej knuten');
+    box.innerHTML=`<div class="field"><label>Installationslager</label>
+        <div class="kv"><b><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${l?l.color:'#888'};margin-right:5px"></span>${esc(l?l.name:'(borttaget lager)')}</b><span></span></div></div>
+      <div class="field"><label>Kabeltyp</label><input type="text" id="iKabeltyp" list="pvcat-kabeltyp" value="${esc(cbl.kabeltyp||'')}"></div>
+      <div class="field"><label>Anslutning</label>
+        <div class="kv"><b>Start</b><span>${esc(startLabel)}</span></div>
+        <div class="kv"><b>Slut</b><span>${esc(endLabel)}</span></div>
+        <div class="kv"><b>Brytpunkter</b><span>${cbl.points.length}</span></div></div>
+      <div class="field row"><button id="iDel" style="color:var(--danger)">Ta bort kabel</button></div>
+      <div class="hint" style="padding:8px 11px">Start-/slutpunkten knyts automatiskt till en komponent ELLER kopplingspunkt om man börjar eller avslutar ritningen nära den – flyttar man den, följer kabeln med.</div>`;
+    $('#iKabeltyp').onchange=e=>{cbl.kabeltyp=e.target.value;};
+    $('#iDel').onclick=()=>{
+      if(!confirm('Ta bort kabeln?'))return;
+      f.cables=f.cables.filter(x=>x.id!==id);ui.sel=null;
+      renderInstLayers();refresh();
+    };
+  }else if(kind==='junction'){
+    const r=findJunction(id);if(!r){box.innerHTML='';return;}
+    const jp=r.junction,f=r.floor;
+    const connected=f.cables.filter(c=>c.startJunctionId===id||c.endJunctionId===id);
+    box.innerHTML=`<div class="field"><label>Kopplingspunkt</label>
+        <div class="kv"><b>${esc(junctionLabel(f,id))}</b><span></span></div></div>
+      <div class="field"><label>Anslutna kablar</label>
+        ${connected.length?connected.map(c=>{const l=f.instLayers.find(x=>x.id===c.layerId);
+          return `<div class="kv"><b><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${l?l.color:'#888'};margin-right:5px"></span>${esc(l?l.name:'—')}</b><span>${esc(c.kabeltyp||'—')}</span></div>`;}).join('')
+          :'<div class="muted" style="font-size:12px">Inga kablar anslutna ännu.</div>'}</div>
+      <div class="field row"><button id="iDel" style="color:var(--danger)">Ta bort kopplingspunkt</button></div>
+      <div class="hint" style="padding:8px 11px">Hör bara till ritningen – läggs ALDRIG till i Komponenter i ProjektVerktyg. Kablar som var knutna hit lösgörs (blir fria ändpunkter) om den tas bort.</div>`;
+    $('#iDel').onclick=()=>{
+      if(!confirm('Ta bort kopplingspunkten?'+(connected.length?' '+connected.length+' kabel(ar) lösgörs.':'')))return;
+      f.cables.forEach(c=>{
+        if(c.startJunctionId===id)c.startJunctionId=null;
+        if(c.endJunctionId===id)c.endJunctionId=null;
+      });
+      f.junctionPoints=f.junctionPoints.filter(x=>x.id!==id);
+      ui.sel=null;refresh();
+    };
+  }else if(kind==='floor'){
+    const r=findFloor(id);if(!r){box.innerHTML='';return;}
+    const f=r.floor;
+    box.innerHTML=`<div class="field"><label>Plannamn</label><input type="text" id="iName" value="${esc(f.name)}"></div>
+      <div class="field"><label>Bakgrunder</label>
+        ${f.layers.length?f.layers.map(l=>`<div class="kv"><b>${esc(l.name)}</b><span>${l.visible?Math.round(l.opacity*100)+' %':'släckt'}</span></div>`).join(''):'<div class="muted" style="font-size:12px">Ingen PDF importerad.</div>'}
+        <button id="iAddPdf" style="margin-top:7px">Lägg till PDF</button></div>
+      <div class="field"><label>Innehåll</label><div class="kv"><b>Rum</b><span>${f.rooms.length}</span></div>
+      <div class="kv"><b>Komponenter</b><span>${f.components.length}</span></div>
+      <div class="kv"><b>Ej placerade</b><span>${f.components.filter(c=>c.x==null).length}</span></div>
+      <div class="kv"><b>Klarmarkerade</b><span>${f.components.filter(c=>c.done).length}</span></div></div>
+      <div class="field row"><button id="iPdfOut">Exportera planvy som PDF</button></div>`;
+    $('#iName').onchange=e=>{f.name=e.target.value;refresh();};
+    $('#iAddPdf').onclick=()=>{if(ui.floorId!==id)openFloor(id).then(importPdf);else importPdf();};
+    $('#iPdfOut').onclick=()=>{if(ui.floorId!==id)openFloor(id).then(()=>exportPlanPDF());else exportPlanPDF();};
+  }else if(kind==='building'){
+    const b=P.buildings.find(x=>x.id===id);if(!b){box.innerHTML='';return;}
+    const n=b.floors.reduce((s,f)=>s+f.components.length,0);
+    box.innerHTML=`<div class="field"><label>Byggnadsnamn</label><input type="text" id="iName" value="${esc(b.name)}"></div>
+      <div class="field"><label>Innehåll</label><div class="kv"><b>Plan</b><span>${b.floors.length}</span></div>
+      <div class="kv"><b>Komponenter</b><span>${n}</span></div></div>`;
+    $('#iName').onchange=e=>{b.name=e.target.value;refresh();};
+  }
+}
+
+/* =======================================================================
+   CSV-IMPORT
+   ======================================================================= */
+const FIELD_OPTS=[['ignore','Ignorera'],['code','Typkod'],['typeName','Typbenämning'],['qty','Antal'],
+  ['tag','Beteckning'],['bld','Byggnad'],['floor','Plan'],['room','Rum'],['model','Modell'],['attr','Attribut']];
+function parseCSV(text){
+  text=text.replace(/^\uFEFF/,'');
+  const first=text.split(/\r?\n/)[0]||'';
+  const delim=(first.split(';').length>first.split(',').length)?';':(first.split('\t').length>first.split(',').length?'\t':',');
+  const rows=[];let row=[],cell='',q=false;
+  for(let i=0;i<text.length;i++){
+    const ch=text[i];
+    if(q){
+      if(ch==='"'){if(text[i+1]==='"'){cell+='"';i++;}else q=false;}
+      else cell+=ch;
+    }else{
+      if(ch==='"')q=true;
+      else if(ch===delim){row.push(cell);cell='';}
+      else if(ch==='\n'){row.push(cell);rows.push(row);row=[];cell='';}
+      else if(ch==='\r'){}
+      else cell+=ch;
+    }
+  }
+  if(cell.length||row.length){row.push(cell);rows.push(row);}
+  return rows.filter(r=>r.some(c=>String(c).trim()!==''));
+}
+function guessField(h){
+  const n=norm(h);
+  if(/^(typ|typkod|kod|beteckningstyp|komponenttyp)$/.test(n))return 'code';
+  if(/^(benämning|benamning|typbenämning|beskrivning|namn)$/.test(n))return 'typeName';
+  if(/^(antal|st|qty|quantity)$/.test(n))return 'qty';
+  if(/^(beteckning|tag|id|littera|objekt)$/.test(n))return 'tag';
+  if(/^(byggnad|hus|building)$/.test(n))return 'bld';
+  if(/^(plan|våning|vaning|floor|etage)$/.test(n))return 'floor';
+  if(/^(rum|rumsnamn|rumsnr|rumsnummer|room)$/.test(n))return 'room';
+  if(/^(modell|model|artikel|produkt)$/.test(n))return 'model';
+  return 'attr';
+}
+$('#btnCsv').onclick=()=>$('#fileCsv').click();
+$('#fileCsv').onchange=async e=>{
+  const file=e.target.files[0];e.target.value='';if(!file)return;
+  const rows=parseCSV(await file.text());
+  if(rows.length<2){alert('Filen verkar tom eller saknar rubrikrad.');return;}
+  ui.csv={name:file.name,head:rows[0],rows:rows.slice(1),map:rows[0].map(guessField)};
+  renderCsvModal();$('#mCsv').classList.add('open');
+};
+function renderCsvModal(){
+  const c=ui.csv;
+  const prev=c.rows.slice(0,6);
+  let h=`<div class="grid2" style="margin-bottom:14px">
+      <div><label class="lab-s">Fil</label><div class="mono" style="font-size:12px">${esc(c.name)}</div></div>
+      <div><label class="lab-s">Rader</label><div class="mono" style="font-size:12px">${c.rows.length}</div></div>
+      <div><label class="lab-s">Målplan om kolumn saknas</label>
+        <select id="csvFloor">${P.buildings.map(b=>b.floors.map(f=>
+          `<option value="${f.id}"${f.id===ui.floorId?' selected':''}>${esc(b.name)} › ${esc(f.name)}</option>`).join('')).join('')}</select></div>
+      <div><label class="lab-s">Vid namn som inte finns</label>
+        <label class="chk"><input type="checkbox" id="csvCreate" checked> Skapa saknade byggnader/plan</label></div>
+    </div>
+    <label class="lab-s">Koppla kolumner</label>
+    <div class="scrollx"><table><thead><tr>${c.head.map((hd,i)=>
+      `<th><div style="margin-bottom:4px">${esc(hd)}</div>
+        <select data-col="${i}" style="text-transform:none;letter-spacing:0">${FIELD_OPTS.map(([v,n])=>
+          `<option value="${v}"${c.map[i]===v?' selected':''}>${n}</option>`).join('')}</select></th>`).join('')}</tr></thead>
+      <tbody>${prev.map(r=>`<tr>${c.head.map((_,i)=>`<td style="font-size:11.5px">${esc(r[i]||'')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
+    <div class="muted" style="font-size:11.5px;margin-top:10px">Kolumner satta till <b>Attribut</b> sparas som attribut med kolumnrubriken som namn. Saknas kolumnen Antal skapas en komponent per rad.</div>`;
+  $('#csvBody').innerHTML=h;
+  $$('#csvBody [data-col]').forEach(s=>s.onchange=ev=>{c.map[+ev.target.dataset.col]=ev.target.value;updateCsvInfo();});
+  updateCsvInfo();
+}
+function updateCsvInfo(){
+  const c=ui.csv,qi=c.map.indexOf('qty');
+  let n=0;
+  c.rows.forEach(r=>{n+=qi>=0?Math.max(1,parseInt(r[qi],10)||0):1;});
+  $('#csvInfo').textContent='Skapar '+n+' komponenter';
+}
+$('#csvGo').onclick=()=>{
+  const c=ui.csv,createMissing=$('#csvCreate').checked;
+  const fallbackFloorId=$('#csvFloor').value;
+  const col=k=>c.map.indexOf(k);
+  const iCode=col('code'),iName=col('typeName'),iQty=col('qty'),iTag=col('tag'),
+        iBld=col('bld'),iFloor=col('floor'),iRoom=col('room'),iModel=col('model');
+  const attrCols=c.map.map((m,i)=>m==='attr'?i:-1).filter(i=>i>=0);
+  const imp={id:uid('imp'),name:c.name,date:new Date().toISOString(),count:0};
+  let created=0,newFloors=0,skipped=0;
+  // Alla importerade komponenter använder samma enda ritnings-typ (se
+  // DEFAULT_TYPES/Steg 90) – "Typkod"/"Typbenämning" i CSV:n blir istället
+  // det vanliga, synkade fältet Komponenttyp (pvKomponenttyp), precis som
+  // om man skrivit in det för hand i inspektorn.
+  const enda_typ=P.types[0];
+
+  c.rows.forEach(r=>{
+    const codeRaw=iCode>=0?String(r[iCode]||'').trim():'';
+    const nameRaw=iName>=0?String(r[iName]||'').trim():'';
+    const komponenttyp=nameRaw||codeRaw;
+    if(!komponenttyp&&!(iTag>=0&&String(r[iTag]||'').trim())){skipped++;return;}
+
+    /* målplan */
+    let floor=null;
+    const bName=iBld>=0?String(r[iBld]||'').trim():'';
+    const fName=iFloor>=0?String(r[iFloor]||'').trim():'';
+    if(fName){
+      let bld=bName?P.buildings.find(b=>norm(b.name)===norm(bName)):null;
+      if(!bld&&bName&&createMissing){bld={id:uid('b'),name:bName,hidden:false,floors:[]};P.buildings.push(bld);}
+      if(!bld)bld=findFloor(fallbackFloorId).bld;
+      floor=bld.floors.find(f=>norm(f.name)===norm(fName));
+      if(!floor&&createMissing){floor=newFloor(fName);bld.floors.push(floor);newFloors++;}
+    }
+    if(!floor)floor=findFloor(fallbackFloorId).floor;
+    const bld=findFloor(floor.id).bld;
+
+    const qty=iQty>=0?Math.max(1,parseInt(r[iQty],10)||0):1;
+    const roomName=iRoom>=0?String(r[iRoom]||'').trim():'';
+    const baseTag=iTag>=0?String(r[iTag]||'').trim():'';
+    // "Modell" motsvarar närmast fältet Produkt (en specifik produkt/
+    // modellbeteckning), inte Produkttyp (som är en enklare kategori).
+    const produkt=iModel>=0?String(r[iModel]||'').trim():'';
+    // Attribut-kolumner har ingen egen motsvarighet bland de synkade
+    // fälten – samlas istället som fri text i Övrigt ("kolumn: värde,
+    // kolumn: värde"), så informationen inte bara försvinner.
+    const ovrigtDelar=[];
+    attrCols.forEach(i=>{const v=String(r[i]||'').trim();if(v)ovrigtDelar.push((c.head[i]||('Kolumn '+i))+': '+v);});
+    const ovrigt=ovrigtDelar.join(', ');
+
+    for(let i=0;i<qty;i++){
+      const comp={id:uid('c'),typeId:enda_typ.id,roomId:null,x:null,y:null,data:{},
+        modelId:null,hidden:false,done:false,source:'import',importId:imp.id,
+        tag:baseTag?(qty>1?baseTag+'-'+(i+1):baseTag):nextTag(bld,enda_typ),
+        pvKomponenttyp:komponenttyp,pvProdukt:produkt,pvOvrigt:ovrigt};
+      if(roomName)comp.wantRoom=roomName;
+      floor.components.push(comp);created++;
+      pvNotifyNew(comp);
+    }
+  });
+  imp.count=created;P.imports.push(imp);
+  $('#mCsv').classList.remove('open');ui.csv=null;
+  refresh();renderPool();
+  ui.poolTab='pool';$('#tabPool').click();
+  alert('Import klar.\n'+created+' komponenter skapade.'+
+    (newFloors?'\n'+newFloors+' nya plan.':'')+
+    (skipped?'\n'+skipped+' rader hoppades över (varken Beteckning eller Typkod/Typbenämning ifyllt).':''));
+};
+
+/* =======================================================================
+   SEKTIONSVY
+   ======================================================================= */
+function renderSection(){
+  let h='';
+  P.buildings.forEach(b=>{
+    const tot=b.floors.reduce((s,f)=>s+f.components.length,0);
+    const dn=b.floors.reduce((s,f)=>s+f.components.filter(c=>c.done).length,0);
+    h+=`<div class="secBld"><div class="secBldHead">${esc(b.name)}<span>${b.floors.length} plan · ${tot} komponenter · ${dn} klara</span></div>
+      <svg class="roofSvg" viewBox="0 0 200 30" preserveAspectRatio="none"><polygon points="1,29 100,1 199,29"/></svg>
+      <div class="stack">`;
+    [...b.floors].reverse().forEach((f,idx)=>{
+      const lvl=b.floors.length-idx;
+      const counts={};f.components.forEach(c=>{counts[c.typeId]=(counts[c.typeId]||0)+1;});
+      const cs=Object.keys(counts).sort((a,c)=>counts[c]-counts[a]).map(tid=>{const t=typeById(tid);
+        return `<span class="cnt">${glyph(t)}${esc(t.code)} ×${counts[tid]}</span>`;}).join('');
+      const box=(name,list,cls,off,done)=>`<div class="secRoom ${cls||''}${off?' off':''}${done?' done':''}"><h4>${esc(name)}${done?' ✓':''}<span>${list.length} st</span></h4>`+
+        (list.length?`<div class="chips">${list.map(c=>chip(c,f,b)).join('')}</div>`:'<div class="secEmpty">tomt</div>')+'</div>';
+      const rooms=f.rooms.map(r=>box(r.name,f.components.filter(c=>c.roomId===r.id),'',r.hidden,r.done)).join('');
+      h+=`<div class="secFloor"><div class="secFloorHead" data-floor="${f.id}">
+            <span class="lvl">${lvl}</span><b>${esc(f.name)}</b>
+            <span class="muted" style="font-size:11px">${f.rooms.length} rum · ${f.components.length} komponenter${f.layers.length?'':' · ingen PDF'}</span>
+            <span class="counts">${cs}</span></div>
+          <div class="secRooms">${rooms}${box('Direkt på plan',f.components.filter(c=>!c.roomId),'direct')}</div></div>`;
+    });
+    h+=`</div><div class="ground"></div><div class="groundHatch"></div></div>`;
+  });
+  $('#sectionView').innerHTML=h||'<div class="empty-note">Inget att visa ännu.</div>';
+  function chip(c,f,b){
+    const t=typeById(c.typeId);
+    const cls=(isHit(c,'comp')?' hit':'')+(ui.sel&&ui.sel.id===c.id?' sel':'')+(compVisible(c,f,b)?'':' off')+(c.done?' done':'');
+    return `<span class="chip${cls}" data-chip="${c.id}">${glyph(t)}${esc(c.tag)}</span>`;
+  }
+}
+$('#sectionView').addEventListener('click',e=>{
+  const chip=e.target.closest('[data-chip]');
+  if(chip){const r=findComp(chip.dataset.chip);select({kind:'comp',id:chip.dataset.chip});
+    if(r&&r.floor.id!==ui.floorId)openFloor(r.floor.id);return;}
+  const fh=e.target.closest('[data-floor]');
+  if(fh)openFloor(fh.dataset.floor);
+});
+
+/* =======================================================================
+   SAMMANSTÄLLNING
+   ======================================================================= */
+function reportRows(){
+  const rows=[];
+  P.buildings.forEach(b=>b.floors.forEach(f=>f.components.forEach(c=>{
+    const t=typeById(c.typeId);
+    const rm=c.roomId?(f.rooms.find(r=>r.id===c.roomId)||{name:'—'}).name:'';
+    rows.push({bld:b.name,floor:f.name,room:rm||'Direkt på plan',roomRaw:rm,code:t.code,type:t.name,tag:c.tag,
+      placed:c.x!=null?'Ja':'Nej',done:c.done?'Ja':'Nej',source:c.source==='import'?'Import':'Tillagd',
+      wantRoom:c.wantRoom||'',visible:compVisible(c,f,b)?'Ja':'Nej',data:c.data||{},id:c.id});
+  })));
+  rows.sort((a,b)=>a.bld.localeCompare(b.bld,'sv')||a.floor.localeCompare(b.floor,'sv')||a.tag.localeCompare(b.tag,'sv',{numeric:true}));
+  return rows;
+}
+function reportFields(){
+  const s=[];
+  P.buildings.forEach(b=>b.floors.forEach(f=>f.components.forEach(c=>{
+    Object.keys(c.data||{}).forEach(k=>{if(c.data[k]!==''&&c.data[k]!=null&&s.indexOf(k)<0)s.push(k);});})));
+  return s;
+}
+function renderReport(){
+  const rows=reportRows(),fields=reportFields();
+  const nB=P.buildings.length;
+  const nF=P.buildings.reduce((s,b)=>s+b.floors.length,0);
+  const nR=P.buildings.reduce((s,b)=>s+b.floors.reduce((t,f)=>t+f.rooms.length,0),0);
+  const nDone=rows.filter(r=>r.done==='Ja').length;
+  const nUn=rows.filter(r=>r.placed==='Nej').length;
+  const imported=rows.filter(r=>r.source==='Import');
+  const manual=rows.filter(r=>r.source==='Tillagd');
+  const impUnplaced=imported.filter(r=>r.placed==='Nej');
+  const roomDiff=imported.filter(r=>r.wantRoom&&r.placed==='Ja'&&norm(r.wantRoom)!==norm(r.roomRaw));
+  const perType={};rows.forEach(r=>perType[r.code]=(perType[r.code]||0)+1);
+
+  let h=`<div id="reportTools" style="display:flex;gap:8px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
+      <b style="font-size:15px">${esc(P.name||'Projekt')}</b>
+      <span class="muted" style="font-size:11px">${new Date().toLocaleDateString('sv-SE')}</span>
+      <span style="flex:1"></span>
+      <button id="exCsv">CSV</button><button id="exXlsx">Excel</button>
+      <button id="exRooms">PDF rum för rum</button><button id="exPlans">PDF alla planvyer</button>
+      <button id="exSection">PDF sektionsvy</button>
+      <button id="exPrint">Skriv ut</button></div>
+    <div class="card"><h3 class="sec">Nyckeltal</h3><div class="grid2">
+      <div class="stat"><b>${nB}</b><span>Byggnader</span></div>
+      <div class="stat"><b>${nF}</b><span>Plan</span></div>
+      <div class="stat"><b>${nR}</b><span>Rum</span></div>
+      <div class="stat"><b>${rows.length}</b><span>Komponenter</span></div>
+      <div class="stat ok"><b>${nDone}</b><span>Klarmarkerade</span></div>
+      <div class="stat${nUn?' warn':''}"><b>${nUn}</b><span>Ej placerade</span></div></div>
+      <div class="counts" style="margin-top:12px;margin-left:0">${Object.keys(perType).sort((a,b)=>perType[b]-perType[a])
+        .map(c=>`<span class="cnt">${esc(c)} ×${perType[c]}</span>`).join('')||'<span class="muted" style="font-size:11px">Inga komponenter ännu.</span>'}</div></div>
+
+    <div class="card"><h3 class="sec">Avstämning mot import</h3>
+      <div class="grid2" style="margin-bottom:12px">
+        <div class="stat"><b>${imported.length}</b><span>Från import</span></div>
+        <div class="stat${impUnplaced.length?' warn':''}"><b>${impUnplaced.length}</b><span>Importerade, ej placerade</span></div>
+        <div class="stat${manual.length?' warn':''}"><b>${manual.length}</b><span>Tillagda utanför import</span></div>
+        <div class="stat${roomDiff.length?' warn':''}"><b>${roomDiff.length}</b><span>Avviker mot angivet rum</span></div>
+      </div>
+      ${P.imports.length?`<div class="muted" style="font-size:11.5px;margin-bottom:10px">Importer: ${P.imports.map(i=>esc(i.name)+' ('+i.count+' st, '+new Date(i.date).toLocaleDateString('sv-SE')+')').join(' · ')}</div>`:''}
+      ${diffTable('Importerade som ännu inte är placerade',impUnplaced,['tag','code','bld','floor','wantRoom'])}
+      ${diffTable('Tillagda utanför importen',manual,['tag','code','bld','floor','room','done'])}
+      ${diffTable('Placerade i annat rum än importen angav',roomDiff,['tag','code','floor','wantRoom','room'])}
+    </div>`;
+
+  P.buildings.forEach(b=>{
+    h+=`<div class="card"><h3 class="sec">${esc(b.name)}</h3><div class="scrollx"><table><thead><tr>
+      <th>Plan</th><th>Rum</th><th>Komponenter</th><th>Klara</th><th>Fördelning</th></tr></thead><tbody>`;
+    b.floors.forEach(f=>{
+      const counts={};f.components.forEach(c=>{const k=typeById(c.typeId).code;counts[k]=(counts[k]||0)+1;});
+      const dist=Object.keys(counts).sort((a,c)=>counts[c]-counts[a]).map(c=>`<span class="cnt" style="margin-right:4px">${esc(c)} ×${counts[c]}</span>`).join('');
+      h+=`<tr><td>${esc(f.name)}</td><td>${f.rooms.length}</td><td>${f.components.length}</td>
+        <td>${f.components.filter(c=>c.done).length}</td><td>${dist||'<span class="muted">—</span>'}</td></tr>`;
+    });
+    h+='</tbody></table></div></div>';
+  });
+
+  h+=`<div class="card"><h3 class="sec">Komponentlista (${rows.length})</h3><div class="scrollx"><table><thead><tr>
+    <th>Beteckning</th><th>Typ</th><th>Benämning</th><th>Byggnad</th><th>Plan</th><th>Rum</th><th>Ursprung</th><th>På ritning</th><th>Klar</th>
+    ${fields.map(f=>`<th>${esc(f)}</th>`).join('')}</tr></thead><tbody>`;
+  rows.forEach(r=>{
+    h+=`<tr class="${r.visible==='Ja'?'':'off'}" data-row="${r.id}" style="cursor:pointer">
+      <td class="mono">${esc(r.tag)}</td><td class="mono">${esc(r.code)}</td><td>${esc(r.type)}</td>
+      <td>${esc(r.bld)}</td><td>${esc(r.floor)}</td><td>${esc(r.room)}</td><td>${r.source}</td><td>${r.placed}</td>
+      <td${r.done==='Ja'?' style="color:var(--done)"':''}>${r.done}</td>
+      ${fields.map(f=>`<td>${esc(r.data[f]==null?'':r.data[f])}</td>`).join('')}</tr>`;
+  });
+  h+='</tbody></table></div></div>';
+  $('#reportView').innerHTML=h;
+  $('#exCsv').onclick=()=>exportCSV(rows,fields);
+  $('#exXlsx').onclick=()=>exportXLSX(rows,fields);
+  $('#exPrint').onclick=()=>window.print();
+  $('#exRooms').onclick=()=>exportRoomsPDF();
+  $('#exPlans').onclick=()=>exportAllPlansPDF();
+  $('#exSection').onclick=()=>exportSectionPDF();
+  $$('#reportView [data-row]').forEach(tr=>tr.onclick=()=>{
+    if(findComp(tr.dataset.row))select({kind:'comp',id:tr.dataset.row});
+  });
+
+  function diffTable(title,list,cols){
+    const H={tag:'Beteckning',code:'Typ',bld:'Byggnad',floor:'Plan',room:'Rum',wantRoom:'Enligt import',done:'Klar'};
+    if(!list.length)return `<div style="margin-top:10px"><b style="font-size:12px">${title}</b>
+      <div class="muted" style="font-size:11.5px;margin-top:3px">Inga avvikelser.</div></div>`;
+    return `<div style="margin-top:12px"><b style="font-size:12px">${title} (${list.length})</b>
+      <div class="scrollx" style="margin-top:5px"><table><thead><tr>${cols.map(c=>`<th>${H[c]}</th>`).join('')}</tr></thead>
+      <tbody>${list.map(r=>`<tr data-row="${r.id}" style="cursor:pointer">${cols.map(c=>
+        `<td${c==='tag'||c==='code'?' class="mono"':''}>${esc(r[c]||'—')}</td>`).join('')}</tr>`).join('')}</tbody></table></div></div>`;
+  }
+}
+const HEAD=['Beteckning','Typkod','Benämning','Byggnad','Plan','Rum','Ursprung','På ritning','Klar','Enligt import'];
+const rowArr=(r,fields)=>[r.tag,r.code,r.type,r.bld,r.floor,r.room,r.source,r.placed,r.done,r.wantRoom]
+  .concat(fields.map(f=>{const v=r.data[f];return v==null?'':v;}));
+function download(blob,name){
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+}
+function exportCSV(rows,fields){
+  const q=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
+  const lines=[HEAD.concat(fields).map(q).join(';')].concat(rows.map(r=>rowArr(r,fields).map(q).join(';')));
+  download(new Blob(['\uFEFF'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'}),fileBase()+'.csv');
+}
+function exportXLSX(rows,fields){
+  if(typeof XLSX==='undefined'){alert('Excel-biblioteket kunde inte laddas — exporterar CSV istället.');return exportCSV(rows,fields);}
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.aoa_to_sheet([HEAD.concat(fields)].concat(rows.map(r=>rowArr(r,fields))));
+  ws['!cols']=HEAD.concat(fields).map((h,i)=>({wch:i<3?18:14}));
+  XLSX.utils.book_append_sheet(wb,ws,'Komponenter');
+  const sum=[['Byggnad','Plan','Rum','Komponenter','Klara','Ej placerade','Bakgrunder']];
+  P.buildings.forEach(b=>b.floors.forEach(f=>sum.push([b.name,f.name,f.rooms.length,f.components.length,
+    f.components.filter(c=>c.done).length,f.components.filter(c=>c.x==null).length,f.layers.length])));
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(sum),'Sammanställning');
+  const diff=[['Beteckning','Typ','Byggnad','Plan','Rum','Enligt import','Ursprung','På ritning','Klar']];
+  rows.filter(r=>r.source==='Tillagd'||r.placed==='Nej'||(r.wantRoom&&norm(r.wantRoom)!==norm(r.roomRaw)))
+    .forEach(r=>diff.push([r.tag,r.code,r.bld,r.floor,r.room,r.wantRoom,r.source,r.placed,r.done]));
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(diff),'Avvikelser');
+  XLSX.writeFile(wb,fileBase()+'.xlsx');
+}
+const fileBase=()=>((P.name||'projekt').replace(/[^\wåäöÅÄÖ\- ]/g,'').trim()||'projekt');
+
+/* =======================================================================
+   PDF-EXPORT
+   ======================================================================= */
+function drawSymbolCanvas(cx,t,x,y,k,fill,stroke){
+  cx.save();cx.translate(x,y);cx.scale(k,k);
+  const s=shp(t);
+  cx.fillStyle=fill;cx.strokeStyle=stroke;cx.lineWidth=1.3;
+  const p=new Path2D(s.d);cx.fill(p);cx.stroke(p);
+  if(s.mk){cx.lineWidth=1.6;cx.stroke(new Path2D(s.mk));}
+  cx.restore();
+}
+async function renderPlanCanvas(floor,box,scale,opts){
+  opts=opts||{};
+  const W=Math.max(1,Math.round(box.w*scale)),H=Math.max(1,Math.round(box.h*scale));
+  const out=document.createElement('canvas');out.width=W;out.height=H;
+  const oc=out.getContext('2d');
+  oc.fillStyle=pick(BG_PRESETS,P.settings.bg,2);oc.fillRect(0,0,W,H);
+  for(const l of floor.layers){
+    if(!l.visible||l.opacity<=0.01)continue;
+    const e=cache.get(l.id)||await ensureDoc(l);
+    if(!e)continue;
+    const tmp=document.createElement('canvas');tmp.width=W;tmp.height=H;
+    const tc=tmp.getContext('2d',{willReadFrequently:true});
+    tc.fillStyle='#fff';tc.fillRect(0,0,W,H);
+    const vp=e.page.getViewport({scale:scale*l.k});
+    await e.page.render({canvasContext:tc,viewport:vp,
+      transform:[1,0,0,1,(l.ox-box.x)*scale,(l.oy-box.y)*scale]}).promise;
+    const o={ctx:tc,img:tc.getImageData(0,0,W,H)};o.lum=toLum(o.img);applyColors(o);
+    oc.globalAlpha=l.opacity;oc.drawImage(tmp,0,0);oc.globalAlpha=1;
+  }
+  /* rum */
+  const W2=(x)=>(x-box.x)*scale, H2=(y)=>(y-box.y)*scale;
+  oc.lineJoin='round';
+  floor.rooms.forEach(r=>{
+    if(r.hidden)return;
+    oc.beginPath();
+    r.points.forEach((p,i)=>{const x=W2(p[0]),y=H2(p[1]);i?oc.lineTo(x,y):oc.moveTo(x,y);});
+    oc.closePath();
+    oc.strokeStyle=r.done?DONE_COLOR:'#4d9fc4';oc.lineWidth=Math.max(1,1.4*scale/2);
+    oc.fillStyle=r.done?'rgba(55,194,106,.10)':'rgba(77,159,196,.05)';
+    oc.fill();oc.stroke();
+    if(opts.roomLabels!==false){
+      const c=centroid(r.points),lbl=r.name+(r.done?' ✓':'');
+      // Samma miskalibrering som för komponentmarkörerna ovan (taket
+      // klippte ner rumsnamnet till en bråkdel av tänkt storlek på
+      // planvyer) – åter proportionell mot scale, se kommentaren ovan.
+      oc.font=`600 ${11*scale}px ui-monospace, monospace`;
+      oc.fillStyle=r.done?DONE_COLOR:'#9fd2ea';oc.strokeStyle='#000';oc.lineWidth=3*scale/2;
+      oc.textBaseline='middle';oc.textAlign='center';
+      oc.strokeText(lbl,W2(c[0]),H2(c[1]));
+      oc.fillText(lbl,W2(c[0]),H2(c[1]));
+      oc.textAlign='left';
+    }
+  });
+
+  /* installationslager (kablar) – opts.cableLayerIds anger vilka lager
+     som ska med (satt av exportfunktionen via askCableLayers); saknas
+     den helt (t.ex. anropas renderPlanCanvas utan den) faller vi
+     tillbaka på vad som är tänt/släckt just nu. */
+  const cableLayerIds=opts.cableLayerIds;
+  floor.cables.forEach(cbl=>{
+    const l=floor.instLayers.find(x=>x.id===cbl.layerId);
+    if(!l)return;
+    const included=cableLayerIds?cableLayerIds.includes(l.id):l.visible;
+    if(!included)return;
+    const pts=cableRenderPoints(cbl,floor);
+    if(pts.length<2)return;
+    oc.beginPath();
+    pts.forEach((p,i)=>{const x=W2(p[0]),y=H2(p[1]);i?oc.lineTo(x,y):oc.moveTo(x,y);});
+    oc.strokeStyle=l.color;oc.lineWidth=Math.max(1.2,2.2*scale);
+    oc.lineCap='round';oc.lineJoin='round';
+    oc.setLineDash(l.dash?[8*scale,5*scale]:[]);
+    oc.stroke();
+    oc.setLineDash([]);
+  });
+
+  /* kopplingspunkter – hör bara till ritningen, ritas alltid oavsett
+     opts.skipComponents (som bara gäller riktiga komponenter, se
+     Steg 101) */
+  floor.junctionPoints.forEach(j=>{
+    const x=W2(j.x*floor.ref.w),y=H2(j.y*floor.ref.h),s=Math.max(3,4*scale);
+    oc.save();
+    oc.translate(x,y);oc.rotate(Math.PI/4);
+    oc.fillStyle='#8b939d';oc.strokeStyle='#0b0e12';oc.lineWidth=Math.max(1,1.4*scale);
+    oc.fillRect(-s,-s,s*2,s*2);oc.strokeRect(-s,-s,s*2,s*2);
+    oc.restore();
+  });
+
+  /* komponenter */
+  const bld=findFloor(floor.id).bld;
+  const cc=pick(COMP_PRESETS,P.settings.comp,0);
+  const [rr,gg,bb2]=hexRGB(cc);
+  const ol=(rr*77+gg*151+bb2*28)/256>140?'#0b0e12':'#f2f6fa';
+  // VIKTIGT: "scale" här styr både bildupplösningen (medvetet hög för
+  // små rum, så exporten blir skarp – se sc=clamp(sqrt(4e6/area),1,5)
+  // i exportRoomsPDF) OCH tidigare storleken på markörer/textetiketter.
+  // För ett litet, tätt rum (många komponenter nära varandra) kunde
+  // skalan bli upp till 5x, vilket gjorde etiketterna orimligt stora
+  // och fick dem att överlappa till oläslig gröt (rapporterad bugg).
+  // Dämpar (cap:ar) bara storleken på markörer/text – bildupplösningen
+  // (canvasstorleken ovan, linjebredder för rum) påverkas inte, exporten
+  // förblir lika skarp.
+  // Tak OCH golv på skalfaktorn för markörer/text (inte bildupplösningen,
+  // se kommentaren ovan): taket (1.6) förhindrar för stor/överlappande
+  // text i täta rum, golvet (0.6) förhindrar för LITEN, oläslig text på
+  // stora planvyer där helhetsskalan blir låg.
+  // OBS: tidigare (Steg 97) dämpades storleken på markörer/text med ett
+  // konstgjort tak (max 1,6x) för att motverka överlappande text i täta
+  // rum. Det visade sig felkalibrerat – planScaleFor (planvy) siktar
+  // normalt mot en skala på 2-6x, så taket klippte ner ALLA
+  // planvy-markörer till en bråkdel av sin tänkta storlek. Sedan
+  // numreringen (Steg 98) ersatte den fulla beteckningstexten med korta
+  // siffror behövs ingen konstgjord dämpning längre – korta siffror
+  // överlappar inte på samma sätt oavsett skala. k är nu åter enkelt
+  // proportionell mot scale.
+  const k=(P.settings.symScale||1)*scale;
+  if(floor.ref&&!opts.skipComponents)floor.components.forEach(c=>{
+    if(c.x==null||!compVisible(c,floor,bld))return;
+    const t=typeById(c.typeId);
+    const x=W2(c.x*floor.ref.w),y=H2(c.y*floor.ref.h);
+    const fill=c.done?DONE_COLOR:cc, stroke=c.done?'#06210f':ol;
+    drawSymbolCanvas(oc,t,x,y,k,fill,stroke);
+    const num=opts.numbering&&opts.numbering.get(c.id);
+    if(num!=null){
+      // Numret ritas CENTRERAT i markören istället för Beteckningen
+      // bredvid (se Steg 98) – korta, garanterat unika siffror krockar
+      // aldrig oavsett hur tätt komponenterna sitter. Beteckningen visas
+      // istället i tabellen som hör till exporten, med numret som
+      // första kolumn. Återanvänder "stroke" som textfärg – den är
+      // redan kontrastberäknad mot "fill" några rader ovan.
+      oc.font=`700 ${9*k}px ui-monospace, monospace`;
+      oc.textAlign='center';oc.textBaseline='middle';
+      oc.fillStyle=stroke;
+      oc.fillText(String(num),x,y);
+      oc.textAlign='left';oc.textBaseline='alphabetic';
+    }else if(P.settings.showLabels!==false){
+      // Fallback (bara om ingen numrering skickats med) – gamla
+      // beteendet med Beteckningen bredvid markören.
+      oc.font=`600 ${11*k}px ui-monospace, monospace`;
+      oc.textBaseline='middle';
+      oc.strokeStyle=stroke;oc.lineWidth=3*k;oc.strokeText(c.tag,x+12*k,y+1*k);
+      oc.fillStyle=fill;oc.fillText(c.tag,x+12*k,y+1*k);
+    }
+  });
+  return out;
+}
+function planScaleFor(box,maxPx){
+  const s=Math.sqrt((maxPx||36e6)/(box.w*box.h));
+  return clamp(s,1,6);
+}
+/// Ritar markörer (cirkel + SÖKBAR text-siffra – riktig PDF-text, inte
+/// inbränt i en rasterbild) direkt på en jsPDF-sida. Löser två saker:
+/// siffrorna blir alltid knivskarpa oavsett zoom i PDF-läsaren (vektor,
+/// inte pixlar), och de blir sökbara/markerbara som vanlig text – man
+/// kan alltså söka på ett nummer i PDF-läsaren och hoppa direkt dit.
+/// toPdf(c) konverterar en komponents världskoordinat till PDF-punkter
+/// – skiljer sig mellan planvy (1:1 mot världskoordinater) och rumsvy
+/// (skalas för att passa en mindre yta på sidan).
+function ritaMarkorer(pdf,floor,bld,sorted,numbering,toPdf){
+  const cc=pick(COMP_PRESETS,P.settings.comp,0);
+  const [rr,gg,bb2]=hexRGB(cc);
+  const ol=(rr*77+gg*151+bb2*28)/256>140?[11,14,18]:[242,246,250];
+  const [dr,dg,db]=hexRGB(DONE_COLOR);
+  sorted.forEach(c=>{
+    if(c.x==null||!compVisible(c,floor,bld))return;
+    const num=numbering.get(c.id);if(num==null)return;
+    const p=toPdf(c);
+    const fill=c.done?[dr,dg,db]:[rr,gg,bb2];
+    const stroke=c.done?[6,33,15]:ol;
+    pdf.setFillColor(fill[0],fill[1],fill[2]);
+    pdf.setDrawColor(stroke[0],stroke[1],stroke[2]);
+    pdf.setLineWidth(0.6);
+    pdf.circle(p.x,p.y,5.2,'FD');
+    pdf.setFontSize(6.4);
+    pdf.setTextColor(stroke[0],stroke[1],stroke[2]);
+    pdf.text(String(num),p.x,p.y,{align:'center',baseline:'middle'});
+  });
+}
+
+async function exportPlanPDF(){
+  const f=curFloor();
+  if(!f||!f.layers.length||!f.ref){alert('Planen saknar ritning att exportera.');return;}
+  const cableLayerIds=await askCableLayers(f);
+  if(cableLayerIds===null)return; // avbrutet i lagervals-dialogen
+  busy(true,'Skapar PDF…');
+  try{
+    const box=worldBox()||{x:0,y:0,w:f.ref.w,h:f.ref.h};
+    // Numrering (se numreraKomponenter/ritaKomponentTabell, Steg 98):
+    // SAMMA princip som rumsvy-exporten – numrerade markörer på
+    // ritningen istället för Beteckningen utskriven bredvid varje
+    // markör (annars blir en planvy med många komponenter lika
+    // "grötig" som ett tätt rum var, bara i större skala), med en
+    // tabellsida direkt efter som förteckning.
+    const bld=curBld();
+    const {sorted,numbering}=numreraKomponenter(f.components.filter(c=>c.x!=null&&compVisible(c,f,bld)));
+    // skipComponents: bakgrunden renderas UTAN inbrända markörer/siffror
+    // – de läggs istället på som riktig, sökbar PDF-text/vektorgrafik
+    // via ritaMarkorer nedan, se kommentaren där för varför.
+    const c=await renderPlanCanvas(f,box,planScaleFor(box),{skipComponents:true,cableLayerIds});
+    const {jsPDF}=window.jspdf;
+    const pdf=new jsPDF({unit:'pt',format:[box.w,box.h],orientation:box.w>box.h?'landscape':'portrait'});
+    pdf.addImage(c.toDataURL('image/jpeg',0.94),'JPEG',0,0,box.w,box.h);
+    ritaMarkorer(pdf,f,bld,sorted,numbering,comp=>({x:comp.x*f.ref.w-box.x,y:comp.y*f.ref.h-box.y}));
+
+    const PW=595.28,PH=841.89,M=48;
+    pdf.addPage('a4','portrait');
+    let y=M;
+    pdf.setFontSize(8);pdf.setTextColor(130);
+    pdf.text((P.name||'Projekt')+'  ·  '+f.name,M,y);y+=6;
+    pdf.setDrawColor(200);pdf.line(M,y,PW-M,y);y+=20;
+    pdf.setFontSize(15);pdf.setTextColor(20);
+    pdf.text('Komponentförteckning',M,y);y+=22;
+    ritaKomponentTabell(pdf,PW,PH,M,y,sorted,numbering,
+      {header:'Placering',get:c=>c.roomId?(f.rooms.find(r=>r.id===c.roomId)?.name||'—'):'Direkt på plan'});
+
+    pdf.save(fileBase()+' - '+f.name+'.pdf');
+  }catch(err){alert('Export misslyckades: '+err.message);}
+  finally{busy(false);}
+}
+async function exportAllPlansPDF(){
+  const list=[];
+  P.buildings.forEach(b=>b.floors.forEach(f=>{if(f.layers.length&&f.ref)list.push({b,f});}));
+  if(!list.length){alert('Inga planritningar att exportera.');return;}
+  // Frågar om lagerval för ALLA plan UPPFRONT (en dialog per plan som
+  // faktiskt har installationslager), innan den tunga renderingsloopen
+  // startar – annars hade modalen behövt avbryta busy-snurran mitt i.
+  const cableLayerIdsByFloor=new Map();
+  for(const {f} of list){
+    if(cableLayerIdsByFloor.has(f.id))continue;
+    const ids=await askCableLayers(f);
+    if(ids===null)return; // avbrutet
+    cableLayerIdsByFloor.set(f.id,ids);
+  }
+  busy(true,'Skapar PDF…');
+  try{
+    const {jsPDF}=window.jspdf;
+    const PW=595.28,PH=841.89,M=48;
+    let pdf=null;
+    for(let i=0;i<list.length;i++){
+      const {b,f}=list[i];
+      busy(false);busy(true,'Renderar '+f.name+' ('+(i+1)+'/'+list.length+')…');
+      for(const l of f.layers){if(l.visible)await ensureDoc(l);}
+      let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
+      f.layers.forEach(l=>{const e=cache.get(l.id);if(!e||!l.visible)return;
+        x0=Math.min(x0,l.ox);y0=Math.min(y0,l.oy);x1=Math.max(x1,l.ox+e.pageW*l.k);y1=Math.max(y1,l.oy+e.pageH*l.k);});
+      // Räknar även in komponentpositioner (se worldBox-kommentaren,
+      // Steg 103) – annars klipps fritt placerade komponenter utanför
+      // PDF-ytan bort helt i exporten.
+      f.components.forEach(c=>{
+        if(c.x==null||!f.ref)return;
+        const wx=c.x*f.ref.w,wy=c.y*f.ref.h;
+        x0=Math.min(x0,wx);y0=Math.min(y0,wy);x1=Math.max(x1,wx);y1=Math.max(y1,wy);
+      });
+      if(!isFinite(x0)){x0=0;y0=0;x1=f.ref.w;y1=f.ref.h;}
+      const mx=(x1-x0)*0.05+20,my=(y1-y0)*0.05+20;
+      const box={x:x0-mx,y:y0-my,w:(x1-x0)+mx*2,h:(y1-y0)+my*2};
+      const {sorted,numbering}=numreraKomponenter(f.components.filter(c=>c.x!=null&&compVisible(c,f,b)));
+      const c=await renderPlanCanvas(f,box,planScaleFor(box,20e6),{skipComponents:true,cableLayerIds:cableLayerIdsByFloor.get(f.id)});
+      const fmt=[box.w,box.h],ori=box.w>box.h?'landscape':'portrait';
+      if(!pdf)pdf=new jsPDF({unit:'pt',format:fmt,orientation:ori});
+      else pdf.addPage(fmt,ori);
+      pdf.addImage(c.toDataURL('image/jpeg',0.92),'JPEG',0,0,box.w,box.h);
+      ritaMarkorer(pdf,f,b,sorted,numbering,comp=>({x:comp.x*f.ref.w-box.x,y:comp.y*f.ref.h-box.y}));
+      pdf.setFontSize(9);pdf.setTextColor(120);
+      pdf.text(b.name+' – '+f.name,10,12);
+
+      pdf.addPage('a4','portrait');
+      let y=M;
+      pdf.setFontSize(8);pdf.setTextColor(130);
+      pdf.text((P.name||'Projekt')+'  ·  '+b.name+'  ·  '+f.name,M,y);y+=6;
+      pdf.setDrawColor(200);pdf.line(M,y,PW-M,y);y+=20;
+      pdf.setFontSize(15);pdf.setTextColor(20);
+      pdf.text('Komponentförteckning',M,y);y+=22;
+      ritaKomponentTabell(pdf,PW,PH,M,y,sorted,numbering,
+        {header:'Placering',get:c=>c.roomId?(f.rooms.find(r=>r.id===c.roomId)?.name||'—'):'Direkt på plan'});
+    }
+    pdf.save(fileBase()+' - planvyer.pdf');
+  }catch(err){alert('Export misslyckades: '+err.message);}
+  finally{busy(false);}
+}
+/// Exporterar Sektionsvyn (skiktat husschema: tak, våningsplan staplade,
+/// rumsrutor per plan, markhaschyr) som PDF – vit bakgrund, svarta
+/// streck, rent grafiskt (ingen färg), en sida per byggnad. Till
+/// skillnad från plan-/rumsvy-exporten (som bygger på koordinatbaserad
+/// `renderPlanCanvas`) är Sektionsvyn ett schematiskt låd-i-låd-schema
+/// (byggnad → plan → rum), så den ritas direkt med jsPDF:s egna
+/// grundformer (rect/line/text) istället.
+///
+/// Varje rumsruta listar komponenternas BETECKNINGAR (inte bara ett
+/// antal) – klipps av med "+N fler" om de inte får plats, snarare än
+/// att bara visa en siffra. Planetiketterna sitter i en egen kolumn
+/// till VÄNSTER om byggnadens yttermått, inte inuti den.
+///
+/// Tvåstegsberäkning per byggnad: (1) räkna ut hur många rader
+/// rumsrutor varje plan naturligt behöver, (2) om den naturliga
+/// totalhöjden inte får plats på sidan, KRYMPS alla planhöjder
+/// proportionellt – rum faller aldrig bort tyst, de bara ritas mindre.
+async function exportSectionPDF(){
+  if(!P.buildings.length){alert('Inga byggnader att exportera.');return;}
+  busy(true,'Skapar PDF…');
+  try{
+    const {jsPDF}=window.jspdf;
+    const PW=841.89,PH=595.28,M=36; // A4 liggande – sektionsvyer blir ofta breda
+    const floorLabelW=54; // ny vänsterkolumn för planetiketter, utanför byggnaden
+    const bldX=M+floorLabelW;
+    const usableW=PW-M-bldX;
+    let pdf=null;
+
+    P.buildings.forEach(b=>{
+      if(!pdf)pdf=new jsPDF({unit:'pt',format:'a4',orientation:'landscape'});
+      else pdf.addPage('a4','landscape');
+
+      let y=M;
+      pdf.setFontSize(8);pdf.setTextColor(130);
+      pdf.text((P.name||'Projekt')+'  ·  Sektionsvy',M,y);y+=6;
+      pdf.setDrawColor(200);pdf.line(M,y,PW-M,y);y+=20;
+      pdf.setFontSize(15);pdf.setTextColor(0);
+      pdf.text(b.name,M,y);y+=14;
+
+      const floors=[...b.floors].reverse(); // högst plan överst, som på skärmen
+      const roofH=22,groundH=16,headerH=13,rowGap=4,baseRowH=46;
+      const maxCols=Math.max(1,Math.floor((usableW+6)/136));
+      const colW=(usableW-6*(maxCols-1))/maxCols;
+
+      // Steg 1: naturlig höjd per plan (utan krympning) – rumsrutorna
+      // får en generös basrad (46pt) så det finns plats för ett par
+      // rader beteckningar, inte bara rumsnamnet.
+      const floorInfo=floors.map(f=>{
+        const direktList=f.components.filter(c=>!c.roomId);
+        const boxes=[
+          ...f.rooms.map(r=>({name:r.name,tags:f.components.filter(c=>c.roomId===r.id).map(c=>c.tag),done:r.done})),
+          ...(direktList.length?[{name:'Direkt på plan',tags:direktList.map(c=>c.tag),done:false}]:[]),
+        ];
+        const rows=Math.max(1,Math.ceil(boxes.length/maxCols));
+        const naturalH=headerH+rows*(baseRowH+rowGap)+6;
+        return {f,boxes,rows,naturalH};
+      });
+
+      const availH=PH-M-y-roofH-groundH-4;
+      const totalNatural=floorInfo.reduce((s,fi)=>s+fi.naturalH,0)||1;
+      const shrink=floors.length&&totalNatural>availH?availH/totalNatural:1;
+
+      // Tak (enkel triangel) – ritas ovanför byggnadens yta, till höger om planetikett-kolumnen
+      pdf.setLineWidth(1);pdf.setDrawColor(0);
+      pdf.line(bldX,y+roofH,bldX+usableW/2,y);
+      pdf.line(bldX+usableW/2,y,bldX+usableW,y+roofH);
+      let fy=y+roofH;
+
+      floorInfo.forEach(({f,boxes,rows,naturalH})=>{
+        const floorH=naturalH*shrink;
+        const thisRowH=(floorH-headerH-6)/rows-rowGap;
+
+        // Planetikett i egen ruta till VÄNSTER om byggnaden.
+        pdf.setLineWidth(0.6);pdf.setDrawColor(0);
+        pdf.rect(M,fy,floorLabelW-8,floorH);
+        pdf.setFontSize(Math.max(7,9*shrink));
+        pdf.setTextColor(0);
+        const flines=pdf.splitTextToSize(f.name,floorLabelW-16).slice(0,3);
+        const flineH=Math.max(8,10*shrink);
+        const fTextY=fy+floorH/2-((flines.length-1)*flineH)/2+3;
+        flines.forEach((ln,i)=>pdf.text(ln,M+4,fTextY+i*flineH));
+
+        pdf.setLineWidth(0.8);pdf.setDrawColor(0);
+        pdf.rect(bldX,fy,usableW,floorH);
+        pdf.setFontSize(Math.max(6,8*shrink));
+        pdf.text(f.rooms.length+' rum, '+f.components.length+' komponenter',bldX+6,fy+11);
+
+        boxes.forEach((box,i)=>{
+          const col=i%maxCols,row=Math.floor(i/maxCols);
+          const boxX=bldX+col*(colW+6),boxY=fy+headerH+row*(thisRowH+rowGap);
+          pdf.setLineWidth(0.6);pdf.setDrawColor(0);
+          if(box.done){pdf.setFillColor(235,235,235);pdf.rect(boxX,boxY,colW,thisRowH,'FD');}
+          else pdf.rect(boxX,boxY,colW,thisRowH);
+
+          pdf.setFontSize(Math.max(6,7.6*shrink));
+          pdf.setTextColor(0);
+          pdf.text(box.name+(box.done?' ✓':'')+' ('+box.tags.length+')',boxX+3,boxY+Math.max(9,11*shrink));
+
+          // Beteckningar – radbrutna, klipps av med "+N fler" (räknat
+          // exakt på antal taggar, inte bara textlängd) om de inte
+          // får plats i rutan.
+          const tagFontSize=Math.max(5,6.2*shrink);
+          pdf.setFontSize(tagFontSize);
+          const tagLineH=tagFontSize+1.4;
+          const maxLines=Math.max(1,Math.floor((thisRowH-16)/tagLineH));
+          const maxChars=maxLines*Math.floor((colW-6)/(tagFontSize*0.52));
+          let acc='',count=0;
+          for(const t of box.tags){
+            const next=acc?acc+', '+t:t;
+            if(next.length>maxChars-12&&count>0)break;
+            acc=next;count++;
+          }
+          const tagText=acc+(count<box.tags.length?' +'+(box.tags.length-count)+' fler':'');
+          const tagLines=pdf.splitTextToSize(tagText,colW-6).slice(0,maxLines);
+          pdf.text(tagLines,boxX+3,boxY+Math.max(17,20*shrink));
+        });
+
+        fy+=floorH;
+      });
+
+      // Mark/haschyr – klassisk diagonal streckning
+      pdf.setLineWidth(0.6);pdf.setDrawColor(0);
+      pdf.line(bldX,fy,bldX+usableW,fy);
+      for(let hx=bldX-groundH;hx<bldX+usableW;hx+=8){
+        pdf.line(Math.max(bldX,hx),fy,Math.min(bldX+usableW,hx+groundH),fy+groundH);
+      }
+    });
+
+    pdf.save(fileBase()+' - sektionsvy.pdf');
+  }catch(err){alert('Export misslyckades: '+err.message);}
+  finally{busy(false);}
+}
+
+async function exportRoomsPDF(){
+  const withCrop=confirm('Ska ritningsutsnitt för varje rum ingå?\n\nOK = ja (tar längre tid)\nAvbryt = endast text');
+  // Lagerval är bara relevant om ritningsutsnitt faktiskt ska ingå –
+  // frågas per plan (kablar hör till plan, inte till enskilda rum),
+  // uppfront innan busy-loopen börjar.
+  const cableLayerIdsByFloor=new Map();
+  if(withCrop){
+    for(const b of P.buildings)for(const f of b.floors){
+      if(cableLayerIdsByFloor.has(f.id))continue;
+      const ids=await askCableLayers(f);
+      if(ids===null)return;
+      cableLayerIdsByFloor.set(f.id,ids);
+    }
+  }
+  busy(true,'Skapar PDF…');
+  try{
+    const {jsPDF}=window.jspdf;
+    const pdf=new jsPDF({unit:'pt',format:'a4'});
+    const PW=595.28,PH=841.89,M=48;
+    let first=true, pages=0;
+    for(const b of P.buildings){
+      for(const f of b.floors){
+        const groups=f.rooms.map(r=>({room:r,list:f.components.filter(c=>c.roomId===r.id)}));
+        const direct=f.components.filter(c=>!c.roomId);
+        if(direct.length)groups.push({room:null,list:direct});
+        for(const g of groups){
+          if(!first)pdf.addPage();first=false;pages++;
+          let y=M;
+          pdf.setFontSize(8);pdf.setTextColor(130);
+          pdf.text((P.name||'Projekt')+'  ·  '+b.name+'  ·  '+f.name,M,y);y+=6;
+          pdf.setDrawColor(200);pdf.line(M,y,PW-M,y);y+=20;
+          pdf.setFontSize(17);pdf.setTextColor(20);
+          pdf.text(g.room?g.room.name:'Direkt på plan',M,y);
+          if(g.room&&g.room.done){pdf.setFontSize(10);pdf.setTextColor(40,140,70);pdf.text('KLARMARKERAT',PW-M,y,{align:'right'});}
+          y+=18;
+          pdf.setFontSize(9.5);pdf.setTextColor(110);
+          const nd=g.list.filter(c=>c.done).length;
+          pdf.text(g.list.length+' komponenter · '+nd+' klarmarkerade',M,y);y+=18;
+
+          // Numrering (se numreraKomponenter, Steg 98): SAMMA nummer
+          // används både som markör på ritningsutsnittet nedan och som
+          // första kolumn i tabellen – unika, garanterat krockfria
+          // siffror istället för Beteckningen utskriven bredvid varje
+          // markör.
+          const {sorted,numbering}=numreraKomponenter(g.list.filter(c=>compVisible(c,f,b)));
+
+          if(withCrop&&g.room&&f.layers.length&&f.ref){
+            const bb=bbox(g.room.points);
+            const pad=Math.max(bb.w,bb.h)*0.18+20;
+            const box={x:bb.x-pad,y:bb.y-pad,w:bb.w+pad*2,h:bb.h+pad*2};
+            for(const l of f.layers){if(l.visible)await ensureDoc(l);}
+            const sc=clamp(Math.sqrt(4e6/(box.w*box.h)),1,5);
+            const cnv=await renderPlanCanvas(f,box,sc,{numbering,cableLayerIds:cableLayerIdsByFloor.get(f.id)});
+            const maxW=PW-M*2, maxH=270;
+            const rat=Math.min(maxW/box.w,maxH/box.h);
+            const iw=box.w*rat,ih=box.h*rat;
+            pdf.addImage(cnv.toDataURL('image/jpeg',0.9),'JPEG',M,y,iw,ih);
+            pdf.setDrawColor(190);pdf.rect(M,y,iw,ih);
+            y+=ih+18;
+          }
+          /* tabell */
+          y=ritaKomponentTabell(pdf,PW,PH,M,y,sorted,numbering);
+          /* egenkontrollfot */
+          const fy=PH-M-34;
+          pdf.setDrawColor(170);pdf.line(M,fy,PW-M,fy);
+          pdf.setFontSize(8);pdf.setTextColor(120);
+          pdf.text('Egenkontroll utförd av',M,fy+14);
+          pdf.text('Datum',M+240,fy+14);
+          pdf.text('Signatur',M+360,fy+14);
+          pdf.setDrawColor(200);
+          pdf.line(M,fy+26,M+220,fy+26);pdf.line(M+240,fy+26,M+340,fy+26);pdf.line(M+360,fy+26,PW-M,fy+26);
+        }
+      }
+    }
+    if(!pages){alert('Inga rum att exportera.');return;}
+    pdf.save(fileBase()+' - rumsprotokoll.pdf');
+  }catch(err){alert('Export misslyckades: '+err.message);}
+  finally{busy(false);}
+}
+
+/* =======================================================================
+   INSTÄLLNINGAR
+   ======================================================================= */
+function renderSettings(){
+  const s=P.settings;
+  if(!ui.typeSel||!P.types.some(t=>t.id===ui.typeSel))ui.typeSel=P.types[0]?P.types[0].id:null;
+  $('#settingsView').innerHTML=`
+    <div class="card"><h3 class="sec">Projekt</h3>
+      <div class="grid2">
+        <div><label class="lab-s">Projektnamn</label><input type="text" id="sName" value="${esc(P.name||'')}"></div>
+        <div><label class="lab-s">Projektfil</label><div class="row"><button id="sSave">Spara</button><button id="sOpen">Öppna…</button><button id="sCsv">Importera CSV</button></div></div>
+      </div></div>
+
+    <div class="card"><h3 class="sec">Utseende</h3>
+      <div class="grid2">
+        <div><label class="lab-s">PDF bakgrund</label>
+          <div class="row">${BG_PRESETS.map(p=>`<button class="sw-btn${s.bg===p.k?' on':''}" data-bg="${p.k}" title="${p.n}" style="background:${p.c}"></button>`).join('')}</div></div>
+        <div><label class="lab-s">PDF linjer och text</label>
+          <div class="row">${INK_PRESETS.map(p=>`<button class="sw-btn${s.ink===p.k?' on':''}" data-ink="${p.k}" title="${p.n}" style="background:${p.c}"></button>`).join('')}</div></div>
+        <div><label class="lab-s">Komponentfärg</label>
+          <div class="row">${COMP_PRESETS.map(p=>`<button class="sw-btn${s.comp===p.k?' on':''}" data-comp="${p.k}" title="${p.n}" style="background:${p.c}"></button>`).join('')}</div>
+          <div class="muted" style="font-size:11px;margin-top:5px">Klarmarkerade ritas alltid gröna.</div></div>
+        <div><label class="lab-s">Symbolstorlek</label>
+          <input type="range" id="sSym" min="0.6" max="2.2" step="0.1" value="${s.symScale||1}" style="width:100%;padding:0">
+          <label class="chk" style="margin-top:8px"><input type="checkbox" id="sLbl" ${s.showLabels!==false?'checked':''}> Visa beteckningar på ritningen</label></div>
+      </div></div>
+
+    <div class="card"><h3 class="sec">Komponenttyper och attribut</h3>
+      <div class="setgrid">
+        <div class="tlist" id="tlist">${P.types.map(t=>`<div class="trow${t.id===ui.typeSel?' sel':''}" data-t="${t.id}">
+          ${glyph(t,'i')}<b>${esc(t.code)}</b><em>${esc(t.name)}</em>
+          ${t.hidden?'<span class="muted" style="font-size:10px">dold</span>':''}</div>`).join('')
+          +`<div class="trow" id="addType" style="color:var(--accent)">${ic('plus')}<em style="color:var(--accent)">Ny komponenttyp</em></div>`}</div>
+        <div id="tdetail"></div>
+      </div></div>`;
+  renderTypeDetail();
+  $('#sName').onchange=e=>{P.name=e.target.value;$('#brandName').textContent=P.name||'Namnlöst';};
+  $('#sSave').onclick=saveProject;
+  $('#sOpen').onclick=()=>$('#fileProj').click();
+  $('#sCsv').onclick=()=>$('#fileCsv').click();
+  $('#sSym').oninput=e=>{P.settings.symScale=+e.target.value;buildOverlay();};
+  $('#sLbl').onchange=e=>{P.settings.showLabels=e.target.checked;buildOverlay();};
+  $$('#settingsView [data-bg],#settingsView [data-ink],#settingsView [data-comp]').forEach(b=>b.onclick=()=>{
+    if(b.dataset.bg)P.settings.bg=b.dataset.bg;
+    if(b.dataset.ink)P.settings.ink=b.dataset.ink;
+    if(b.dataset.comp)P.settings.comp=b.dataset.comp;
+    renderColorBtns();applyAllColors();buildOverlay();renderSettings();
+  });
+  $('#tlist').onclick=e=>{
+    if(e.target.closest('#addType')){
+      const t={id:uid('t'),code:'XX',name:'Ny komponenttyp',shape:'circle',attrs:[],models:[],hidden:false};
+      P.types.push(t);ui.typeSel=t.id;renderSettings();renderPalette();return;
+    }
+    const row=e.target.closest('[data-t]');if(!row)return;
+    ui.typeSel=row.dataset.t;renderSettings();
+  };
+}
+function renderTypeDetail(){
+  const t=P.types.find(x=>x.id===ui.typeSel);
+  const box=$('#tdetail');if(!box)return;
+  if(!t){box.innerHTML='<div class="empty-note">Ingen typ vald.</div>';return;}
+  const used=(()=>{let n=0;eachFloor(f=>f.components.forEach(c=>{if(c.typeId===t.id)n++;}));return n;})();
+  box.innerHTML=`
+    <div class="grid2" style="margin-bottom:14px">
+      <div><label class="lab-s">Kod</label><input type="text" class="mono" data-tk="code" value="${esc(t.code)}"></div>
+      <div><label class="lab-s">Benämning</label><input type="text" data-tk="name" value="${esc(t.name)}"></div>
+      <div><label class="lab-s">Symbol</label>
+        <div style="display:flex;gap:8px;align-items:center">${glyph(t,'sw')}
+        <select data-tk="shape">${Object.keys(SHAPES).map(k=>`<option value="${k}"${k===t.shape?' selected':''}>${SHAPES[k].n}</option>`).join('')}</select></div></div>
+      <div><label class="lab-s">Övrigt</label>
+        <label class="chk"><input type="checkbox" data-tk="hidden" ${t.hidden?'checked':''}> Dölj i planvyn</label>
+        <div class="muted" style="font-size:11px;margin-top:5px">${used} komponenter använder typen</div></div>
+    </div>
+
+    <label class="lab-s">Attribut</label>
+    <div class="scrollx"><table><thead><tr><th>Namn</th><th style="width:110px">Datatyp</th><th style="width:80px">Enhet</th>
+      <th>Alternativ, kommaseparerade</th><th style="width:34px"></th></tr></thead><tbody>
+      ${t.attrs.map((a,i)=>`<tr>
+        <td><input data-ak="key" data-i="${i}" value="${esc(a.key)}"></td>
+        <td><select data-ak="type" data-i="${i}">${[['text','Text'],['number','Tal'],['select','Lista'],['bool','Ja/nej']]
+          .map(([v,n])=>`<option value="${v}"${a.type===v?' selected':''}>${n}</option>`).join('')}</select></td>
+        <td><input data-ak="unit" data-i="${i}" value="${esc(a.unit||'')}"></td>
+        <td><input data-ak="options" data-i="${i}" value="${esc((a.options||[]).join(', '))}" ${a.type==='select'?'':'disabled style="opacity:.4"'}></td>
+        <td><button class="ghost" data-adel="${i}">${ic('trash')}</button></td></tr>`).join('')
+        ||'<tr><td colspan="5" class="muted" style="font-size:11.5px">Inga attribut ännu.</td></tr>'}
+    </tbody></table></div>
+    <div style="margin-top:8px"><button data-aadd="1">${ic('plus')} Nytt attribut</button></div>
+
+    <label class="lab-s" style="margin-top:18px">Modeller (fyller i attribut automatiskt)</label>
+    <div class="scrollx"><table><thead><tr><th style="width:180px">Modellnamn</th>
+      ${t.attrs.map(a=>`<th>${esc(a.key)}</th>`).join('')}<th style="width:34px"></th></tr></thead><tbody>
+      ${t.models.map((m,i)=>`<tr><td><input data-mk="name" data-i="${i}" value="${esc(m.name)}"></td>
+        ${t.attrs.map(a=>`<td><input data-mv="${esc(a.key)}" data-i="${i}" value="${esc(m.values&&m.values[a.key]!=null?m.values[a.key]:'')}"></td>`).join('')}
+        <td><button class="ghost" data-mdel="${i}">${ic('trash')}</button></td></tr>`).join('')
+        ||`<tr><td colspan="${t.attrs.length+2}" class="muted" style="font-size:11.5px">Inga modeller ännu. Lägg till en modell för att kunna välja "denna typ av givare" och få attributen ifyllda.</td></tr>`}
+    </tbody></table></div>
+    <div style="margin-top:8px;display:flex;gap:8px"><button data-madd="1">${ic('plus')} Ny modell</button>
+      <div style="flex:1"></div><button data-tdel="1" style="color:var(--danger)">${ic('trash')} Ta bort typen</button></div>`;
+
+  box.onchange=e=>{
+    const el=e.target;
+    if(el.dataset.tk){
+      const k=el.dataset.tk;
+      t[k]=el.type==='checkbox'?el.checked:el.value;
+      renderSettings();renderPalette();refresh();return;
+    }
+    if(el.dataset.ak){
+      const a=t.attrs[+el.dataset.i],k=el.dataset.ak;
+      if(k==='options')a.options=el.value.split(',').map(x=>x.trim()).filter(Boolean);
+      else a[k]=el.value;
+      renderTypeDetail();refresh();return;
+    }
+    if(el.dataset.mk){t.models[+el.dataset.i].name=el.value;return;}
+    if(el.dataset.mv){
+      const m=t.models[+el.dataset.i];m.values=m.values||{};m.values[el.dataset.mv]=el.value;return;
+    }
+  };
+  box.onclick=e=>{
+    const add=e.target.closest('[data-aadd]'),del=e.target.closest('[data-adel]'),
+          madd=e.target.closest('[data-madd]'),mdel=e.target.closest('[data-mdel]'),
+          tdel=e.target.closest('[data-tdel]');
+    if(add){t.attrs.push({key:'Nytt attribut',type:'text'});renderTypeDetail();return;}
+    if(del){t.attrs.splice(+del.dataset.adel,1);renderTypeDetail();refresh();return;}
+    if(madd){t.models.push({id:uid('m'),name:'Ny modell',values:{}});renderTypeDetail();return;}
+    if(mdel){t.models.splice(+mdel.dataset.mdel,1);renderTypeDetail();return;}
+    if(tdel){
+      if(used&&!confirm(used+' komponenter använder typen. Ta bort ändå?'))return;
+      P.types=P.types.filter(x=>x.id!==t.id);ui.typeSel=null;renderSettings();renderPalette();refresh();
+    }
+  };
+}
+function applyAllColors(){
+  cache.forEach(e=>{applyColors(e);if(e.detail)applyColors(e.detail);});
+  overlayColors();draw();
+}
+
+/* =======================================================================
+   VYER OCH FILER
+   ======================================================================= */
+function setView(v){
+  ui.view=v;
+  $('#planWrap').style.display=v==='plan'?'block':'none';
+  $('#sectionView').style.display=v==='section'?'block':'none';
+  $('#reportView').style.display=v==='report'?'block':'none';
+  $('#settingsView').style.display=v==='settings'?'block':'none';
+  $('#btnPlan').classList.toggle('on',v==='plan');
+  $('#btnSection').classList.toggle('on',v==='section');
+  $('#btnReport').classList.toggle('on',v==='report');
+  $('#btnSettings').classList.toggle('on',v==='settings');
+  if(v==='section')renderSection();
+  else if(v==='report')renderReport();
+  else if(v==='settings')renderSettings();
+  else resize();
+}
+async function loadStack(f){
+  stack=[];
+  for(const l of f.layers){
+    const e=await ensureDoc(l);
+    if(e)stack.push({layer:l,entry:e});
+  }
+  // Ger planet en giltig referensyta ÄVEN OM ingen PDF laddats upp –
+  // annars blockerades drag-och-släpp (och all koordinatmatte som
+  // bygger på ref.w/ref.h) helt på ett tomt plan. Storleken (2000×1500
+  // "punkter", ungefär ett A2-ark) är godtycklig men rimlig – bara en
+  // yta att placera komponenter fritt på tills en riktig ritning
+  // eventuellt laddas upp senare.
+  if(!f.ref) f.ref = stack.length ? {w:stack[0].entry.pageW,h:stack[0].entry.pageH} : {w:2000,h:1500};
+  ref=f.ref;
+}
+async function openFloor(id){
+  const r=findFloor(id);if(!r)return;
+  ui.floorId=id;ui.bldId=r.bld.id;
+  ui.adjust=null;ui.poly=null;ui.addingInstLayer=false;$('#planWrap').classList.remove('adjusting');
+  setView('plan');renderTree();renderPool();
+  const f=r.floor;
+  await loadStack(f);
+  renderLayers();
+  renderInstLayers();
+  if(!stack.length){svg.innerHTML='';drawEmpty();draw();return;}
+  $('#empty').innerHTML='';
+  fitView();
+  for(const s of stack){
+    if(!s.layer.visible||s.entry.bitmap)continue;
+    await renderBase(s.entry,view.scale*s.layer.k*dpr*2);
+  }
+  fitView();buildOverlay();draw();
+}
+function drawEmpty(){
+  const f=curFloor();
+  $('#empty').innerHTML=f&&!f.layers.length
+    ? `<div>Ingen planritning på <b>${esc(f.name)}</b>.</div><button onclick="document.getElementById('btnImport').click()">Lägg till PDF</button>`
+    : (!f?`<div>Välj ett plan i strukturen till vänster.</div>`:'');
+}
+function refresh(){
+  renderTree();renderInspector();buildOverlay();hud();updateSearchCount();renderPool();renderInstLayers();
+  if(ui.view==='section')renderSection();
+  if(ui.view==='report')renderReport();
+  $('#brandName').textContent=P.name||'Namnlöst';
+}
+$('#search').addEventListener('input',e=>{ui.search=e.target.value.trim();refresh();});
+function updateSearchCount(){
+  if(!ui.search){$('#searchCnt').textContent='';return;}
+  let n=0;eachFloor(f=>{f.components.forEach(c=>{if(isHit(c,'comp'))n++;});f.rooms.forEach(r=>{if(isHit(r,'room'))n++;});});
+  $('#searchCnt').textContent=n+' träff';
+}
+$('#btnPlan').onclick=()=>setView('plan');
+$('#btnSection').onclick=()=>setView('section');
+$('#btnReport').onclick=()=>setView('report');
+$('#btnSettings').onclick=()=>setView('settings');
+$('#btnFit').onclick=fitView;
+$('#btnPlanPdf').onclick=exportPlanPDF;
+$('#btnRect').onclick=()=>setTool(ui.tool==='rect'?'select':'rect');
+$('#btnPoly').onclick=()=>setTool(ui.tool==='poly'?'select':'poly');
+$('#btnCable').onclick=()=>setTool(ui.tool==='cable'?'select':'cable');
+$('#btnJunction').onclick=()=>setTool(ui.tool==='junction'?'select':'junction');
+function setTool(t){
+  if(ui.tool==='poly'&&t!=='poly'&&ui.poly){ui.poly=null;const tg=svg.querySelector('#tg');if(tg)tg.innerHTML='';}
+  if(ui.tool==='cable'&&t!=='cable'&&ui.poly){ui.poly=null;const tg=svg.querySelector('#tg');if(tg)tg.innerHTML='';}
+  ui.tool=t;
+  $('#btnRect').classList.toggle('on',t==='rect');
+  $('#btnPoly').classList.toggle('on',t==='poly');
+  $('#btnCable').classList.toggle('on',t==='cable');
+  $('#btnJunction').classList.toggle('on',t==='junction');
+  wrap.style.cursor=(t==='rect'||t==='poly'||t==='cable'||t==='junction')?'crosshair':'default';
+  wrap.classList.toggle('drawing',t==='rect'||t==='poly'||t==='cable'||t==='junction');
+  if(t==='poly')flash('Klicka ut hörnen. Dubbelklick, högerklick, Enter eller klick på första punkten avslutar.');
+  if(t==='cable')flash('Klicka ut kabelns sträckning. Dubbelklick, högerklick eller Enter avslutar. Börja/sluta nära en komponent för att knyta dit.');
+  if(t==='junction')flash('Klicka på ritningen för att lägga till en kopplingspunkt. Klicka igen för fler, byt verktyg för att avsluta.');
+}
+$('#addBuilding').onclick=()=>{
+  const b={id:uid('b'),name:'Byggnad '+String.fromCharCode(65+P.buildings.length),hidden:false,floors:[newFloor('Plan 1')]};
+  P.buildings.push(b);refresh();openFloor(b.floors[0].id);
+};
+function renderColorBtns(){
+  $('#bgBtns').innerHTML=BG_PRESETS.map(p=>`<button class="sw-btn${P.settings.bg===p.k?' on':''}" data-bg="${p.k}" title="${p.n}" style="background:${p.c}"></button>`).join('');
+  $('#inkBtns').innerHTML=INK_PRESETS.map(p=>`<button class="sw-btn${P.settings.ink===p.k?' on':''}" data-ink="${p.k}" title="${p.n}" style="background:${p.c}"></button>`).join('');
+  $('#compBtns').innerHTML=COMP_PRESETS.map(p=>`<button class="sw-btn${P.settings.comp===p.k?' on':''}" data-comp="${p.k}" title="${p.n}" style="background:${p.c}"></button>`).join('');
+}
+$('#planTools').addEventListener('click',e=>{
+  const b=e.target.closest('[data-bg]'),i=e.target.closest('[data-ink]'),c=e.target.closest('[data-comp]');
+  if(b)P.settings.bg=b.dataset.bg;else if(i)P.settings.ink=i.dataset.ink;else if(c)P.settings.comp=c.dataset.comp;else return;
+  renderColorBtns();applyAllColors();buildOverlay();
+});
+function importPdf(){
+  if(!curFloor()){alert('Välj ett plan först.');return;}
+  $('#filePdf').click();
+}
+$('#btnImport').onclick=importPdf;
+$('#filePdf').onchange=async e=>{
+  const files=[...e.target.files];e.target.value='';if(!files.length)return;
+  const f=curFloor();if(!f)return;
+  busy(true);
+  try{
+    for(const file of files){
+      const buf=await file.arrayBuffer();
+      f.layers.push({id:uid('l'),name:file.name.replace(/\.pdf$/i,''),b64:bytesToB64(new Uint8Array(buf)),
+        page:1,pages:1,visible:true,opacity:1,ox:0,oy:0,k:1});
+    }
+    await loadStack(f);renderLayers();
+    for(const s of stack){if(s.layer.visible&&!s.entry.bitmap)await renderBase(s.entry,view.scale*s.layer.k*dpr*2);}
+    if(stack.length===files.length)fitView();
+    buildOverlay();draw();refresh();
+    flash(files.length===1?'Bakgrund tillagd':files.length+' bakgrunder tillagda');
+  }catch(err){alert('Import misslyckades: '+err.message);}
+  finally{busy(false);}
+};
+function saveProject(){download(new Blob([JSON.stringify(P,(k,v)=>k.charAt(0)==='_'?undefined:v)],{type:'application/json'}),fileBase()+'.sro.json');}
+$('#btnSave').onclick=saveProject;
+$('#btnOpen').onclick=()=>$('#fileProj').click();
+$('#fileProj').onchange=async e=>{
+  const file=e.target.files[0];e.target.value='';if(!file)return;
+  busy(true);
+  try{
+    const data=JSON.parse(await file.text());
+    if(!data.buildings)throw new Error('Filen innehåller inget projekt.');
+    if(pvVard()&&!confirm('Ersätta projektets ritning med innehållet i filen? Komponenter i filen som inte finns i Komponenter läggs till där.'))return;
+    P=migrate(data);
+    P.settings=Object.assign({bg:'navy',ink:'white',comp:'white',symScale:1,showLabels:true},P.settings||{});
+    P.types=(P.types||deep(DEFAULT_TYPES)).map(t=>Object.assign({attrs:[],models:[],hidden:false,shape:'circle'},t));
+    cache.clear();stack=[];ref=null;ui.sel=null;ui.floorId=null;ui.adjust=null;ui.typeSel=null;
+    boot(true);
+    const first=P.buildings[0]&&P.buildings[0].floors[0];
+    if(first)await openFloor(first.id);
+    if(pvVard())pvKopplaImport();
+  }catch(err){alert('Kunde inte öppna filen: '+err.message);}
+  finally{busy(false);}
+};
+$('#btnNew').onclick=()=>{
+  if(!confirm('Börja om med ett tomt projekt?'))return;
+  P=newProject();cache.clear();stack=[];ref=null;ui.sel=null;ui.adjust=null;ui.typeSel=null;
+  boot(true);openFloor(P.buildings[0].floors[0].id);
+};
+$('#btnHelp').onclick=()=>$('#mHelp').classList.add('open');
+$$('[data-close]').forEach(b=>b.onclick=e=>e.target.closest('.modal').classList.remove('open'));
+$$('.modal').forEach(m=>m.addEventListener('mousedown',e=>{if(e.target===m)m.classList.remove('open');}));
+
+window.addEventListener('keydown',e=>{
+  if(/input|select|textarea/i.test(e.target.tagName))return;
+  const mod=e.ctrlKey||e.metaKey;
+  if(mod&&(e.key==='c'||e.key==='C')&&ui.sel&&(ui.sel.kind==='room'||ui.sel.kind==='comp')){copyNode(ui.sel.kind,ui.sel.id);e.preventDefault();return;}
+  if(mod&&(e.key==='v'||e.key==='V')){paste();e.preventDefault();return;}
+  if(mod&&(e.key==='s'||e.key==='S')){if(pvVard())pvSparaNu();else saveProject();e.preventDefault();return;}
+  if(mod)return;
+  if(e.key==='Enter'&&ui.tool==='poly'&&ui.poly){polyFinish();e.preventDefault();return;}
+  if(e.key==='Backspace'&&ui.tool==='poly'&&ui.poly){polyUndo();e.preventDefault();return;}
+  if(e.key==='Enter'&&ui.tool==='cable'&&ui.poly){cableFinish();e.preventDefault();return;}
+  if(e.key==='Backspace'&&ui.tool==='cable'&&ui.poly){polyUndo();e.preventDefault();return;}
+  if(ui.adjust&&e.key.indexOf('Arrow')===0){
+    const l=curFloor().layers.find(x=>x.id===ui.adjust);
+    if(l){const d=e.shiftKey?10:1;
+      if(e.key==='ArrowLeft')l.ox-=d;if(e.key==='ArrowRight')l.ox+=d;
+      if(e.key==='ArrowUp')l.oy-=d;if(e.key==='ArrowDown')l.oy+=d;
+      renderLayers();draw();e.preventDefault();return;}
+  }
+  if(e.key==='Escape'){
+    if(ui.poly){polyCancel();return;}
+    setTool('select');select(null);
+    if(ui.adjust){ui.adjust=null;$('#planWrap').classList.remove('adjusting');renderLayers();draw();}
+    $$('.modal').forEach(m=>m.classList.remove('open'));
+  }
+  if(e.key==='r'||e.key==='R')setTool(ui.tool==='rect'?'select':'rect');
+  if(e.key==='p'||e.key==='P')setTool(ui.tool==='poly'?'select':'poly');
+  if(e.key==='k'||e.key==='K')setTool(ui.tool==='cable'?'select':'cable');
+  if(e.key==='j'||e.key==='J')setTool(ui.tool==='junction'?'select':'junction');
+  if((e.key==='k'||e.key==='K')&&ui.sel)toggleDone(ui.sel.kind,ui.sel.id);
+  if(e.key==='f'||e.key==='F')fitView();
+  if((e.key==='Delete'||e.key==='Backspace')&&ui.sel){treeAction('del',ui.sel.kind,ui.sel.id);e.preventDefault();}
+});
+window.addEventListener('resize',()=>{if(ui.view==='plan')resize();});
+
+function boot(keepView){
+  $('#brandName').textContent=P.name||'Namnlöst';
+  renderPalette();renderColorBtns();overlayColors();renderTree();renderInspector();renderLayers();renderPool();updateSearchCount();
+  if(!keepView)setView('plan');
+  resize();drawEmpty();
+}
+boot();
+openFloor(P.buildings[0].floors[0].id);
+</script>
+
+<script>
+// ============================================================
+// ProjektVerktyg-brygga (DEMO) – tvåvägssynk mot C#-värdapplikationen
+// via WebView2. Tillagd separat från huvudskriptet ovan, för att hålla
+// isär vad som är originalverktyget och vad som är integrationskoden.
+// Huvudskriptets ändringar: onchange-hanterare för Klarmarkerad/
+// Beteckning/Komponenttyp och alla övriga ProjektVerktyg-fält (se
+// inspektorn) anropar pvNotify() efter sin vanliga mutation, samt
+// toggleDone(). Dessutom reducerades DEFAULT_TYPES till en enda
+// generisk typ ("Komponent") – Komponenttyp är numera ett vanligt
+// synkat fält, inte längre kopplat till ritningens typ/ikon-system.
+//
+// Riktningar:
+//  JS -> C#:  pvNotify(pvId, patch)      körs vid användarredigering här
+//  C# -> JS:  pvSync(itemsJson)          bulk, körs vid start + varje
+//                                        gång Komponenter/Egenkontroll
+//                                        ändras på C#-sidan
+//             pvApplyUpdate(patchJson)   enskild post (används inte av
+//                                        C#-sidan i denna demo, men
+//                                        finns som en snävare variant)
+//
+// Loop-skydd: pvSync/pvApplyUpdate muterar komponentens fält DIREKT
+// (inte via inputfältens onchange), så de utlöser ALDRIG pvNotify() –
+// en uppdatering som kommer FRÅN C# studsar alltså aldrig tillbaka UT
+// igen. Det enda som kan hända är en ofarlig extra tur-och-retur (C#
+// tar emot JS:ens ändring, sparar den, pushar sedan tillbaka SAMMA
+// värde via pvSync – overksamt men inte en oändlig loop).
+// ============================================================
+
+// I webbappen ligger ritverktyget i en iframe. Webbappen (window.parent) lägger ut
+// window.pvRitningsVard med funktioner för synk, sparande och PDF-filer.
+function pvVard(){ try{ return (window.parent && window.parent!==window && window.parent.pvRitningsVard) || null; }catch(e){ return null; } }
+function pvHost(){ const v=pvVard(); return v ? { postMessage: s => v.meddelande(s) } : null; }
+
+/// Fyller datalistorna (se <datalist>-taggarna högst upp i <body>) med
+/// ProjektVerktygs egna dropdown-katalogvärden + produktkatalogen, så
+/// inspektorns fält föreslår befintliga värden istället för att man ska
+/// behöva skriva allt manuellt. Fritext fungerar fortfarande – en
+/// datalist är bara ett förslag, inte en begränsning (samma anda som
+/// ProjektVerktygs egna dropdown-kolumner, som också accepterar nya
+/// värden). Körs vid start och varje gång någon av katalogerna ändras,
+/// se ProjekteringsritningView.
+function pvSyncCatalogs(catalogsJson){
+  let cat;
+  try{ cat = JSON.parse(catalogsJson); }catch(e){ return; }
+
+  const satt=(id,varden)=>{
+    const dl=document.getElementById(id);
+    if(!dl) return;
+    dl.innerHTML=(varden||[]).map(v=>`<option value="${esc(v)}">`).join('');
+  };
+
+  satt('pvcat-system', cat.system);
+  satt('pvcat-komponenttyp', cat.komponenttyp);
+  satt('pvcat-signaltyp', cat.signaltyp);
+  satt('pvcat-kabeltyp', cat.kabeltyp);
+  satt('pvcat-produkttyp', cat.produkttyp);
+  satt('pvcat-produkt', cat.produkt);
+}
+window.pvSyncCatalogs = pvSyncCatalogs;
+
+/// "↻ Uppdatera från Komponenter" – ber C# skicka en färsk full synk
+/// direkt (istället för att vänta på att något ANNAT råkar ändras).
+/// Viktigt för fallet att en komponent tagits bort av misstag via
+/// "Ta bort" (till skillnad från "Av ritning", som bara lägger tillbaka
+/// den i kön, tar "Ta bort" bort den helt ur ritverktygets egen lista) –
+/// nästa synk skapar då automatiskt en NY, oplacerad komponent för
+/// samma KomponentId (matchat på pvId), så den dyker upp i kön igen.
+document.getElementById('pvRequestSync')?.addEventListener('click', ()=>{
+  const host = pvHost();
+  if(!host){ alert('Ritningen är inte öppnad i Projekteringsverktyg – inget att uppdatera från.'); return; }
+  try{ host.postMessage(JSON.stringify({type:'requestSync'})); }catch(e){}
+});
+
+function pvNotify(pvId, patch){
+  if(!pvId) return; // komponenten kommer inte från en synkad KomponentRad (t.ex. skapad direkt i verktyget) – hanteras inte i denna demo än
+  const host = pvHost();
+  if(!host) return; // körs i vanlig webbläsare (utveckling/test) – inget att skicka till
+  try{ host.postMessage(JSON.stringify(Object.assign({type:'fieldUpdate', pvId}, patch))); }catch(e){}
+}
+
+/// Meddelar C# att en HELT NY komponent skapats i verktyget (utan pvId
+/// än) – skickar med det lokala JS-id:t (c.id) så att C#:s svar
+/// (pvAssignId) kan länkas till rätt objekt. C# skapar en ny rad i
+/// Komponenter-listan och skickar tillbaka dess riktiga, stabila Id.
+/// Meddelar C# att en komponent tagits bort HÄR i ritverktyget, så
+/// motsvarande rad tas bort i Komponenter också ("samma datakälla hela
+/// vägen") – inte bara lokalt i ritverktyget. Skiljer sig från
+/// "↻ Uppdatera"-knappen (som återskapar det som FORTFARANDE finns i
+/// Komponenter men saknas här) – den här funktionen gäller en MEDVETEN
+/// borttagning som ska slå igenom överallt.
+function pvNotifyDelete(pvId){
+  const host = pvHost();
+  if(!host) return;
+  try{ host.postMessage(JSON.stringify({type:'deleteComponent', pvId})); }catch(e){}
+}
+
+function pvNotifyNew(c){
+  const host = pvHost();
+  if(!host) return; // körs i vanlig webbläsare (utveckling/test) – blir en lokal komponent utan synk, precis som tidigare
+  // Komponenttyp skickas med om den redan är ifylld (t.ex. vid
+  // inklistring av en kopia, se paste(), eller vid en förinställd
+  // komponent från paletten, se PV_PRESETS) – annars tom, ifylls då i
+  // inspektorn efteråt.
+  try{ host.postMessage(JSON.stringify({type:'createComponent', localId:c.id, beteckning:c.tag, komponenttyp:c.pvKomponenttyp||''})); }catch(e){}
+}
+
+/// Anropas av C# som svar på pvNotifyNew – länkar den nyss skapade
+/// KomponentRad:ens Id till rätt JS-komponent, så den blir en fullt
+/// synkad komponent från och med nu (precis som de som redan fanns i
+/// Komponenter vid start).
+function pvAssignId(localId, realId){
+  let comp = null;
+  eachFloor(f=>{ f.components.forEach(c=>{ if(c.id===localId) comp=c; }); });
+  if(!comp) return;
+  comp.pvId = realId;
+
+  // Om komponenten redan har andra ProjektVerktyg-fält ifyllda (t.ex.
+  // vid inklistring av en kopia, se paste() – deep() kopierar redan
+  // alla pv-fält lokalt, bara C# vet inte om dem än) – skicka med dem
+  // som en enda uppdatering direkt, så den nya raden i Komponenter får
+  // hela den kopierade informationen, inte bara Beteckning/Komponenttyp.
+  const patch = {};
+  if(comp.pvSystem) patch.system = comp.pvSystem;
+  if(comp.pvSignaltyp) patch.signaltyp = comp.pvSignaltyp;
+  if(comp.pvAnslutsTill) patch.anslutsTill = comp.pvAnslutsTill;
+  if(comp.pvKabeltyp) patch.kabeltyp = comp.pvKabeltyp;
+  if(comp.pvProdukttyp) patch.produkttyp = comp.pvProdukttyp;
+  if(comp.pvProdukt) patch.produkt = comp.pvProdukt;
+  if(comp.pvBeskrivning) patch.beskrivning = comp.pvBeskrivning;
+  if(comp.pvOvrigt) patch.ovrigt = comp.pvOvrigt;
+  if(comp.pvKabelLangdMeter) patch.kabelLangdMeter = comp.pvKabelLangdMeter;
+  if(comp.pvMonteringsanvisning) patch.monteringsanvisning = comp.pvMonteringsanvisning;
+  if(Object.keys(patch).length) pvNotify(realId, patch);
+}
+window.pvAssignId = pvAssignId;
+
+/// items: [{id, beteckning, komponenttyp, kontrollerad, system, signaltyp,
+/// anslutsTill, kabeltyp, produkttyp, beskrivning, ovrigt}, ...] – samma
+/// fältnamn som C#-sidans KomponentRad, för att slippa en översättning
+/// däremellan. Skapar automatiskt en typ per unik komponenttyp om den
+/// saknas, och en komponent per rad om den inte redan finns (hamnar då
+/// i "att placera"-kön, x/y=null). Rör ALDRIG x/y för redan existerande
+/// komponenter.
+function pvSync(itemsJson){
+  let items;
+  try{ items = JSON.parse(itemsJson); }catch(e){ return; }
+  if(!P.buildings.length || !P.types.length) return;
+
+  const floor = P.buildings[0].floors[0];
+  const enda_typ = P.types[0]; // en enda generisk typ ("Komponent") – se DEFAULT_TYPES
+  const incomingIds = new Set(items.map(i=>i.id));
+
+  items.forEach(item=>{
+    let comp = null;
+    floor.components.forEach(c=>{ if(c.pvId===item.id) comp=c; });
+
+    if(!comp){
+      comp = {id:uid('c'), pvId:item.id, typeId:enda_typ.id, tag:item.beteckning||nextTag(P.buildings[0], enda_typ),
+              roomId:null, x:null, y:null, data:{}, modelId:null, hidden:false,
+              done:!!item.kontrollerad, source:'manual'};
+      floor.components.push(comp);
+    }else{
+      if(item.beteckning) comp.tag = item.beteckning;
+      comp.done = !!item.kontrollerad;
+    }
+
+    comp.pvKomponenttyp = item.komponenttyp || '';
+    comp.pvSystem = item.system || '';
+    comp.pvSignaltyp = item.signaltyp || '';
+    comp.pvAnslutsTill = item.anslutsTill || '';
+    comp.pvKabeltyp = item.kabeltyp || '';
+    comp.pvProdukttyp = item.produkttyp || '';
+    comp.pvProdukt = item.produkt || '';
+    comp.pvBeskrivning = item.beskrivning || '';
+    comp.pvOvrigt = item.ovrigt || '';
+    comp.pvKabelLangdMeter = item.kabelLangdMeter || '';
+    comp.pvMonteringsanvisning = item.monteringsanvisning || '';
+  });
+
+  // Tar bort komponenter vars pvId INTE längre finns i den inkommande
+  // listan – dvs. raden har tagits bort i Komponenter i ProjektVerktyg
+  // (t.ex. via "Ta bort valda rader"), inte bara här i ritverktyget.
+  // Rör ALDRIG komponenter UTAN pvId (helt lokala, eller väntar på svar
+  // från en nyss skickad createComponent).
+  eachFloor(f=>{
+    const nya=f.components.filter(c=>!c.pvId||incomingIds.has(c.pvId));
+    if(nya.length!==f.components.length){
+      if(ui.sel&&ui.sel.kind==='comp'&&!nya.some(c=>c.id===ui.sel.id))ui.sel=null;
+      f.components=nya;
+    }
+  });
+
+  refresh();renderLayers();draw();
+}
+
+/// Enskild fältuppdatering: samma fältnamn som pvSync. Används inte av
+/// C#-sidan i denna demo – pvSync återanvänds för allt, se byggloggen –
+/// men finns med som en snävare variant för ett eventuellt senare steg.
+function pvApplyUpdate(patchJson){
+  let patch;
+  try{ patch = JSON.parse(patchJson); }catch(e){ return; }
+
+  let comp = null;
+  eachFloor(f=>{ f.components.forEach(c=>{ if(c.pvId===patch.id) comp=c; }); });
+  if(!comp) return;
+
+  if(patch.beteckning) comp.tag = patch.beteckning;
+  if(patch.komponenttyp!==undefined) comp.pvKomponenttyp = patch.komponenttyp;
+  if(patch.kontrollerad!==undefined) comp.done = !!patch.kontrollerad;
+  if(patch.system!==undefined) comp.pvSystem = patch.system;
+  if(patch.signaltyp!==undefined) comp.pvSignaltyp = patch.signaltyp;
+  if(patch.anslutsTill!==undefined) comp.pvAnslutsTill = patch.anslutsTill;
+  if(patch.kabeltyp!==undefined) comp.pvKabeltyp = patch.kabeltyp;
+  if(patch.produkttyp!==undefined) comp.pvProdukttyp = patch.produkttyp;
+  if(patch.produkt!==undefined) comp.pvProdukt = patch.produkt;
+  if(patch.beskrivning!==undefined) comp.pvBeskrivning = patch.beskrivning;
+  if(patch.ovrigt!==undefined) comp.pvOvrigt = patch.ovrigt;
+  if(patch.kabelLangdMeter!==undefined) comp.pvKabelLangdMeter = patch.kabelLangdMeter;
+  if(patch.monteringsanvisning!==undefined) comp.pvMonteringsanvisning = patch.monteringsanvisning;
+
+  refresh();
+}
+
+window.pvSync = pvSync;
+window.pvApplyUpdate = pvApplyUpdate;
+
+// ============================================================
+// Projekteringsverktyg (webb): ritningen sparas på servern.
+//  - pvLaddaRitning(json, namn, behallVy) anropas av webbappen vid start
+//    och när någon annan har sparat.
+//  - Ändringar upptäcks genom att jämföra ritningen med senast sparade
+//    version varannan sekund; då sparas den. PDF-bakgrunder laddas upp
+//    som projektfiler och ritningen pekar på dem med fileId.
+// ============================================================
+let pvKopplad=false, pvSenastSparad=null, pvSparar=false, pvTimer=null, pvUppladdning=0;
+const pvFor=()=>JSON.stringify(P,(k,v)=>(k==='b64'||k.charAt(0)==='_')?undefined:v);
+function pvStatus(t){const el=document.getElementById('pvSparstatus');if(el)el.textContent=t;}
+
+async function pvLaddaRitning(json, namn, behallVy){
+  const floorFore=ui.floorId;
+  try{
+    if(json){
+      const data=JSON.parse(json);
+      P=migrate(data);
+      P.settings=Object.assign({bg:'navy',ink:'white',comp:'white',symScale:1,showLabels:true},P.settings||{});
+      P.types=(P.types||deep(DEFAULT_TYPES)).map(t=>Object.assign({attrs:[],models:[],hidden:false,shape:'circle'},t));
+    }else{
+      P=newProject();
+    }
+    if(namn)P.name=namn;
+    cache.clear();stack=[];ref=null;ui.adjust=null;ui.typeSel=null;
+    if(!behallVy)ui.sel=null;
+    ui.floorId=null;
+    boot(true);
+    const finns=behallVy&&floorFore&&findFloor(floorFore);
+    const forsta=P.buildings[0]&&P.buildings[0].floors[0];
+    if(finns)await openFloor(floorFore);else if(forsta)await openFloor(forsta.id);
+  }catch(err){alert('Ritningen kunde inte läsas: '+err.message);}
+  pvSenastSparad=pvFor();
+  pvKopplad=true;
+  pvStatus('Sparad');
+  if(!pvTimer)pvTimer=setInterval(pvKontrollera,2000);
+}
+window.pvLaddaRitning=pvLaddaRitning;
+
+/** Laddar upp bakgrunder som bara finns lokalt (ny PDF eller importerad .sro.json). */
+async function pvLaddaUppBakgrunder(){
+  const vard=pvVard();if(!vard)return;
+  const att=[];eachFloor(f=>f.layers.forEach(l=>{if(l.b64&&!l.fileId&&!l._laddar)att.push(l);}));
+  for(const l of att){
+    l._laddar=true;pvUppladdning++;pvStatus('Laddar upp '+l.name+'…');
+    try{l.fileId=await vard.laddaUppPdf(l.name,l.b64);}
+    catch(err){l._laddar=false;pvStatus('Uppladdning misslyckades');pvUppladdning--;throw err;}
+    l._laddar=false;pvUppladdning--;
+  }
+}
+
+async function pvKontrollera(){
+  if(!pvKopplad||pvSparar)return;
+  const vard=pvVard();if(!vard)return;
+  const harLokala=(()=>{let n=false;eachFloor(f=>f.layers.forEach(l=>{if(l.b64&&!l.fileId)n=true;}));return n;})();
+  if(!harLokala&&pvFor()===pvSenastSparad)return;
+  await pvSparaNu();
+}
+
+async function pvSparaNu(){
+  const vard=pvVard();if(!vard||!pvKopplad||pvSparar)return;
+  pvSparar=true;
+  try{
+    await pvLaddaUppBakgrunder();
+    const data=pvFor();
+    if(data===pvSenastSparad){pvStatus('Sparad');return;}
+    pvStatus('Sparar…');
+    const svar=await vard.spara(data);
+    if(svar==='ok'){pvSenastSparad=data;pvStatus('Sparad');}
+    else if(svar==='lasläge'){pvSenastSparad=data;pvStatus('Endast läsning');}
+    else pvStatus(svar==='konflikt'?'Uppdaterad från annan':'Kunde inte spara');
+  }catch(err){pvStatus('Kunde inte spara');}
+  finally{pvSparar=false;}
+}
+window.pvSparaNu=pvSparaNu;
+
+/** Efter import av en .sro.json: koppla ritningens komponenter till projektets Komponenter.
+    Samma Id behålls, annars matchas på beteckning, annars skapas en ny komponent. */
+function pvKopplaImport(){
+  const vard=pvVard();if(!vard)return;
+  const finns=vard.komponenter();
+  const perId=new Set(finns.map(k=>k.id));
+  const perBet=new Map();finns.forEach(k=>{const b=norm(k.beteckning);if(b)perBet.set(b,perBet.has(b)?null:k.id);});
+  const anvanda=new Set();
+  const nya=[];
+  eachFloor(f=>f.components.forEach(c=>{
+    if(c.pvId&&perId.has(c.pvId)&&!anvanda.has(c.pvId)){anvanda.add(c.pvId);return;}
+    const m=perBet.get(norm(c.tag));
+    if(m&&!anvanda.has(m)){c.pvId=m;anvanda.add(m);return;}
+    c.pvId=null;nya.push(c);
+  }));
+  nya.forEach(c=>pvNotifyNew(c));
+  host_requestSync();
+}
+function host_requestSync(){const h=pvHost();if(h)try{h.postMessage(JSON.stringify({type:'requestSync'}));}catch(e){}}
+window.pvKopplaImport=pvKopplaImport;
+
+// Säg till webbappen att verktyget är redo att ta emot ritningen.
+try{const v=pvVard();if(v&&v.redo)v.redo();}catch(e){}
+window.addEventListener('beforeunload',()=>{if(pvKopplad&&pvFor()!==pvSenastSparad)pvSparaNu();});
+
+</script>
+</body>
+</html>
