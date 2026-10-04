@@ -33,12 +33,18 @@ public static class Migrering
             var sql = await lasare.ReadToEndAsync(ct);
 
             await using var tx = await db.Database.BeginTransactionAsync(ct);
-            await db.Database.ExecuteSqlRawAsync(sql, ct);
+            await db.Database.ExecuteSqlRawAsync(Skydda(sql), ct);
             await db.Database.ExecuteSqlRawAsync("INSERT INTO schema_migrering (namn) VALUES ({0})", [namn], ct);
             await tx.CommitAsync(ct);
             logger.LogInformation("Databasmigrering körd: {Namn}", namn);
         }
     }
+
+    /// <summary>
+    /// EF Core läser {0}, {1} … i rå SQL som parametrar. Klamrar i själva skriptet (t.ex. '{}' för tom JSON)
+    /// dubbleras därför så att de lämnas orörda.
+    /// </summary>
+    internal static string Skydda(string sql) => sql.Replace("{", "{{").Replace("}", "}}");
 
     /// <summary>"Projekteringsverktyg.Server.Data.Migreringar.002_att_gora.sql" → "002_att_gora.sql"</summary>
     internal static string FilNamn(string resurs)

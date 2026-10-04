@@ -174,3 +174,18 @@ public class ListmotorTester
     public void Filnamn_rensas(string namn, string forvantat) =>
         Assert.Equal(forvantat, Projekteringsverktyg.Server.FilApi.FilEndpoints.RentNamn(namn));
 }
+
+public class MigreringSkyddTester
+{
+    [Fact]
+    public void Alla_skript_overlever_parameterformatering()
+    {
+        var asm = typeof(Migrering).Assembly;
+        foreach (var namn in asm.GetManifestResourceNames().Where(n => n.EndsWith(".sql")))
+        {
+            using var r = new StreamReader(asm.GetManifestResourceStream(namn)!);
+            var sql = r.ReadToEnd();
+            Assert.Equal(sql, string.Format(Migrering.Skydda(sql), Array.Empty<object>()));
+        }
+    }
+}
