@@ -17,6 +17,9 @@ public class PvDbContext(DbContextOptions<PvDbContext> options) : DbContext(opti
     public DbSet<ProjektText> Texter => Set<ProjektText>();
     public DbSet<ProjektFil> Filer => Set<ProjektFil>();
     public DbSet<Ritning> Ritningar => Set<Ritning>();
+    public DbSet<KomponentMall> Komponentmallar => Set<KomponentMall>();
+    public DbSet<KontrollMall> Kontrollmallar => Set<KontrollMall>();
+    public DbSet<Kontroll> Kontroller => Set<Kontroll>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -93,6 +96,10 @@ public class PvDbContext(DbContextOptions<PvDbContext> options) : DbContext(opti
             e.ToTable("projekttext");
             e.HasKey(t => new { t.ProjektId, t.Nyckel });
         });
+
+        b.Entity<KomponentMall>(e => { e.ToTable("komponentmall"); e.HasKey(m => m.Id); });
+        b.Entity<KontrollMall>(e => { e.ToTable("kontrollmall"); e.HasKey(m => m.Id); });
+        b.Entity<Kontroll>(e => { e.ToTable("kontroll"); e.HasKey(k => k.Id); e.HasIndex(k => new { k.ProjektId, k.Typ }); });
 
         b.Entity<Ritning>(e =>
         {

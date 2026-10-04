@@ -189,3 +189,38 @@ public class MigreringSkyddTester
         }
     }
 }
+
+public class MallTester
+{
+    [Theory]
+    [InlineData("LBxx-GT11", "01", "LB01-GT11")]
+    [InlineData("LBXX_GT11", "02", "LB02_GT11")]
+    [InlineData("LBxx", null, "LBxx")]
+    public void Xx_ersatts(string varde, string? med, string forvantat) =>
+        Assert.Equal(forvantat, Projekteringsverktyg.Server.KomponentApi.KomponentMallEndpoints.ErsattXx(varde, med));
+
+    [Fact]
+    public void Csv_med_dagens_rubriker_las_in()
+    {
+        var csv = "﻿Beteckning;System;Komponenttyp;Signaltyp;Placering;Beskrivning;Ovrigt;AnslutsTill;Kabeltyp;Produkttyp\nASxx-OS1;AS;Övrigt;DI;;Utlöst överspänningsskydd;Internt;ASxx;;\n\n";
+        var rader = Projekteringsverktyg.Server.KomponentApi.KomponentMallEndpoints.LasCsv(new MemoryStream(System.Text.Encoding.UTF8.GetBytes(csv)));
+        Assert.Single(rader);
+        Assert.Equal("ASxx-OS1", rader[0]["beteckning"]);
+        Assert.Equal("Internt", rader[0]["ovrigt"]);
+        Assert.Equal("ASxx", rader[0]["anslutsTill"]);
+    }
+
+    [Fact]
+    public void Kontrollista_hittas_per_kontroll()
+    {
+        var id = Guid.NewGuid();
+        var def = Projekteringsverktyg.Server.ListApi.Listdefinitioner.Hitta("kontroll-" + id);
+        Assert.NotNull(def);
+        Assert.Equal("kontroll-" + id, def!.Id);
+        Assert.Null(Projekteringsverktyg.Server.ListApi.Listdefinitioner.Hitta("kontroll-inte-ett-id"));
+    }
+
+    [Fact]
+    public void Grundkataloger_finns() =>
+        Assert.Contains("Temperaturgivare", Projekteringsverktyg.Server.Data.Grundkataloger.Hamta("KomponentTyp"));
+}

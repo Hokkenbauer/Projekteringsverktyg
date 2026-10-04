@@ -12,16 +12,15 @@ public static class KatalogEndpoints
 {
     public static readonly string[] Falt = ["system", "komponenttyp", "signaltyp", "kabeltyp", "produkttyp", "produkt", "placering"];
 
+    /// <summary>Grundlistor från dagens program per komponentfält. Produkt visas som Fabrikat.</summary>
     private static readonly Dictionary<string, string[]> Grund = new()
     {
-        ["system"] = ["LB01", "LB02", "VS01", "VS02", "KB01", "VV01"],
-        ["komponenttyp"] =
-        [
-            "Temperaturgivare", "Rumsgivare", "Tryckgivare", "Närvarosensor", "Rumsregulator",
-            "Ventilställdon", "Spjällställdon", "Brandspjäll", "Fläkt", "Pump", "Larm",
-        ],
-        ["signaltyp"] = ["AI", "AO", "DI", "DO", "Bus"],
-        ["kabeltyp"] = ["EKKX 2x2x0,5", "EKKX 4x2x0,5", "FQAR 3G1,5", "EKLK 4x0,5"],
+        ["system"] = Grundkataloger.Hamta("KomponentSystem"),
+        ["komponenttyp"] = Grundkataloger.Hamta("KomponentTyp"),
+        ["signaltyp"] = Grundkataloger.Hamta("KomponentSignaltyp"),
+        ["kabeltyp"] = Grundkataloger.Hamta("KomponentKabeltyp"),
+        ["produkttyp"] = Grundkataloger.Hamta("KomponentProdukttyp"),
+        ["produkt"] = Grundkataloger.Hamta("FabrikatTyp"),
     };
 
     public static IEndpointRouteBuilder MapKatalogEndpoints(this IEndpointRouteBuilder app)

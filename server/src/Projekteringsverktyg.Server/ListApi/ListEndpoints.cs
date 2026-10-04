@@ -65,7 +65,7 @@ public static class ListEndpoints
 
     public static IEndpointRouteBuilder MapListEndpoints(this IEndpointRouteBuilder app)
     {
-        app.MapGet("/api/listdefinitioner", () => Listdefinitioner.Alla.Select(d => new
+        app.MapGet("/api/listdefinitioner", () => Listdefinitioner.Alla.Append(Listdefinitioner.Kontroll).Select(d => new
         {
             d.Id, d.Namn, d.Grupp, d.Ingress, d.Kopplad, d.KomponenttypInnehaller, d.Bindestreck,
             kolumner = d.Kolumner.Select(k => new { k.Nyckel, k.Rubrik, k.Typ, k.Val, k.KomponentFalt, k.Standard, k.Mono, k.Bredd, k.Redigerbar, k.Fyll }),
@@ -198,8 +198,11 @@ public static class ListEndpoints
                 }
             }
 
-            var fil = Excel.Tabell(def.Namn, $"{def.Namn} – {projekt.Namn} {projekt.Nummer}".Trim(), kolumner.Select(c => c.Rubrik).ToList(), rader);
-            return Results.File(fil, Excel.MimeTyp, Excel.Filnamn($"{def.Namn} {projekt.Nummer}".Trim()));
+            var namn = def.Namn;
+            if (lista.StartsWith(Listdefinitioner.KontrollPrefix) && Guid.TryParse(lista[Listdefinitioner.KontrollPrefix.Length..], out var kid))
+                namn = await db.Kontroller.Where(k => k.Id == kid && k.ProjektId == projektId).Select(k => k.Namn).FirstOrDefaultAsync() ?? namn;
+            var fil = Excel.Tabell(namn, $"{namn} – {projekt.Namn} {projekt.Nummer}".Trim(), kolumner.Select(c => c.Rubrik).ToList(), rader);
+            return Results.File(fil, Excel.MimeTyp, Excel.Filnamn($"{namn} {projekt.Nummer}".Trim()));
         });
 
         return app;

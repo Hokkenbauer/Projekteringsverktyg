@@ -186,3 +186,40 @@ public class Ritning
     public DateTimeOffset Andrad { get; set; } = DateTimeOffset.UtcNow;
     public string AndradAv { get; set; } = "";
 }
+
+/// <summary>Färdig uppsättning komponenter som kan läggas till i ett projekt. Rader = JSON-lista med komponentfält.</summary>
+public class KomponentMall
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public string Namn { get; set; } = "";
+    public string Rader { get; set; } = "[]";
+    public DateTimeOffset Andrad { get; set; } = DateTimeOffset.UtcNow;
+    public string AndradAv { get; set; } = "";
+}
+
+/// <summary>Mall med kontrollpunkter. Typ: projekt, projektering eller service.</summary>
+public class KontrollMall
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public string Typ { get; set; } = "";
+    public string Namn { get; set; } = "";
+    public string Beskrivning { get; set; } = "";
+    /// <summary>JSON-lista med kontrollpunkternas text.</summary>
+    public string Punkter { get; set; } = "[]";
+    public DateTimeOffset Andrad { get; set; } = DateTimeOffset.UtcNow;
+    public string AndradAv { get; set; } = "";
+}
+
+/// <summary>En kontroll i ett projekt. Kontrollpunkterna ligger i listrad med Lista = "kontroll-{Id}".</summary>
+public class Kontroll
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid ProjektId { get; set; }
+    public string Typ { get; set; } = "";
+    public string Namn { get; set; } = "";
+    public string Beskrivning { get; set; } = "";
+    public string MallNamn { get; set; } = "";
+    public int Ordning { get; set; }
+    public DateTimeOffset Andrad { get; set; } = DateTimeOffset.UtcNow;
+    public string AndradAv { get; set; } = "";
+}

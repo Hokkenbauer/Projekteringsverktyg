@@ -1,3 +1,5 @@
+using Projekteringsverktyg.Server.Data;
+
 namespace Projekteringsverktyg.Server.ListApi;
 
 /// <summary>
@@ -44,7 +46,7 @@ public sealed record ListDef(
 
 public static class Listdefinitioner
 {
-    private static readonly string[] Entreprenorer = ["Styrentreprenör", "Elentreprenör", "Ventilationsentreprenör", "Rörentreprenör", "Byggentreprenör", "Beställare"];
+    private static string[] Kat(string namn) => Grundkataloger.Hamta(namn);
 
     private static KolumnDef K(string falt, string rubrik, bool mono = false, int? bredd = null) =>
         new(falt, rubrik, "komponent", KomponentFalt: falt, Mono: mono, Bredd: bredd);
@@ -60,9 +62,9 @@ public static class Listdefinitioner
                 K("beteckning", "Komponentnamn", mono: true),
                 K("komponenttyp", "Komponenttyp"),
                 K("anslutsTill", "Ansluten från", mono: true),
-                new("textfarg", "Textfärg", "val", ["Svart", "Vit"], Standard: "Svart"),
-                new("skyltfarg", "Skyltfärg", "val", ["Vit", "Gul", "Röd", "Blå", "Grön", "Svart"], Standard: "Vit"),
-                new("montage", "Montage", "val", ["2 hål + tejp", "Buntband", "Skruv", "Lim"], Standard: "2 hål + tejp"),
+                new("textfarg", "Textfärg", "val", Kat("SkyltlistaTextfarg"), Standard: "Svart"),
+                new("skyltfarg", "Skyltfärg", "val", Kat("SkyltlistaSkyltfarg"), Standard: "Vit"),
+                new("montage", "Montage", "val", Kat("SkyltlistaMontage"), Standard: "2 hål + tejp"),
                 new("ovrigt", "Övrigt"),
             ],
             ExportKolumner: ["beteckning", "komponenttyp", "anslutsTill"],
@@ -114,7 +116,7 @@ public static class Listdefinitioner
                 K("beteckning", "Beteckning", mono: true),
                 K("placering", "Placering"),
                 new("betjanar", "Betjänar"),
-                new("lufttyp", "Lufttyp", "val", ["Tilluft", "Frånluft", "Uteluft", "Avluft"]),
+                new("lufttyp", "Lufttyp", "val", Kat("BrandspjallLufttyp")),
                 new("funktion", "Funktion", "val", ["Stängs vid brandlarm", "Stängs vid rökdetektion", "Motioneras var 48:e timme"]),
                 new("rokgasevak", "Rökgasevakuering", "kryss"),
                 new("ovrigt", "Övrigt"),
@@ -134,7 +136,7 @@ public static class Listdefinitioner
                 new("datum", "Datum", "datum"),
                 new("sign", "Sign.", Mono: true, Bredd: 52),
                 new("anmarkning", "Anmärkning", Bredd: 200),
-                new("ansvarig", "Ansvarig"),
+                new("ansvarig", "Ansvarig", "val", Kat("EgenkontrollAnsvarig")),
             ]),
 
         new("anmarkningar", "Anmärkningsbilaga", "Driftsättning",
@@ -144,7 +146,7 @@ public static class Listdefinitioner
             [
                 new("nr", "Nr", "lopnr"),
                 new("anmarkning", "Anmärkning", Bredd: 420, Fyll: true),
-                new("ansvarig", "Ansvarig entreprenör", "val", Entreprenorer),
+                new("ansvarig", "Ansvarig entreprenör", "val", Kat("AnsvarigEntreprenor")),
                 new("tillhor", "Tillhör"),
                 new("atgardad", "Åtgärdad", "kryss", SatterDatum: "datum", SatterSign: "sign"),
                 new("datum", "Datum för åtgärd", "datum"),
@@ -175,9 +177,9 @@ public static class Listdefinitioner
             Kolumner:
             [
                 new("matare", "Mätarbeteckning", Mono: true),
-                new("medie", "Medie", "val", ["El", "Värme", "Kyla", "Kallvatten", "Varmvatten", "Gas"]),
+                new("medie", "Medie", "val", Kat("Medie")),
                 new("betjanar", "Betjänar"),
-                new("fabrikat", "Fabrikat/Typ"),
+                new("fabrikat", "Fabrikat/Typ", "val", Kat("FabrikatTyp")),
                 new("sekundarId", "Sekundär-ID", Mono: true),
                 new("matarstallning", "Mätarställning vid kontroll", Mono: true),
                 new("ovrigt", "Övrigt"),
@@ -195,11 +197,11 @@ public static class Listdefinitioner
                 new("beteckning", "Beteckning", Mono: true),
                 new("id", "ID", Mono: true),
                 new("slinga", "Slinga"),
-                new("port", "Port", "val", ["COM1", "COM2", "COM3", "COM4", "TCP"]),
+                new("port", "Port", "val", Kat("ModbusPort")),
                 new("ip", "IP-adress", Mono: true),
-                new("baudrate", "Baudrate", "val", ["9600", "19200", "38400", "57600", "115200"], Standard: "9600"),
-                new("paritet", "Paritet", "val", ["None", "Even", "Odd"], Standard: "Even"),
-                new("stopbit", "Stopbit", "val", ["1", "2"], Standard: "1"),
+                new("baudrate", "Baudrate", "val", Kat("ModbusBaudrate"), Standard: "9600"),
+                new("paritet", "Paritet", "val", Kat("ModbusParitet"), Standard: "Even"),
+                new("stopbit", "Stopbit", "val", Kat("ModbusStopbit"), Standard: "1"),
                 new("ovrigt", "Övrigt"),
                 new("kontrollerad", "Kontrollerad", "kryss", SatterDatum: "datum", SatterSign: "sign"),
                 new("datum", "Datum", "datum"),
@@ -213,7 +215,7 @@ public static class Listdefinitioner
             Kolumner:
             [
                 new("krav", "Kravställning", Bredd: 340),
-                new("kalla", "Källa"),
+                new("kalla", "Källa", "val", Kat("KravstallningKalla")),
                 new("intern", "Intern info", Bredd: 200),
                 new("hanterad", "Hanterad", "kryss", SatterDatum: "datum", SatterSign: "sign"),
                 new("datum", "Datum", "datum"),
@@ -242,7 +244,7 @@ public static class Listdefinitioner
             Kolumner:
             [
                 new("komponent", "Komponent/Beteckning", Mono: true),
-                new("typ", "Typ av inställning", "val", ["Börvärde", "Gränsvärde", "Larmgräns", "Tidkanal", "Parameter", "Övrigt"]),
+                new("typ", "Typ av inställning", "val", Kat("TypAvInstallning")),
                 new("installning", "Inställning", Mono: true),
                 new("beskrivning", "Beskrivning", Bredd: 220),
                 new("ovrigt", "Övrigt"),
@@ -261,7 +263,26 @@ public static class Listdefinitioner
             ]),
     ];
 
-    public static ListDef? Hitta(string id) => Alla.FirstOrDefault(d => d.Id == id);
+    /// <summary>Mall för kontroller (Projektspecifika kontroller, Projekteringsegenkontroll, Kontroller under Service).
+    /// Varje kontroll i ett projekt är en egen lista med id "kontroll-{Guid}".</summary>
+    public static readonly ListDef Kontroll = new("kontroll", "Kontroll", "Kontroller",
+        "Bocka i Kontrollerad så fylls datum och signatur i.",
+        Kopplad: false,
+        Kolumner:
+        [
+            new("kontrollpunkt", "Kontrollpunkt", Bredd: 420, Fyll: true),
+            new("kontrollerad", "Kontrollerad", "kryss", SatterDatum: "datum", SatterSign: "sign"),
+            new("datum", "Datum", "datum"),
+            new("sign", "Sign.", Mono: true, Bredd: 52),
+            new("ovrigt", "Övrigt", Bredd: 220),
+        ]);
+
+    public const string KontrollPrefix = "kontroll-";
+
+    public static ListDef? Hitta(string id) =>
+        id.StartsWith(KontrollPrefix, StringComparison.Ordinal) && Guid.TryParse(id[KontrollPrefix.Length..], out _)
+            ? Kontroll with { Id = id }
+            : Alla.FirstOrDefault(d => d.Id == id);
 
     /// <summary>Om en komponent hör till listan (för listor som bara visar vissa komponenttyper).</summary>
     public static bool Omfattar(ListDef def, string komponenttyp) =>

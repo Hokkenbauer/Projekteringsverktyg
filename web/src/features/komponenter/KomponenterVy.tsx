@@ -38,7 +38,7 @@ export function KomponenterVy({ komponenter, kataloger, blinkar, onAndra, onNy, 
       { nyckel: "anslutsTill", rubrik: "Ansluts till", typ: "text", mono: true },
       { nyckel: "kabeltyp", rubrik: "Kabeltyp", typ: "text", forslag: f("kabeltyp"), bredd: 130 },
       { nyckel: "produkttyp", rubrik: "Produkttyp", typ: "text", forslag: f("produkttyp"), bredd: 130 },
-      { nyckel: "produkt", rubrik: "Produkt", typ: "text", forslag: f("produkt"), bredd: 160 },
+      { nyckel: "produkt", rubrik: "Fabrikat", typ: "text", forslag: f("produkt"), bredd: 160 },
       { nyckel: "monteringsanvisning", rubrik: "Monteringsanvisning", typ: "text", bredd: 180 },
       { nyckel: "ovrigt", rubrik: "Övrigt", typ: "text" },
     ];

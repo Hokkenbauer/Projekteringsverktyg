@@ -24,6 +24,8 @@
   <ItemGroup>
     <!-- Databasmigreringar, körs vid start i nummerordning (se Data/Migrering.cs). -->
     <EmbeddedResource Include="Data/Migreringar/*.sql" />
+    <!-- Valbara värden från dagens program -->
+    <EmbeddedResource Include="Data/Grundkataloger.json" />
   </ItemGroup>
 
   <ItemGroup>
