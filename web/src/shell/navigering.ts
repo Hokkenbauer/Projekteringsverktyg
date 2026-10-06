@@ -85,6 +85,7 @@ export const NAVIGERING: Grupp[] = [
       { id: "kravstallning", namn: "Listad kravställning", fas: 5, klar: true, lista: "kravstallning" },
       { id: "kalkylmangder", namn: "Kalkylmängder", fas: 5 },
       { id: "placeringsritningar", namn: "Placeringsritningar", fas: 2, klar: true },
+      { id: "ritbord", namn: "Ritbord (flödesbilder)", fas: 2, klar: true },
       { id: "projekteringsintyg", namn: "Projekteringsintyg", fas: 5 },
     ],
   },

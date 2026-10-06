@@ -302,3 +302,5 @@ table.enkel.tat td, table.enkel.tat th { padding: 5px 8px; font-size: 12.5px; }
 .uppgifter dt { color: var(--dampad); }
 .uppgifter dd { margin: 0; overflow-wrap: anywhere; }
 .infopanel .minilista li { display: grid; grid-template-columns: 96px 1fr; gap: 8px; font-size: 12.5px; }
+.ritningshuvud select { background: var(--yta); border: 1px solid var(--linje); border-radius: var(--r); padding: 5px 8px; min-width: 180px; }
+.ritningshuvud .liten { font-size: 12px; }

@@ -20,6 +20,8 @@ public class PvDbContext(DbContextOptions<PvDbContext> options) : DbContext(opti
     public DbSet<KomponentMall> Komponentmallar => Set<KomponentMall>();
     public DbSet<KontrollMall> Kontrollmallar => Set<KontrollMall>();
     public DbSet<Kontroll> Kontroller => Set<Kontroll>();
+    public DbSet<RitbordBild> RitbordBilder => Set<RitbordBild>();
+    public DbSet<RitbordInstallning> RitbordInstallningar => Set<RitbordInstallning>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -100,6 +102,15 @@ public class PvDbContext(DbContextOptions<PvDbContext> options) : DbContext(opti
         b.Entity<KomponentMall>(e => { e.ToTable("komponentmall"); e.HasKey(m => m.Id); });
         b.Entity<KontrollMall>(e => { e.ToTable("kontrollmall"); e.HasKey(m => m.Id); });
         b.Entity<Kontroll>(e => { e.ToTable("kontroll"); e.HasKey(k => k.Id); e.HasIndex(k => new { k.ProjektId, k.Typ }); });
+
+        b.Entity<RitbordBild>(e =>
+        {
+            e.ToTable("ritbord");
+            e.HasKey(r => r.Id);
+            e.HasIndex(r => r.ProjektId);
+            e.Property(r => r.Version).IsConcurrencyToken();
+        });
+        b.Entity<RitbordInstallning>(e => { e.ToTable("ritbord_installning"); e.HasKey(r => r.Id); e.Property(r => r.Id).ValueGeneratedNever(); });
 
         b.Entity<Ritning>(e =>
         {

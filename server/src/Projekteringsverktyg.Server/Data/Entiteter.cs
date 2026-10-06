@@ -223,3 +223,25 @@ public class Kontroll
     public DateTimeOffset Andrad { get; set; } = DateTimeOffset.UtcNow;
     public string AndradAv { get; set; } = "";
 }
+
+/// <summary>En bild i Ritbordet (SCADA-bakgrund/flödesbild). Data = redigerbart innehåll som JSON.</summary>
+public class RitbordBild
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid ProjektId { get; set; }
+    public string Namn { get; set; } = "";
+    public string Data { get; set; } = "";
+    public int Ordning { get; set; }
+    public int Version { get; set; } = 1;
+    public DateTimeOffset Andrad { get; set; } = DateTimeOffset.UtcNow;
+    public string AndradAv { get; set; } = "";
+}
+
+/// <summary>Ritbordets gemensamma inställningar (en rad, Id = 1).</summary>
+public class RitbordInstallning
+{
+    public int Id { get; set; } = 1;
+    public string Data { get; set; } = "";
+    public DateTimeOffset Andrad { get; set; } = DateTimeOffset.UtcNow;
+    public string AndradAv { get; set; } = "";
+}

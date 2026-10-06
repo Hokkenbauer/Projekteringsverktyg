@@ -10,6 +10,7 @@ import { AttGoraVy } from "../att-gora/AttGoraVy";
 import { ProjektfilerVy } from "../filer/ProjektfilerVy";
 import { ListVy, type VisadRad } from "../listor/ListVy";
 import { PlaceringsritningVy } from "../ritning/PlaceringsritningVy";
+import { RitbordVy } from "../ritning/RitbordVy";
 import { KomponenterVy } from "../komponenter/KomponenterVy";
 import { KomponentInfo } from "../komponenter/KomponentInfo";
 import { KontrollerVy, type Kontroll } from "../kontroller/KontrollerVy";
@@ -48,6 +49,7 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
   const [filVersion, setFilVersion] = useState(0);
   const [ritningVersion, setRitningVersion] = useState(0);
   const [kontrollVersion, setKontrollVersion] = useState(0);
+  const [ritbordVersion, setRitbordVersion] = useState(0);
   const [infoId, setInfoId] = useState<string | null>(null);
   const [fokus, setFokus] = useState<{ flik: string; id: string } | null>(null);
   const [ritningFokus, setRitningFokus] = useState<string | null>(null);
@@ -174,6 +176,8 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
       if (h.avId !== mig.id) setTexter((t) => ({ ...t, [nyckel]: h.rad as Anteckningar }));
     } else if (h.lista === "kontroller") {
       if (h.avId !== mig.id) setKontrollVersion((v) => v + 1);
+    } else if (h.lista === "ritbord") {
+      if (h.avId !== mig.id) setRitbordVersion((v) => v + 1);
     } else if (h.lista === "ritning") {
       if (h.avId !== mig.id) setRitningVersion((v) => v + 1);
     } else if (h.lista === "filer") {
@@ -537,6 +541,13 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
               if (def) await andraLista(def, { id: komponentId } as VisadRad, falt, varde);
             }}
             visaMeddelande={visaMeddelande}
+          />
+        )}
+        {flik === "ritbord" && (
+          <RitbordVy
+            projektId={projektId} projekt={projekt} lasläge={!skrivbar}
+            kanInstallningar={!!mig.rattigheter.hanteraMallar}
+            uppdaterad={ritbordVersion} visaMeddelande={visaMeddelande}
           />
         )}
         {flik === "projektfiler" && <ProjektfilerVy projektId={projektId} lasläge={!skrivbar} uppdaterad={filVersion} visaMeddelande={visaMeddelande} />}

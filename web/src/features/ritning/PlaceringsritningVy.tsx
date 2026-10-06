@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api, ApiFel, hamtaBinar, skicka } from "../../lib/api";
+import { temaForVerktyg as tema } from "./tema";
 import type { Kataloger, Komponent, ListRad, Projekt, ProjektFil } from "../../lib/typer";
 
 type Ritning = { data: string | null; version: number; andrad: string | null; andradAv: string };
@@ -26,16 +27,6 @@ type Verktyg = Window & {
   pvVisaKomponent?: (id: string) => Promise<boolean>;
 };
 
-/** Webbappens aktuella färger, så att ritverktyget får samma tema. */
-function tema(): Record<string, string | boolean> {
-  const st = getComputedStyle(document.documentElement);
-  const v = (n: string) => st.getPropertyValue(n).trim();
-  return {
-    bg: v("--bg"), yta: v("--yta"), yta2: v("--yta-2"), linje: v("--linje"), text: v("--text"), dampad: v("--dampad"),
-    accent: v("--accent"), accentText: v("--accent-text"), fara: v("--fara"), varning: v("--varning"), klar: v("--ok"),
-    sans: v("--font"), mono: v("--font-mono"), ljust: st.colorScheme !== "dark",
-  };
-}
 
 type Props = {
   projektId: string;

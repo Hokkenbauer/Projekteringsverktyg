@@ -1,0 +1,2865 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ritbord</title>
+<script src="../ritning/lib/jspdf.umd.min.js"></script>
+<script src="../ritning/lib/svg2pdf.umd.min.js"></script>
+<script src="../ritning/lib/pdf.min.js"></script>
+<style>
+  :root{
+    --bg:#0f1419; --panel:#161e25; --panel-2:#1c262e; --line:#25333c;
+    --ink:#d8e3e9; --muted:#7d93a0; --signal:#ffb020; --select:#2fd4e6;
+    --canvas:var(--canvas);
+    --tint:color-mix(in srgb, var(--signal) 14%, transparent);
+    --tintline:color-mix(in srgb, var(--signal) 55%, var(--line));
+    --hover:color-mix(in srgb, var(--ink) 8%, var(--panel-2));
+    --hoverline:color-mix(in srgb, var(--ink) 22%, var(--line));
+    --seltint:color-mix(in srgb, var(--select) 16%, transparent);
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:13px;overflow:hidden}
+  button,select,input,textarea{font-family:inherit;font-size:inherit;color:inherit}
+
+  header{height:46px;display:flex;align-items:center;gap:10px;padding:0 14px;
+         background:var(--panel);border-bottom:1px solid var(--line)}
+  .brand{font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;
+         color:var(--muted);display:flex;align-items:center;gap:9px;white-space:nowrap}
+  .brand b{color:var(--ink);font-weight:600;letter-spacing:.08em}
+  .led{width:7px;height:7px;border-radius:50%;background:var(--signal);box-shadow:0 0 8px var(--signal)}
+  .spacer{flex:1}
+  .rbstatus{font-size:11px;color:var(--muted);min-width:70px}
+
+  .btn{background:var(--panel-2);border:1px solid var(--line);padding:7px 12px;border-radius:4px;
+       cursor:pointer;transition:border-color .12s,background .12s;white-space:nowrap}
+  .btn:hover{border-color:var(--hoverline);background:var(--hover)}
+  .btn:focus-visible{outline:2px solid var(--select);outline-offset:2px}
+  .btn:disabled{opacity:.4;cursor:default}
+  .btn.primary{border-color:var(--tintline);background:var(--tint);color:var(--signal)}
+  .btn.primary:hover{background:color-mix(in srgb, var(--signal) 22%, transparent)}
+  .btn.ghost{background:transparent}
+  .btn.sm{padding:4px 8px;font-size:11px}
+  .btn.wide{width:100%;text-align:left;display:flex;align-items:center;gap:8px}
+  .btn.wide::after{content:"›";margin-left:auto;color:var(--muted)}
+
+  .bar{height:44px;display:flex;align-items:center;padding:0 4px;background:var(--panel-2);
+       border-bottom:1px solid var(--line);overflow-x:auto;white-space:nowrap}
+  .grp{display:flex;align-items:center;gap:7px;padding:0 14px;height:100%;flex:none;
+       border-right:1px solid var(--line)}
+  .grp:last-child{border-right:none}
+  .bar .lbl{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+  .bar input[type=number]{width:62px;padding:4px 6px}
+  .bar select{width:auto;padding:4px 6px}
+  .bar input[type=color]{width:34px;height:24px}
+  .bar input[type=range]{width:74px}
+  .bar .lbl#gridOpVal{width:34px;text-align:right}
+  .chk{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--ink);cursor:pointer}
+  .app{display:flex;height:calc(100% - 46px - 44px - 28px)}
+  aside{width:222px;flex:none;background:var(--panel);border-right:1px solid var(--line);
+        overflow-y:auto;padding-bottom:24px}
+  aside.right{border-right:none;border-left:1px solid var(--line);width:248px}
+  .sec{border-bottom:1px solid var(--line);padding:12px}
+  .sec h2{margin:0 0 10px;font-family:var(--mono);font-size:10px;letter-spacing:.16em;
+          text-transform:uppercase;color:var(--muted);font-weight:500;display:flex;align-items:center;gap:8px}
+  .sec h2 .tag{margin-left:auto;color:var(--signal);letter-spacing:.04em;text-transform:none;
+               font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:110px}
+
+  .tools{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+  .tool{position:relative;aspect-ratio:1;display:flex;flex-direction:column;align-items:center;
+        justify-content:center;gap:3px;background:var(--panel-2);border:1px solid var(--line);
+        border-radius:4px;cursor:pointer;color:var(--muted);font-size:9px}
+  .tool svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.6}
+  .tool:hover{color:var(--ink);border-color:var(--hoverline)}
+  .tool[aria-pressed="true"]{color:var(--signal);border-color:var(--tintline);background:var(--tint)}
+  .tool[aria-pressed="true"]::after{content:"";position:absolute;top:5px;right:5px;width:5px;height:5px;
+        border-radius:50%;background:var(--signal);box-shadow:0 0 6px var(--signal)}
+
+  .presets{display:flex;flex-direction:column;gap:3px}
+  .preset{display:flex;align-items:center;gap:8px;background:transparent;border:1px solid transparent;
+          border-radius:4px;padding:5px 6px;cursor:pointer;text-align:left}
+  .preset:hover{background:var(--panel-2);border-color:var(--line)}
+  .preset[aria-pressed="true"]{border-color:var(--signal);background:var(--tint)}
+  .preset i{display:block;width:34px;flex:none;border-radius:2px}
+  .preset span{font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+  .recent{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-top:8px}
+  .chip{background:#f5f7f5;border:1px solid var(--line);border-radius:4px;padding:3px;cursor:pointer;display:block}
+  .chip svg{display:block;width:100%;height:34px}
+  .chip:hover{border-color:var(--signal)}
+
+  .row{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+  .row label{flex:1;color:var(--muted);font-size:11px}
+  input[type=color]{width:42px;height:26px;padding:0;border:1px solid var(--line);border-radius:4px;
+        background:var(--panel-2);cursor:pointer}
+  input[type=number],input[type=text],select,textarea{background:var(--panel-2);border:1px solid var(--line);
+        border-radius:4px;padding:5px 7px;font-family:var(--mono)}
+  input[type=number],input[type=text],select{width:80px}
+  input.wide,select.wide,textarea{width:100%}
+  textarea{font-size:11px;line-height:1.5;resize:vertical}
+  input[type=range]{width:96px;accent-color:var(--signal);background:transparent;border:none;padding:0}
+  .fld2{margin-bottom:8px}
+  .fld2 label{display:block;color:var(--muted);font-size:11px;margin-bottom:3px}
+  .swatches{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+  .sw{width:20px;height:20px;border-radius:3px;border:1px solid #ffffff22;cursor:pointer;padding:0}
+  .sw[aria-pressed="true"]{outline:2px solid var(--signal);outline-offset:1px}
+  .stack{display:flex;gap:6px}
+  .stack .btn{flex:1;text-align:center;padding:6px 4px;font-size:11px}
+  .hint{color:var(--muted);font-size:11px;line-height:1.55;margin:0}
+
+  .list{max-height:200px;overflow-y:auto;margin:-4px -4px 0}
+  .li{display:flex;align-items:center;gap:5px;width:100%;background:transparent;border:1px solid transparent;
+      border-radius:4px;padding:5px 6px;cursor:pointer;text-align:left}
+  .li:hover{background:var(--panel-2);border-color:var(--line)}
+  .li[aria-selected="true"]{border-color:var(--select);background:var(--seltint)}
+  .li[data-active="true"]{border-color:var(--signal);background:var(--tint)}
+  .li .nm{flex:1;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+          background:none;border:none;padding:0;text-align:left;cursor:pointer;color:inherit}
+  .li .ic{flex:none;width:19px;height:20px;border:none;background:transparent;border-radius:3px;
+          cursor:pointer;color:var(--muted);font-size:10px;line-height:1;padding:0}
+  .li .ic:hover:not(:disabled){background:var(--hover);color:var(--ink)}
+  .li .ic:disabled{cursor:default}
+  .li .ic.off{opacity:.35}
+
+  .gutter{width:5px;flex:none;cursor:col-resize;background:var(--line);
+          transition:background .12s;touch-action:none}
+  .gutter:hover,.gutter.on{background:var(--signal)}
+  main{flex:1;position:relative;background:var(--canvas);overflow:hidden;min-width:200px}
+  #board{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:crosshair;display:block}
+  #board.selecting{cursor:default}
+  #board.panning{cursor:grabbing}
+  .handle{fill:#fff;stroke:var(--select);stroke-width:1.5;vector-effect:non-scaling-stroke}
+  .handle.rot{fill:var(--signal);stroke:var(--tintline);cursor:grab}
+  .rotstem{stroke:var(--select);stroke-width:1;vector-effect:non-scaling-stroke;pointer-events:none}
+  .selbox{fill:none;stroke:var(--select);stroke-width:1.4;stroke-dasharray:5 4;
+          vector-effect:non-scaling-stroke;pointer-events:none}
+  .selitem{fill:none;stroke:var(--select);stroke-width:1;opacity:.55;
+           vector-effect:non-scaling-stroke;pointer-events:none}
+  .marquee{fill:color-mix(in srgb, var(--select) 10%, transparent);stroke:var(--select);stroke-width:1;stroke-dasharray:4 3;
+           vector-effect:non-scaling-stroke;pointer-events:none}
+  .subbox{fill:none;stroke:var(--signal);stroke-width:1.3;stroke-dasharray:4 3;
+          vector-effect:non-scaling-stroke;pointer-events:none}
+  #cross{pointer-events:none}
+  #cross line{stroke-width:1;opacity:.85;vector-effect:non-scaling-stroke}
+  #cross rect{fill:none;stroke-width:1.2;vector-effect:non-scaling-stroke}
+  #overlay{pointer-events:none}
+  #overlay .handle{pointer-events:all;cursor:pointer}
+  [data-hidden]{display:none}
+
+  footer{height:28px;display:flex;align-items:center;gap:16px;padding:0 14px;background:var(--panel);
+         border-top:1px solid var(--line);font-family:var(--mono);font-size:11px;color:var(--muted);
+         letter-spacing:.06em}
+  footer b{color:var(--ink);font-weight:500}
+  .zoomctl{display:flex;align-items:center;gap:4px;margin-left:auto}
+  .zoomctl button{background:var(--panel-2);border:1px solid var(--line);border-radius:3px;
+        width:24px;height:20px;cursor:pointer;line-height:1}
+  .zoomctl button.txt{width:auto;padding:0 8px}
+
+  .modal{position:fixed;inset:0;background:rgba(6,10,13,.74);z-index:20;
+         display:flex;align-items:center;justify-content:center;padding:22px}
+  .modal[hidden]{display:none}
+  .dialog{width:min(920px,100%);height:min(660px,100%);background:var(--panel);border:1px solid var(--line);
+          border-radius:8px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 70px #000a}
+  .dialog>header{border-bottom:1px solid var(--line);background:var(--panel-2);height:auto;
+                 display:flex;align-items:center;gap:12px;padding:12px 14px}
+  .dialog h3{margin:0;font-size:14px;font-weight:600}
+  .libbody{flex:1;display:flex;min-height:0}
+  .cats{width:190px;flex:none;border-right:1px solid var(--line);overflow-y:auto;padding:8px}
+  .cats button{display:block;width:100%;text-align:left;background:transparent;border:none;
+        padding:8px 10px;border-radius:4px;cursor:pointer;color:var(--muted);font-size:12px}
+  .cats button:hover{background:var(--panel-2);color:var(--ink)}
+  .cats button[aria-pressed="true"]{background:var(--tint);color:var(--signal)}
+  .items{flex:1;overflow-y:auto;padding:14px;display:grid;
+         grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:10px;align-content:start}
+  .items.tpl{grid-template-columns:repeat(auto-fill,minmax(210px,1fr))}
+  .card{background:#f5f7f5;border:1px solid var(--line);border-radius:5px;padding:6px;cursor:pointer}
+  .card svg{display:block;width:100%;height:74px}
+  .items.tpl .card svg{height:118px}
+  .card span{display:block;text-align:center;font-size:10px;color:#42525b;font-family:var(--mono);
+        margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .card:hover{border-color:var(--signal)}
+  .searchbar{width:200px}
+
+  /* inställningar */
+  .tabs{display:flex;gap:4px}
+  .tabs button{background:transparent;border:1px solid transparent;border-radius:4px;padding:6px 11px;
+        cursor:pointer;color:var(--muted);font-size:12px}
+  .tabs button:hover{color:var(--ink);background:var(--panel)}
+  .tabs button[aria-pressed="true"]{color:var(--signal);border-color:var(--tintline);background:var(--tint)}
+  .setbody{flex:1;display:flex;min-height:0}
+  .setside{width:230px;flex:none;border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+  .setside .grow{flex:1;overflow-y:auto;padding:8px}
+  .setside .foot{border-top:1px solid var(--line);padding:8px;display:flex;gap:6px}
+  .setside .foot .btn{flex:1;text-align:center}
+  .setmain{flex:1;overflow-y:auto;padding:16px}
+  .setmain h4{margin:0 0 4px;font-size:13px}
+  .setmain .sub{color:var(--muted);font-size:11px;margin:0 0 14px;line-height:1.5}
+  .lrow{display:grid;grid-template-columns:1fr 44px 58px 92px 96px 26px;gap:7px;align-items:center;margin-bottom:6px}
+  .lrow input[type=text]{width:100%}
+  .lrow input[type=number]{width:100%}
+  .lrow select{width:100%}
+  .lhead{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+  .xbtn{background:transparent;border:none;color:var(--muted);cursor:pointer;border-radius:3px;height:24px}
+  .xbtn:hover{background:#3a2020;color:#ff8a80}
+  .editgrid{display:grid;grid-template-columns:200px 1fr;gap:18px}
+  .prev{background:#f5f7f5;border:1px solid var(--line);border-radius:6px;padding:8px}
+  .prev svg{display:block;width:100%;height:170px}
+  .fld{margin-bottom:10px}
+  .fld label{display:block;color:var(--muted);font-size:11px;margin-bottom:4px}
+  .setlist button.entry{display:flex;align-items:center;gap:8px;width:100%;background:transparent;
+        border:1px solid transparent;border-radius:4px;padding:6px;cursor:pointer;text-align:left;margin-bottom:2px}
+  .setlist button.entry:hover{background:var(--panel-2);border-color:var(--line)}
+  .setlist button.entry[aria-pressed="true"]{border-color:var(--select);background:var(--seltint)}
+  .setlist .thumb{width:34px;height:34px;flex:none;background:#f5f7f5;border-radius:3px;padding:2px}
+  .setlist .thumb svg{display:block;width:100%;height:100%}
+  .setlist .t{font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .setlist .t small{display:block;color:var(--muted);font-size:10px}
+
+  .togglebtn{display:none}
+  @media(max-width:900px){
+    aside{position:absolute;top:46px;bottom:28px;z-index:5;transform:translateX(-100%);transition:transform .2s}
+    aside.right{right:0;transform:translateX(100%)}
+    aside.open{transform:none}
+    .togglebtn{display:inline-block}
+    .gutter{display:none}
+    .cats,.setside{width:132px}
+    .editgrid{grid-template-columns:1fr}
+  }
+  @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<header>
+  <span id="rbSparstatus" class="rbstatus"></span>
+  <button class="btn ghost togglebtn" id="tglLeft">Verktyg</button>
+  <div class="spacer"></div>
+  <button class="btn ghost" id="btnSettings">Inställningar</button>
+  <button class="btn ghost" id="btnImport">Öppna SVG</button>
+  <button class="btn ghost" id="btnImage">Bild / PDF</button>
+  <button class="btn ghost" id="btnClear">Rensa</button>
+  <button class="btn" id="btnSvg">Spara SVG</button>
+  <button class="btn primary" id="btnPdf">Spara PDF</button>
+  <button class="btn ghost togglebtn" id="tglRight">Panel</button>
+  <input type="file" id="fileIn" accept=".svg,image/svg+xml" hidden>
+  <input type="file" id="fileCfg" accept=".json,application/json" hidden>
+  <input type="file" id="fileLib" accept=".svg,image/svg+xml" hidden>
+  <input type="file" id="fileImg" accept="image/png,image/jpeg,image/webp,.pdf,application/pdf" hidden>
+</header>
+
+<div class="bar">
+  <div class="grp"><span class="lbl">Sida</span>
+    <input type="number" id="docW" value="1920" min="100" max="10000" step="10">
+    <span class="lbl">×</span>
+    <input type="number" id="docH" value="1080" min="100" max="10000" step="10">
+    <select id="docPreset">
+      <option value="">Egen…</option>
+      <option value="1920x1080">1920 × 1080</option>
+      <option value="1280x1024">1280 × 1024</option>
+      <option value="1366x768">1366 × 768</option>
+      <option value="2560x1440">2560 × 1440</option>
+      <option value="1024x768">1024 × 768</option>
+      <option value="1123x794">A4 liggande</option>
+    </select></div>
+
+  <div class="grp"><label class="chk"><input type="checkbox" id="showCross" checked> Hårkors</label>
+    <input type="color" id="crossCol" title="Hårkorsets färg">
+    <span class="swatches" id="crossSw" style="margin:0"></span></div>
+
+  <div class="grp"><label class="chk"><input type="checkbox" id="snapOn" checked> Snap</label>
+    <input type="number" id="snapStepIn" min="0.5" max="500" step="0.5" title="Snapsteg i pixlar">
+    <span class="lbl">px</span></div>
+
+  <div class="grp"><span class="lbl">Bakgrund</span><span class="swatches" id="paperSw" style="margin:0"></span></div>
+
+  <div class="grp"><label class="chk"><input type="checkbox" id="showGrid" checked> Rutnät</label>
+    <span class="swatches" id="gridSw" style="margin:0"></span>
+    <input type="range" id="gridOp" min="5" max="100" step="5" value="100" title="Rutnätets styrka">
+    <span class="lbl" id="gridOpVal">100%</span></div>
+
+  <div class="grp"><span class="lbl">Rotera</span>
+    <button class="btn sm" id="rotL" title="Moturs (Ctrl+Shift+R)">&#8634;</button>
+    <select id="rotStep" title="Grader per knapptryck">
+      <option value="5">5°</option><option value="15">15°</option><option value="30">30°</option>
+      <option value="45">45°</option><option value="90" selected>90°</option><option value="180">180°</option>
+    </select>
+    <button class="btn sm" id="rotR" title="Medurs (Ctrl+R)">&#8635;</button></div>
+
+  <div class="grp"><span class="lbl">Rutor</span>
+    <input type="number" id="gridCount" min="2" max="600" step="1" title="Antal rutor på bredden">
+    <span class="lbl">à</span>
+    <input type="number" id="gridSize" value="20" min="2" max="200" step="1" title="Rutstorlek i pixlar">
+    <span class="lbl">px</span></div>
+</div>
+
+<div class="app">
+  <aside id="left">
+    <div class="sec">
+      <h2>Verktyg</h2>
+      <div class="tools" id="tools"></div>
+      <p class="hint" style="margin-top:8px">Verktyget är kvar tills du trycker Esc. Dra med pilen på tom yta för att markera flera.</p>
+    </div>
+
+    <div class="sec">
+      <h2>Linjetyper <span class="tag" id="stdTag">—</span></h2>
+      <div class="presets" id="presets"></div>
+    </div>
+
+    <div class="sec">
+      <h2>Bibliotek</h2>
+      <button class="btn wide" id="btnSymLib">Symboler</button>
+      <div class="recent" id="recent"></div>
+      <button class="btn wide" id="btnTplLib" style="margin-top:10px">Mallar</button>
+    </div>
+  </aside>
+
+  <div class="gutter" id="gutL" title="Dra för att ändra bredd"></div>
+
+  <main>
+    <svg id="board" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <pattern id="gridpat" width="20" height="20" patternUnits="userSpaceOnUse">
+          <path d="M20 0H0V20" fill="none" stroke="#d3ddd9" stroke-width="1"/>
+        </pattern>
+        <pattern id="gridpat10" width="100" height="100" patternUnits="userSpaceOnUse">
+          <rect width="100" height="100" fill="url(#gridpat)"/>
+          <path d="M100 0H0V100" fill="none" stroke="#b3c3be" stroke-width="1"/>
+        </pattern>
+      </defs>
+      <rect id="paper" x="0" y="0" fill="#f5f7f5" stroke="#000" stroke-width="1" vector-effect="non-scaling-stroke"/>
+      <rect id="gridbg" x="0" y="0" fill="url(#gridpat10)"/>
+      <g id="stage"></g>
+      <g id="overlay"></g>
+      <g id="cross"></g>
+    </svg>
+  </main>
+
+  <div class="gutter" id="gutR" title="Dra för att ändra bredd"></div>
+
+  <aside class="right" id="right">
+    <div class="sec">
+      <h2>Markerat</h2>
+      <div id="selInfo" class="hint">Inget markerat.</div>
+      <div class="stack" style="margin-top:10px">
+        <button class="btn" id="btnGroup">Gruppera</button>
+        <button class="btn" id="btnUngroup">Dela upp</button>
+        <button class="btn" id="btnExplode">Dela helt</button>
+      </div>
+      <div class="stack" style="margin-top:6px">
+        <button class="btn" id="btnFront">Fram</button>
+        <button class="btn" id="btnBack">Bak</button>
+        <button class="btn" id="btnDup">Kopiera</button>
+      </div>
+      <div class="stack" style="margin-top:6px">
+        <button class="btn" id="btnDel">Ta bort</button>
+        <button class="btn" id="btnUndo">Ångra</button>
+        <button class="btn" id="btnRedo">Gör om</button>
+      </div>
+      <div class="stack" style="margin-top:6px">
+        <button class="btn" id="btnLink">Koppla text</button>
+        <button class="btn" id="btnUnlink">Koppla loss</button>
+      </div>
+      <div class="stack" style="margin-top:6px">
+        <button class="btn" id="btnMakeSym">Spara som symbol</button>
+        <button class="btn" id="btnMakeTpl">Spara som mall</button>
+      </div>
+      <div class="row" style="margin:10px 0 0"><label for="moveTo">Flytta till lager</label>
+        <select id="moveTo" style="width:110px"></select></div>
+    </div>
+
+    <div class="sec">
+      <h2>Lager</h2>
+      <div class="list" id="layerList"></div>
+      <div class="stack" style="margin-top:8px">
+        <button class="btn" id="btnNewLayer">Nytt lager</button>
+        <button class="btn" id="btnRenameLayer">Byt namn</button>
+      </div>
+      <div class="row" style="margin:10px 0 0"><label for="layOp">Opacitet <b id="layOpVal" style="color:var(--ink)">100%</b></label>
+        <input type="range" id="layOp" min="0" max="100" step="5" value="100"></div>
+      <div class="row" style="margin-bottom:0"><label for="layNoExp">Endast vy, ej export</label>
+        <input type="checkbox" id="layNoExp"></div>
+    </div>
+
+    <div class="sec">
+      <h2>Objekt <span class="tag" id="layerTag"></span></h2>
+      <div class="list" id="objList"></div>
+    </div>
+
+    <div class="sec" id="secLook">
+      <h2>Utseende <span class="tag" id="lookTag"></span></h2>
+      <div class="row" id="rowStroke"><label for="strokeCol">Linjefärg</label><input type="color" id="strokeCol" value="#000000"></div>
+      <div class="row" id="rowFillCol"><label for="fillCol">Fyllning</label><input type="color" id="fillCol" value="#8fb3c4"></div>
+      <div class="row" id="rowFillOn"><label for="fillOn">Fyll objektet</label><input type="checkbox" id="fillOn"></div>
+      <div class="row" id="rowFillOp"><label for="fillOp">Täckning <b id="fillOpVal" style="color:var(--ink)">100%</b></label>
+        <input type="range" id="fillOp" min="0" max="100" step="5" value="100"></div>
+      <div class="row" id="rowStrokeW"><label for="strokeW">Tjocklek</label><input type="number" id="strokeW" value="2" min="0.5" max="40" step="0.5"></div>
+      <div class="row" id="rowCorner"><label for="cornerR">Hörnradie (px)</label><input type="number" id="cornerR" value="0" min="0" max="400" step="1"></div>
+      <div class="row" id="rowDash"><label for="dashed">Streckad</label><input type="checkbox" id="dashed"></div>
+      <div class="swatches" id="swatches"></div>
+    </div>
+
+    <div class="sec" id="secText">
+      <h2>Text</h2>
+      <div class="row"><textarea id="textVal" class="wide" rows="2" placeholder="Skriv text — Enter ger ny rad"></textarea></div>
+      <div class="row"><label for="fontFam">Typsnitt</label>
+        <select id="fontFam" style="width:132px">
+          <option value="Helvetica, Arial, sans-serif">Helvetica / Arial</option>
+          <option value="Segoe UI, sans-serif">Segoe UI</option>
+          <option value="Verdana, sans-serif">Verdana</option>
+          <option value="Tahoma, sans-serif">Tahoma</option>
+          <option value="Times New Roman, serif">Times New Roman</option>
+          <option value="Courier New, monospace">Courier New</option>
+        </select></div>
+      <div class="row"><label for="fontSize">Storlek</label><input type="number" id="fontSize" value="18" min="6" max="400" step="1"></div>
+      <div class="row"><label for="textAnchor">Justering</label>
+        <select id="textAnchor" style="width:110px">
+          <option value="start">Vänster</option>
+          <option value="middle">Centrerad</option>
+          <option value="end">Höger</option>
+        </select></div>
+      <div class="row"><label for="fontWeight">Fetstil</label><input type="checkbox" id="fontWeight"></div>
+      <div class="row" style="margin-bottom:0"><label for="fontItalic">Kursiv</label><input type="checkbox" id="fontItalic"></div>
+    </div>
+
+    <div class="sec" id="secMeta">
+      <h2>Klass &amp; id</h2>
+      <div class="fld2"><label for="objClass">CSS-klass(er)</label>
+        <input type="text" id="objClass" class="wide" placeholder="pump status-drift" disabled></div>
+      <div class="fld2"><label for="objId">Id</label>
+        <input type="text" id="objId" class="wide" placeholder="LB01_TF01" disabled></div>
+      <div class="fld2"><label for="objStyle">Egen stil</label>
+        <input type="text" id="objStyle" class="wide" placeholder="fill:#eee;stroke-width:3" disabled></div>
+      <p class="hint">Följer med i den sparade SVG:n så att SCADA-systemet kan styra objektet.
+      Stilmallen som definierar klasserna redigeras under Inställningar → Ritning.</p>
+    </div>
+
+    <div class="sec">
+      <h2>Fil</h2>
+      <div class="row"><label for="baseName">Filnamn</label><input type="text" id="baseName" value="bakgrund" style="width:110px"></div>
+      <div class="row" style="margin-bottom:0"><label for="importMode">Vid import av SVG</label>
+        <select id="importMode" style="width:120px">
+          <option value="one">Ett objekt</option>
+          <option value="groups" selected>Dela i grupper</option>
+          <option value="full">Dela helt</option>
+        </select></div>
+      <p class="hint" style="margin-top:9px">"Dela i grupper" behåller varje symbol hel men gör den till
+      ett eget objekt. Inkscape-lager blir lager här.<br>Sparas som <b id="fnPrev">bakgrund.svg</b></p>
+    </div>
+
+    <div class="sec">
+      <h2>Kortkommandon</h2>
+      <p class="hint">
+        V pil · L linje · R rektangel · C cirkel · T text<br>
+        Dra på tom yta markerar flera · Shift+klick lägger till<br>
+        Ctrl+G gruppera · Ctrl+Shift+G dela upp · Ctrl+A allt<br>
+        Ctrl+Z ångra · Ctrl+D kopiera · Delete tar bort<br>
+        Page Up / Page Down flyttar fram och bak, med Shift hela vägen<br>
+        Ctrl+R roterar ett steg, Ctrl+Shift+R åt andra hållet<br>
+        Dra i det gula handtaget för fri rotation, Shift ger 1°-steg<br>
+        Scroll zoomar vid pekaren · Mellanslag panorerar
+      </p>
+    </div>
+  </aside>
+</div>
+
+<footer>
+  <span>X <b id="rdX">0</b></span>
+  <span>Y <b id="rdY">0</b></span>
+  <span>RUTA <b id="rdG">20</b></span>
+  <span>SNAP <b id="rdS">20</b></span>
+  <span>OBJEKT <b id="rdN">0</b></span>
+  <span id="rdLen"></span>
+  <span id="rdMsg"></span>
+  <div class="zoomctl">
+    <button id="zOut" title="Zooma ut">−</button>
+    <button class="txt" id="zFit" title="Anpassa till fönster"><span id="zLabel">100%</span></button>
+    <button id="zIn" title="Zooma in">+</button>
+  </div>
+</footer>
+
+<!-- bibliotek -->
+<div class="modal" id="lib" hidden>
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="libTitle">
+    <header>
+      <h3 id="libTitle">Symbolbibliotek</h3>
+      <div class="spacer"></div>
+      <input type="text" id="libSearch" class="searchbar" placeholder="Sök…">
+      <button class="btn ghost sm" id="libEdit">Redigera…</button>
+      <button class="btn ghost" id="libClose">Stäng</button>
+    </header>
+    <div class="libbody">
+      <nav class="cats" id="libCats"></nav>
+      <div class="items" id="libItems"></div>
+    </div>
+  </div>
+</div>
+
+<!-- inställningar -->
+<div class="modal" id="settings" hidden>
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="setTitle" style="width:min(1020px,100%)">
+    <header>
+      <h3 id="setTitle">Inställningar</h3>
+      <div class="tabs" id="setTabs"></div>
+      <div class="spacer"></div>
+      <button class="btn ghost" id="setClose">Stäng</button>
+    </header>
+    <div class="setbody">
+      <div class="setside" id="setSide">
+        <div class="grow setlist" id="setList"></div>
+        <div class="foot" id="setFoot"></div>
+      </div>
+      <div class="setmain" id="setMain"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+const NS = "http://www.w3.org/2000/svg";
+const $ = id => document.getElementById(id);
+const board = $('board'), stage = $('stage'), overlay = $('overlay');
+
+let doc = { w:1920, h:1080 };
+let view = { x:0, y:0, w:1920, h:1080 };
+let tool = 'select', selection = [], pendingSymbol = null, activePreset = null;
+let draft = null, dragMode = null, dragStart = null, dragOrigs = null, dragNodes = null, panStart = null, marquee = null;
+let spaceDown = false, idCounter = 0, activeLayerId = null, subSel = null, subOrig = null;
+const undoStack = [], redoStack = [], recent = [];
+
+/* ================================================================
+   BIBLIOTEKENS GRUNDINNEHÅLL
+   ================================================================ */
+const S  = 'stroke="#1b2a33" stroke-width="2" fill="none"';
+const SF = 'stroke="#1b2a33" stroke-width="2" fill="#ffffff"';
+const TX = (x,y,t,s=18) => `<text x="${x}" y="${y}" text-anchor="middle" font-size="${s}" font-family="Helvetica" fill="#1b2a33">${t}</text>`;
+const L  = 'stroke="#1b2a33" fill="none"';
+const kanal = (d,c,w=6) => `<path d="${d}" stroke="${c}" stroke-width="${w}" fill="none"/>`;
+
+const BASE_SYMBOLS = [
+  { cat:'Ventilation', id:'flakt', name:'Fläkt', svg:`<circle cx="30" cy="30" r="22" ${SF}/><path d="M30 30l16-11M30 30L14 19M30 30v22" ${S}/>` },
+  { cat:'Ventilation', id:'filter', name:'Filter', svg:`<rect x="10" y="8" width="40" height="44" ${SF}/><path d="M10 20l40-10M10 34l40-10M10 48l40-10" ${S}/>` },
+  { cat:'Ventilation', id:'varmebatteri', name:'Värmebatteri', svg:`<rect x="8" y="14" width="44" height="32" stroke="#c8102e" stroke-width="2" fill="#ffffff"/><path d="M14 46l10-32 12 32 10-32" stroke="#c8102e" stroke-width="2" fill="none"/>` },
+  { cat:'Ventilation', id:'kylbatteri', name:'Kylbatteri', svg:`<rect x="8" y="14" width="44" height="32" stroke="#0072bc" stroke-width="2" fill="#ffffff"/><path d="M14 46l10-32 12 32 10-32" stroke="#0072bc" stroke-width="2" fill="none"/>` },
+  { cat:'Ventilation', id:'vvxrot', name:'Roterande VVX', svg:`<rect x="8" y="8" width="44" height="44" ${SF}/><circle cx="30" cy="30" r="16" ${S}/><path d="M30 14v32" ${S}/>` },
+  { cat:'Ventilation', id:'vvxplat', name:'Plattvärmeväxlare', svg:`<rect x="8" y="8" width="44" height="44" ${SF}/><path d="M8 8l44 44M52 8L8 52" ${S}/>` },
+  { cat:'Ventilation', id:'spjall', name:'Spjäll', svg:`<rect x="8" y="14" width="44" height="32" ${SF}/><path d="M16 44l28-28" ${S}/>` },
+  { cat:'Ventilation', id:'ljuddampare', name:'Ljuddämpare', svg:`<rect x="6" y="16" width="48" height="28" ${SF}/><path d="M14 16v28M22 16v28M38 16v28M46 16v28" stroke="#1b2a33" stroke-width="1.5"/>` },
+  { cat:'Ventilation', id:'don', name:'Tilluftsdon', svg:`<rect x="10" y="18" width="40" height="24" ${SF}/><path d="M10 24h40M10 30h40M10 36h40" stroke="#1b2a33" stroke-width="1.5"/>` },
+  { cat:'Ventilation', id:'takhuv', name:'Takhuv', svg:`<path d="M8 34c0-12 10-20 22-20s22 8 22 20z" ${SF}/><path d="M4 34h52M22 34v18M38 34v18" ${S}/>` },
+  { cat:'Ventilation', id:'aggregat', name:'LB-aggregat', svg:`<rect x="4" y="12" width="52" height="36" ${SF}/><path d="M20 12v36M38 12v36" ${S}/>` },
+  { cat:'Värmesystem', id:'radiator', name:'Radiator', svg:`<rect x="8" y="14" width="44" height="32" ${SF}/><path d="M17 14v32M26 14v32M34 14v32M43 14v32" stroke="#1b2a33" stroke-width="1.5"/>` },
+  { cat:'Värmesystem', id:'panna', name:'Panna', svg:`<rect x="10" y="8" width="40" height="44" rx="4" ${SF}/><path d="M30 44c-6-6 0-10 0-16 6 6 8 10 0 16z" stroke="#c8102e" stroke-width="2" fill="none"/>` },
+  { cat:'Värmesystem', id:'pump', name:'Cirkulationspump', svg:`<circle cx="30" cy="30" r="18" ${SF}/><path d="M22 20v20l18-10z" ${S}/><path d="M4 30h8M48 30h8" ${S}/>` },
+  { cat:'Värmesystem', id:'shunt', name:'Shuntventil', svg:`<path d="M8 14v32l22-16zM52 14v32L30 30z" ${SF}/><path d="M30 30v22M20 52h20" ${S}/>` },
+  { cat:'Värmesystem', id:'expansion', name:'Expansionskärl', svg:`<rect x="16" y="8" width="28" height="44" rx="14" ${SF}/><path d="M16 34h28" ${S}/>` },
+  { cat:'Värmesystem', id:'acktank', name:'Ackumulatortank', svg:`<rect x="14" y="6" width="32" height="48" rx="8" ${SF}/><path d="M20 20q10 6 20 0M20 32q10 6 20 0M20 44q10 6 20 0" ${S}/>` },
+  { cat:'Värmesystem', id:'fordelare', name:'Fördelare', svg:`<rect x="4" y="24" width="52" height="12" rx="6" ${SF}/><path d="M14 24v-12M26 24v-12M38 24v-12M50 24v-12" ${S}/>` },
+  { cat:'Kyla', id:'kylmaskin', name:'Kylmaskin', svg:`<rect x="8" y="10" width="44" height="40" rx="3" ${SF}/><path d="M30 18v24M20 24l20 12M40 24L20 36" stroke="#0072bc" stroke-width="2"/>` },
+  { cat:'Kyla', id:'kondensor', name:'Kondensor', svg:`<rect x="6" y="14" width="48" height="32" ${SF}/><circle cx="30" cy="30" r="11" ${S}/><path d="M30 30l8-6M30 30l-8-6M30 30v11" ${S}/>` },
+  { cat:'Kyla', id:'kylbaffel', name:'Kylbaffel', svg:`<rect x="6" y="20" width="48" height="20" rx="3" ${SF}/><path d="M14 40v10M26 40v10M38 40v10M50 40v10" stroke="#0072bc" stroke-width="2"/>` },
+  { cat:'Rör & ventiler', id:'ventil', name:'Avstängningsventil', svg:`<path d="M8 14v32l22-16zM52 14v32L30 30z" ${SF}/>` },
+  { cat:'Rör & ventiler', id:'backventil', name:'Backventil', svg:`<path d="M10 14v32l30-16z" ${SF}/><path d="M42 12v36" ${S}/>` },
+  { cat:'Rör & ventiler', id:'reglerventil', name:'Reglerventil', svg:`<path d="M8 22v24l22-12zM52 22v24L30 34z" ${SF}/><path d="M30 34V14M20 14h20" ${S}/>` },
+  { cat:'Rör & ventiler', id:'tkoppling', name:'T-koppling', svg:`<path d="M4 24h52M4 36h20M56 36H36M24 24v28M36 24v28" ${S}/>` },
+  { cat:'Rör & ventiler', id:'boj', name:'Böj 90°', svg:`<path d="M8 52V26a18 18 0 0118-18h26" ${S}/>` },
+  { cat:'Rör & ventiler', id:'smutsfilter', name:'Smutsfilter', svg:`<rect x="12" y="20" width="36" height="20" ${SF}/><path d="M12 20l36 20" ${S}/>` },
+  { cat:'Givare & el', id:'gt', name:'Temperaturgivare', svg:`<circle cx="30" cy="30" r="18" ${SF}/>${TX(30,37,'T')}` },
+  { cat:'Givare & el', id:'gp', name:'Tryckgivare', svg:`<circle cx="30" cy="30" r="18" ${SF}/>${TX(30,37,'P')}` },
+  { cat:'Givare & el', id:'gf', name:'Flödesgivare', svg:`<circle cx="30" cy="30" r="18" ${SF}/>${TX(30,37,'F')}` },
+  { cat:'Givare & el', id:'grh', name:'Fuktgivare', svg:`<circle cx="30" cy="30" r="18" ${SF}/>${TX(30,36,'RH',14)}` },
+  { cat:'Givare & el', id:'gco2', name:'CO2-givare', svg:`<circle cx="30" cy="30" r="18" ${SF}/>${TX(30,36,'CO2',12)}` },
+  { cat:'Givare & el', id:'motor', name:'Motor', svg:`<circle cx="30" cy="30" r="20" ${SF}/>${TX(30,38,'M',22)}` },
+  { cat:'Givare & el', id:'fo', name:'Frekvensomformare', svg:`<rect x="10" y="10" width="40" height="40" ${SF}/><path d="M20 40l8-20 4 20 8-20" ${S}/>` },
+  { cat:'Givare & el', id:'skap', name:'Apparatskåp', svg:`<rect x="10" y="6" width="40" height="48" ${SF}/><path d="M38 6v48" ${S}/><circle cx="34" cy="30" r="2" fill="#1b2a33"/>` },
+  { cat:'Givare & el', id:'larm', name:'Larm', svg:`<path d="M30 8l24 42H6z" stroke="#c8102e" stroke-width="2" fill="#ffffff"/><path d="M30 24v12M30 42v3" stroke="#c8102e" stroke-width="2"/>` },
+  { cat:'Övrigt', id:'pil', name:'Pil', svg:`<path d="M6 30h40M36 20l12 10-12 10" ${S}/>` },
+  { cat:'Övrigt', id:'tank', name:'Tank', svg:`<rect x="8" y="8" width="44" height="44" rx="6" ${SF}/><path d="M8 40h44" ${S}/>` },
+  { cat:'Övrigt', id:'ruta', name:'Textruta', svg:`<rect x="4" y="16" width="52" height="28" ${SF}/>` },
+  { cat:'Övrigt', id:'norr', name:'Norrpil', svg:`<path d="M30 6l10 40-10-10-10 10z" ${SF}/>${TX(30,58,'N',14)}` },
+];
+
+const BASE_TEMPLATES = [
+  { cat:'Luftbehandlingsaggregat', id:'tpl_lb1', name:'TA/FA med VVX', svg:
+    `<rect x="60" y="120" width="1080" height="560" stroke-width="3" ${L}/>
+     ${kanal('M60 260h1080','#2e9e4b')}${kanal('M60 520h1080','#f2c200')}
+     <rect x="300" y="210" width="120" height="100" ${SF}/><rect x="300" y="470" width="120" height="100" ${SF}/>
+     <rect x="520" y="210" width="140" height="360" ${SF}/>
+     <path d="M520 210l140 360M660 210L520 570" stroke="#1b2a33" stroke-width="2" fill="none"/>
+     <circle cx="860" cy="260" r="40" ${SF}/><circle cx="860" cy="520" r="40" ${SF}/>
+     <text x="80" y="240" font-size="20" font-family="Helvetica" fill="#1b2a33">Uteluft</text>
+     <text x="80" y="500" font-size="20" font-family="Helvetica" fill="#1b2a33">Frånluft</text>` },
+  { cat:'Luftbehandlingsaggregat', id:'tpl_lb2', name:'Enkelt frånluftssystem', svg:
+    `${kanal('M100 400h880','#f2c200')}
+     <circle cx="1000" cy="400" r="50" stroke="#1b2a33" stroke-width="3" fill="#ffffff"/>
+     <rect x="180" y="360" width="60" height="80" ${SF}/><rect x="480" y="360" width="60" height="80" ${SF}/>` },
+  { cat:'Värmesystem', id:'tpl_v1', name:'Panna och shunt', svg:
+    `<rect x="120" y="380" width="240" height="260" rx="8" stroke-width="3" ${L}/>
+     ${kanal('M360 440h620','#c8102e',5)}${kanal('M360 580h620','#1f3f8f',5)}
+     <circle cx="640" cy="440" r="34" ${SF}/>
+     <text x="140" y="360" font-size="22" font-family="Helvetica" fill="#1b2a33">Värmekälla</text>` },
+  { cat:'Värmesystem', id:'tpl_v2', name:'Radiatorkrets', svg:
+    `${kanal('M120 300h900','#c8102e',5)}${kanal('M120 620h900','#1f3f8f',5)}
+     <rect x="300" y="400" width="160" height="120" ${SF}/><rect x="620" y="400" width="160" height="120" ${SF}/>
+     <path d="M380 300v100M380 520v100M700 300v100M700 520v100" stroke="#1b2a33" stroke-width="2" fill="none"/>` },
+  { cat:'Kyla', id:'tpl_k1', name:'Kylmaskin med batteri', svg:
+    `<rect x="120" y="300" width="280" height="240" rx="6" stroke-width="3" ${L}/>
+     ${kanal('M400 380h620','#00b7d4',5)}${kanal('M400 480h620','#6fc7e1',5)}
+     <rect x="820" y="330" width="120" height="200" stroke="#0072bc" stroke-width="2" fill="#ffffff"/>
+     <text x="140" y="280" font-size="22" font-family="Helvetica" fill="#1b2a33">Kylmaskin</text>` },
+  { cat:'Generellt', id:'tpl_g1', name:'Ram med titelruta', svg:
+    `<rect x="30" y="30" width="1140" height="740" stroke-width="3" ${L}/>
+     <rect x="800" y="650" width="370" height="120" stroke-width="2" ${L}/>
+     <path d="M800 700h370M950 650v120" stroke-width="1.5" ${L}/>
+     <text x="815" y="682" font-size="18" font-family="Helvetica" fill="#1b2a33">Anläggning</text>
+     <text x="815" y="732" font-size="16" font-family="Helvetica" fill="#1b2a33">Ritn.nr</text>` },
+  { cat:'Generellt', id:'tpl_g2', name:'Zonrader', svg:
+    `<path d="M0 200h1200M0 400h1200M0 600h1200" stroke-width="2" stroke-dasharray="12 8" ${L}/>
+     <text x="30" y="180" font-size="22" font-family="Helvetica" fill="#1b2a33">Zon 1</text>
+     <text x="30" y="380" font-size="22" font-family="Helvetica" fill="#1b2a33">Zon 2</text>
+     <text x="30" y="580" font-size="22" font-family="Helvetica" fill="#1b2a33">Zon 3</text>` },
+  { cat:'Generellt', id:'tpl_g3', name:'Tom med marginal', svg:`<rect x="40" y="40" width="1120" height="720" stroke-width="2" ${L}/>` },
+];
+
+const DASHES = [['','Heldragen'],['8 5','Streckad'],['2 4','Prickad'],['14 6 3 6','Streckprickad']];
+
+const PLAIN = [
+  { name:'Linje',          color:'#000000', w:2, dash:'' },
+  { name:'Linje streckad', color:'#000000', w:2, dash:'8 5' },
+];
+function defaultStore(){
+  return {
+    version: 2,
+    activeStandard: 'sff',
+    ui: { crossColor:'#c8102e', crossDash:'', crossOn:true, snapFollowGrid:false, snapStep:5,
+          lineCap:'round', lineJoin:'round', css:'', paper:'#f5f7f5', gridTone:0, gridOpacity:100 },
+    standards: [
+      { id:'sff', name:'SFF färgstandard',
+        swatches:['#000000','#ffffff','#FF0000','#0000FF','#FFF000','#FF9900','#993300','#339966'],
+        lines:[
+          // rör, 5 px
+          { name:'Kallvatten',          color:'#339966', w:5 },
+          { name:'Varmvatten',          color:'#FF0000', w:5 },
+          { name:'Avlopp',              color:'#000000', w:5 },
+          { name:'Värme, primär',       color:'#FF00FF', w:5 },
+          { name:'Värme, sekundär',     color:'#FF9900', w:5 },
+          { name:'Gas',                 color:'#FFF000', w:5 },
+          { name:'Olja',                color:'#993300', w:5 },
+          { name:'Köldbärare',          color:'#0000FF', w:5 },
+          { name:'Köldmedium (freon)',  color:'#993300', w:5 },
+          { name:'Kylmedel',            color:'#00FF00', w:5 },
+          // kanaler, 10 px
+          { name:'Tilluft, behandlad',   color:'#FF0000', w:10 },
+          { name:'Tilluft, obehandlad',  color:'#0000FF', w:10 },
+          { name:'Frånluft',             color:'#FFF000', w:10 },
+          { name:'Återluft',             color:'#FF9900', w:10 },
+          { name:'Avluft',               color:'#993300', w:10 },
+          // nätverk, 2 px
+          { name:'Ethernet',   color:'#FF0000', w:2, dash:'',          cap:'butt' },
+          { name:'Trådlöst',   color:'#0000FF', w:2, dash:'14 6 3 6',  cap:'butt' },
+          { name:'Seriellt',   color:'#00FF00', w:2, dash:'8 5',       cap:'butt' },
+          { name:'M-bus',      color:'#FF00FF', w:2, dash:'2 4',       cap:'butt' },
+        ].concat(PLAIN)
+      },
+      { id:'alt', name:'Alternativ färgkod',
+        swatches:['#000000','#ffffff','#3498db','#e74c3c','#f1c40f','#f39c12','#27ae60','#9b59b6'],
+        lines:[
+          // luftkanaler, 10 px
+          { name:'Uteluft',   color:'#3498db', w:10 },
+          { name:'Avluft',    color:'#be8b5c', w:10 },
+          { name:'Tilluft',   color:'#e74c3c', w:10 },
+          { name:'Frånluft',  color:'#f1c40f', w:10 },
+          { name:'Återluft',  color:'#f39c12', w:10 },
+          // rörledning, 5 px
+          { name:'Kyla',        color:'#3497dc', w:5 },
+          { name:'Kallvatten',  color:'#27ae60', w:5 },
+          { name:'Återvinning', color:'#2ecc71', w:5 },
+          { name:'Värme',       color:'#f39c12', w:5 },
+          { name:'Fjärrvärme',  color:'#9b59b6', w:5 },
+          { name:'Varmvatten',  color:'#e74c3c', w:5 },
+          { name:'Gas',         color:'#f1c40f', w:5 },
+          { name:'Spillvatten', color:'#000000', w:5 },
+        ].concat(PLAIN)
+      },
+      { id:'std1', name:'Grundstandard VVS',
+        swatches:['#1b2a33','#ffffff','#c8102e','#0072bc','#2e9e4b','#f2c200','#00b7d4','#8b9aa3'],
+        lines:[
+          { name:'Tilluft',     color:'#0072bc', w:10 },
+          { name:'Frånluft',    color:'#f2c200', w:10 },
+          { name:'Uteluft',     color:'#2e9e4b', w:10 },
+          { name:'Avluft',      color:'#8b5a2b', w:10 },
+          { name:'Kanal grov',  color:'#1b2a33', w:10 },
+          { name:'Värme fram',  color:'#c8102e', w:3 },
+          { name:'Värme retur', color:'#1f3f8f', w:3 },
+          { name:'Kyla fram',   color:'#00b7d4', w:3 },
+          { name:'Kyla retur',  color:'#6fc7e1', w:3 },
+          { name:'Hjälplinje',  color:'#8b9aa3', w:1.5, dash:'8 5' },
+        ].concat(PLAIN)
+      },
+    ],
+    symbols: BASE_SYMBOLS.map(x => ({ ...x })),
+    templates: BASE_TEMPLATES.map(x => ({ ...x })),
+  };
+}
+let store = defaultStore();
+const std = () => store.standards.find(s => s.id === store.activeStandard) || store.standards[0];
+function ui(){
+  if (!store.ui) store.ui = defaultStore().ui;
+  const d = defaultStore().ui;
+  for (const k in d) if (store.ui[k] === undefined) store.ui[k] = d[k];
+  return store.ui;
+}
+const uid = p => p + '_' + Math.random().toString(36).slice(2,8);
+
+/* ================================================================
+   GRUND
+   ================================================================ */
+const gridSize = () => Math.max(2, +$('gridSize').value || 20);
+const snapStep = () => ui().snapFollowGrid ? gridSize() : Math.max(0.5, +ui().snapStep || 20);
+const snap = v => $('snapOn').checked ? Math.round(v / snapStep()) * snapStep() : Math.round(v * 10) / 10;
+const rectOf = () => board.getBoundingClientRect();
+const uPerPx = () => view.w / Math.max(1, rectOf().width);
+const only = () => selection.length === 1 ? selection[0] : null;
+
+function pt(e){
+  const p = board.createSVGPoint();
+  p.x = e.clientX; p.y = e.clientY;
+  return p.matrixTransform(board.getScreenCTM().inverse());
+}
+function mk(name, attrs){
+  const n = document.createElementNS(NS, name);
+  for (const k in attrs) n.setAttribute(k, attrs[k]);
+  return n;
+}
+let drawCap = null;                      // sätts av linjetypen, annars gäller inställningen
+function style(){
+  const u = ui(), on = $('fillOn').checked, cap = drawCap || u.lineCap;
+  return { stroke:$('strokeCol').value,
+           fill: on ? $('fillCol').value : 'none',
+           'fill-opacity': on ? (+$('fillOp').value / 100) : 1,
+           'stroke-width':$('strokeW').value,
+           'stroke-dasharray':$('dashed').checked ? '8 5' : 'none',
+           'stroke-linecap': cap,
+           'stroke-linejoin': cap === 'round' ? 'round' : 'miter' };
+}
+const cornerR = () => Math.max(0, +$('cornerR').value || 0);
+function setMsg(t){ $('rdMsg').textContent = t; clearTimeout(setMsg._t);
+  setMsg._t = setTimeout(() => $('rdMsg').textContent = '', 4000); }
+function el(tag, cls, txt){
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (txt !== undefined) n.textContent = txt;
+  return n;
+}
+
+/* ================================================================
+   LAGER
+   ================================================================ */
+const layers = () => [...stage.children];
+const activeLayer = () => stage.querySelector(`[data-lid="${activeLayerId}"]`) || stage.firstElementChild;
+const allItems = () => layers().flatMap(l => [...l.children]);
+
+function newLayer(name, activate = true){
+  const g = mk('g', {});
+  g.dataset.lid = uid('lay');
+  g.dataset.lname = name || ('Lager ' + (layers().length + 1));
+  stage.appendChild(g);
+  if (activate) activeLayerId = g.dataset.lid;
+  paintLayers();
+  return g;
+}
+function paintLayers(){
+  const wrap = $('layerList'); wrap.innerHTML = '';
+  layers().slice().reverse().forEach(lay => {
+    const row = el('div','li');
+    row.dataset.active = lay.dataset.lid === activeLayerId;
+    const eye = el('button','ic', lay.dataset.hidden ? '🙈' : '👁');
+    eye.type = 'button'; eye.title = 'Visa / dölj lager';
+    if (lay.dataset.hidden) eye.classList.add('off');
+    eye.onclick = () => { lay.dataset.hidden ? delete lay.dataset.hidden : lay.dataset.hidden = '1';
+                          select([]); paintLayers(); };
+    const nm = el('button','nm', lay.dataset.lname + (lay.children.length ? '  (' + lay.children.length + ')' : ''));
+    nm.type = 'button';
+    nm.onclick = () => { activeLayerId = lay.dataset.lid; paintLayers(); refresh(); };
+    const lk = el('button','ic', lay.dataset.llock ? '🔒' : '🔓');
+    lk.type = 'button'; lk.title = 'Lås lager';
+    lk.onclick = () => { lay.dataset.llock ? delete lay.dataset.llock : lay.dataset.llock = '1';
+                         select([]); paintLayers(); };
+    const up = el('button','ic','▲');
+    up.type = 'button'; up.title = 'Flytta lagret framåt';
+    up.disabled = !lay.nextElementSibling;
+    if (up.disabled) up.classList.add('off');
+    up.onclick = () => moveLayer(lay, 1);
+    const dn = el('button','ic','▼');
+    dn.type = 'button'; dn.title = 'Flytta lagret bakåt';
+    dn.disabled = !lay.previousElementSibling;
+    if (dn.disabled) dn.classList.add('off');
+    dn.onclick = () => moveLayer(lay, -1);
+    const rm = el('button','ic','✕');
+    rm.type = 'button'; rm.title = 'Ta bort lager';
+    rm.onclick = () => {
+      if (layers().length < 2) return setMsg('Minst ett lager måste finnas');
+      if (lay.children.length && !confirm(`Ta bort "${lay.dataset.lname}" med ${lay.children.length} objekt?`)) return;
+      push(); lay.remove();
+      if (activeLayerId === lay.dataset.lid) activeLayerId = stage.lastElementChild.dataset.lid;
+      select([]); paintLayers(); refresh();
+    };
+    row.append(eye, nm, up, dn, lk, rm);
+    wrap.appendChild(row);
+  });
+  const sel = $('moveTo'); sel.innerHTML = '';
+  layers().forEach(l => {
+    const o = document.createElement('option');
+    o.value = l.dataset.lid; o.textContent = l.dataset.lname;
+    sel.appendChild(o);
+  });
+  sel.value = activeLayerId;
+  const cur = activeLayer();
+  $('layerTag').textContent = cur ? cur.dataset.lname : '';
+  if (cur){
+    const op = cur.dataset.op === undefined ? 100 : +cur.dataset.op;
+    $('layOp').value = op; $('layOpVal').textContent = op + '%';
+    $('layNoExp').checked = !!cur.dataset.noexp;
+  }
+}
+/* Senare i DOM ligger längre fram, och listan visas med främsta lagret överst. */
+function moveLayer(lay, dir){
+  const sib = dir > 0 ? lay.nextElementSibling : lay.previousElementSibling;
+  if (!sib) return;
+  push();
+  dir > 0 ? stage.insertBefore(sib, lay) : stage.insertBefore(lay, sib);
+  paintLayers();
+}
+$('btnNewLayer').onclick = () => { push(); newLayer(); refresh(); };
+$('btnRenameLayer').onclick = () => {
+  const lay = activeLayer(); if (!lay) return;
+  const v = prompt('Namn på lagret:', lay.dataset.lname);
+  if (v){ push(); lay.dataset.lname = v; paintLayers(); }
+};
+$('moveTo').onchange = e => {
+  if (!selection.length) return;
+  const target = stage.querySelector(`[data-lid="${e.target.value}"]`);
+  if (!target) return;
+  push(); selection.forEach(n => target.appendChild(n));
+  paintLayers(); refresh();
+  setMsg('Flyttade ' + selection.length + ' objekt till ' + target.dataset.lname);
+};
+
+/* ================================================================
+   BILD OCH PDF SOM UNDERLAGSLAGER
+   ================================================================ */
+function placeRaster(dataURL, w, h, name){
+  const lay = newLayer('Underlag: ' + name);
+  lay.dataset.op = 60; lay.setAttribute('opacity', 0.6);
+  lay.dataset.noexp = '1';                 // underlag ritas inte ut i exporten
+  lay.dataset.llock = '1';                 // och fångar inte klick medan man ritar
+  const k = Math.min(doc.w / w, doc.h / h);
+  const img = mk('image', { x:(doc.w - w*k)/2, y:(doc.h - h*k)/2, width:w*k, height:h*k,
+                            preserveAspectRatio:'xMidYMid meet' });
+  img.setAttribute('href', dataURL);
+  img.setAttributeNS('http://www.w3.org/1999/xlink','xlink:href', dataURL);
+  lay.appendChild(img);
+  stamp(img);
+  img.dataset.name = name;
+  select([]); refresh();
+  setMsg(name + ' inlagt som underlag — justera opaciteten under Lager');
+}
+async function loadRaster(file){
+  push();
+  if (/pdf$/i.test(file.type) || /\.pdf$/i.test(file.name)){
+    if (!window.pdfjsLib) return setMsg('PDF-stödet kunde inte laddas — kontrollera nätverket');
+    pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('../ritning/lib/pdf.worker.min.js', location.href).href;
+    try {
+      setMsg('Renderar PDF…');
+      const buf = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data:buf }).promise;
+      const page = await pdf.getPage(1);
+      const vp = page.getViewport({ scale:2 });      // 2× för skärpa vid inzoomning
+      const cv = document.createElement('canvas');
+      cv.width = vp.width; cv.height = vp.height;
+      await page.render({ canvasContext:cv.getContext('2d'), viewport:vp }).promise;
+      placeRaster(cv.toDataURL('image/png'), vp.width, vp.height,
+                  file.name.replace(/\.pdf$/i,'') + (pdf.numPages > 1 ? ' (sida 1)' : ''));
+      if (pdf.numPages > 1) setMsg('Sida 1 av ' + pdf.numPages + ' inlagd');
+    } catch(err){ setMsg('Kunde inte läsa PDF:en'); console.error(err); }
+    return;
+  }
+  const url = await new Promise(res => {
+    const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(file);
+  });
+  const im = new Image();
+  im.onload = () => placeRaster(url, im.naturalWidth, im.naturalHeight, file.name);
+  im.onerror = () => setMsg('Kunde inte läsa bilden');
+  im.src = url;
+}
+$('btnImage').onclick = () => $('fileImg').click();
+$('fileImg').onchange = e => { const f = e.target.files[0]; if (f) loadRaster(f); e.target.value = ''; };
+
+$('layOp').addEventListener('input', () => {
+  const lay = activeLayer(); if (!lay) return;
+  const v = +$('layOp').value;
+  lay.dataset.op = v;
+  v >= 100 ? lay.removeAttribute('opacity') : lay.setAttribute('opacity', v/100);
+  $('layOpVal').textContent = v + '%';
+});
+$('layNoExp').addEventListener('change', () => {
+  const lay = activeLayer(); if (!lay) return;
+  $('layNoExp').checked ? lay.dataset.noexp = '1' : delete lay.dataset.noexp;
+});
+
+/* ================================================================
+   MATRISER & OBJEKTMODELL
+   ================================================================ */
+const IDENT = () => new DOMMatrix();
+const getBM = n => n.dataset.bm ? new DOMMatrix(n.dataset.bm.split(' ').map(Number)) : IDENT();
+function setBM(n, m){
+  if (!m || m.isIdentity) delete n.dataset.bm;
+  else n.dataset.bm = [m.a,m.b,m.c,m.d,m.e,m.f].map(v => +v.toFixed(6)).join(' ');
+}
+function ownMatrix(e){
+  const l = e.transform && e.transform.baseVal;
+  if (!l || !l.numberOfItems) return IDENT();
+  const m = l.consolidate().matrix;
+  return new DOMMatrix([m.a,m.b,m.c,m.d,m.e,m.f]);
+}
+function tbox(b, m){
+  if (!m || m.isIdentity) return b;
+  const p = [[b.x,b.y],[b.x+b.width,b.y],[b.x,b.y+b.height],[b.x+b.width,b.y+b.height]]
+    .map(([x,y]) => new DOMPoint(x,y).matrixTransform(m));
+  const xs = p.map(q => q.x), ys = p.map(q => q.y);
+  return { x:Math.min(...xs), y:Math.min(...ys),
+           width:Math.max(...xs)-Math.min(...xs), height:Math.max(...ys)-Math.min(...ys) };
+}
+function itemMatrix(n){
+  const t = T(n);
+  return IDENT().translate(t.tx,t.ty).translate(t.bx,t.by).scale(t.sx,t.sy).translate(-t.bx,-t.by).multiply(getBM(n));
+}
+function measure(node){
+  const had = node.getAttribute('transform');
+  node.removeAttribute('transform');
+  let b;
+  try { b = node.getBBox(); } catch(e){ b = { x:0,y:0,width:1,height:1 }; }
+  if (had) node.setAttribute('transform', had);
+  return tbox(b, getBM(node));
+}
+function stamp(node){
+  node.setAttribute('data-item','1');
+  const b = measure(node);
+  node.dataset.bx = b.x; node.dataset.by = b.y;
+  node.dataset.bw = Math.max(b.width, .001); node.dataset.bh = Math.max(b.height, .001);
+  node.dataset.tx = 0; node.dataset.ty = 0; node.dataset.sx = 1; node.dataset.sy = 1;
+  applyT(node);
+  return node;
+}
+function initItem(node, opts = {}){
+  (opts.parent || activeLayer()).appendChild(node);
+  stamp(node);
+  if (opts.lock) node.setAttribute('data-lock','1');
+  if (opts.name) node.dataset.name = opts.name;
+  refresh();
+  return node;
+}
+const T = n => ({ tx:+n.dataset.tx, ty:+n.dataset.ty, sx:+n.dataset.sx, sy:+n.dataset.sy,
+                  bx:+n.dataset.bx, by:+n.dataset.by, bw:+n.dataset.bw, bh:+n.dataset.bh });
+function applyT(n){
+  const t = T(n);
+  const bm = n.dataset.bm ? ` matrix(${n.dataset.bm.split(' ').join(',')})` : '';
+  n.setAttribute('transform',
+    `translate(${t.tx} ${t.ty}) translate(${t.bx} ${t.by}) scale(${t.sx} ${t.sy}) translate(${-t.bx} ${-t.by})${bm}`);
+}
+function box(n){
+  const t = T(n);
+  return { x:t.tx+t.bx, y:t.ty+t.by, w:t.bw*t.sx, h:t.bh*t.sy };
+}
+function unionBox(nodes){
+  const bs = nodes.map(box);
+  const x = Math.min(...bs.map(b => b.x)), y = Math.min(...bs.map(b => b.y));
+  const r = Math.max(...bs.map(b => b.x+b.w)), bt = Math.max(...bs.map(b => b.y+b.h));
+  return { x, y, w:Math.max(r-x,.001), h:Math.max(bt-y,.001) };
+}
+function rebase(n){
+  const t = T(n), b = measure(n);
+  n.dataset.bx = b.x; n.dataset.by = b.y;
+  n.dataset.bw = Math.max(b.width,.001); n.dataset.bh = Math.max(b.height,.001);
+  n.dataset.tx = t.tx; n.dataset.ty = t.ty; n.dataset.sx = t.sx; n.dataset.sy = t.sy;
+  applyT(n);
+}
+
+/* ================================================================
+   HISTORIK
+   ================================================================ */
+function push(){ undoStack.push(stage.innerHTML); if (undoStack.length > 50) undoStack.shift(); redoStack.length = 0; }
+function restore(html){
+  stage.innerHTML = html;
+  if (!stage.querySelector(`[data-lid="${activeLayerId}"]`) && stage.firstElementChild)
+    activeLayerId = stage.lastElementChild.dataset.lid;
+  select([]); paintLayers(); refresh();
+}
+function undo(){ if (!undoStack.length) return; redoStack.push(stage.innerHTML); restore(undoStack.pop()); }
+function redo(){ if (!redoStack.length) return; undoStack.push(stage.innerHTML); restore(redoStack.pop()); }
+
+/* ================================================================
+   TRÄFFYTA
+   ================================================================ */
+function distSeg(p,a,b){
+  const dx=b.x-a.x, dy=b.y-a.y, Ln=dx*dx+dy*dy;
+  let t = Ln ? ((p.x-a.x)*dx+(p.y-a.y)*dy)/Ln : 0;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(p.x-(a.x+t*dx), p.y-(a.y+t*dy));
+}
+const plainLine = n => n.tagName === 'line' && !n.dataset.bm;
+const pickable = n => !n.dataset.lock && !n.dataset.hidden &&
+                      !n.parentNode.dataset.llock && !n.parentNode.dataset.hidden;
+function hitTest(p){
+  const tol = 10 * uPerPx();
+  const ls = layers();
+  for (let i = ls.length - 1; i >= 0; i--){
+    const kids = [...ls[i].children];
+    for (let j = kids.length - 1; j >= 0; j--){
+      const n = kids[j];
+      if (!pickable(n)) continue;
+      if (plainLine(n)){
+        const t = T(n);
+        const a = { x:+n.getAttribute('x1')+t.tx, y:+n.getAttribute('y1')+t.ty };
+        const b = { x:+n.getAttribute('x2')+t.tx, y:+n.getAttribute('y2')+t.ty };
+        const w = (+n.getAttribute('stroke-width')||2)/2;
+        if (distSeg(p,a,b) <= Math.max(tol, w+4)) return n;
+      } else {
+        const b = box(n);
+        if (p.x>=b.x-tol && p.x<=b.x+b.w+tol && p.y>=b.y-tol && p.y<=b.y+b.h+tol) return n;
+      }
+    }
+  }
+  return null;
+}
+function itemsIn(r){
+  return allItems().filter(n => {
+    if (!pickable(n)) return false;
+    const b = box(n);
+    return b.x < r.x+r.w && b.x+b.w > r.x && b.y < r.y+r.h && b.y+b.h > r.y;
+  });
+}
+
+/* ================================================================
+   MARKERING
+   ================================================================ */
+function select(nodes){
+  subSel = null;
+  selection = (Array.isArray(nodes) ? nodes : [nodes]).filter(n => n && n.isConnected);
+  drawHandles(); paintSelInfo(); paintList();
+}
+function toggleSel(n){
+  const i = selection.indexOf(n);
+  if (i >= 0) selection.splice(i,1); else selection.push(n);
+  select(selection.slice());
+}
+/* Text lagras som en tspan per rad, med radavstånd satt efter teckenstorleken. */
+function readText(el){
+  const sp = [...el.children].filter(c => c.tagName === 'tspan');
+  return sp.length ? sp.map(t => t.textContent).join('\n') : (el.textContent || '');
+}
+function setTextContent(el, str){
+  const x = el.getAttribute('x');
+  const size = parseFloat(el.getAttribute('font-size')) || 18;
+  el.textContent = '';
+  String(str).split('\n').forEach((ln, i) => {
+    const a = { dy: i ? size * 1.25 : 0 };
+    if (x !== null) a.x = x;              // saknar texten x ska raderna inte tvingas till noll
+    const t = mk('tspan', a);
+    t.textContent = ln === '' ? ' ' : ln;   // tomma rader måste ha innehåll för att ta plats
+    el.appendChild(t);
+  });
+}
+function label(n){
+  if (n.dataset && n.dataset.name) return n.dataset.name;
+  const map = { line:'Linje', rect:'Rektangel', ellipse:'Cirkel', circle:'Cirkel', text:'Text',
+                path:'Bana', polyline:'Polylinje', polygon:'Polygon', image:'Bild', use:'Referens', g:'Grupp' };
+  if (n.tagName === 'text') return (n.dataset.anchor ? '\u21b3 ' : '') + 'Text: ' + readText(n).replace(/\n/g,' ').trim().slice(0,18);
+  if (n.tagName === 'g') return 'Grupp (' + n.children.length + ')';
+  return map[n.tagName] || n.tagName;
+}
+function paintMeta(){
+  const one = only(), any = selection[0];
+  ['objClass','objStyle'].forEach(id => $(id).disabled = !selection.length);
+  $('objId').disabled = !one;
+  $('objClass').value = any ? (any.getAttribute('class') || '') : '';
+  $('objStyle').value = any ? (any.getAttribute('style') || '') : '';
+  $('objId').value    = one ? (one.getAttribute('id') || '') : (selection.length ? '(flera markerade)' : '');
+}
+/* Högerpanelen visar bara det som är relevant för markeringen — eller,
+   när inget är markerat, det som gäller nästa objekt du ritar.        */
+function updatePanels(){
+  let f;
+  if (subSel){
+    $('secText').hidden = false; $('secMeta').hidden = false; $('secLook').hidden = false;
+    $('rowStroke').hidden = false;
+    $('rowStroke').querySelector('label').textContent = 'Textfärg';
+    ['rowFillCol','rowFillOn','rowFillOp','rowStrokeW','rowDash','rowCorner']
+      .forEach(id => $(id).hidden = true);
+    $('swatches').hidden = false;
+    $('lookTag').textContent = 'text i ' + label(selection[0]);
+    $('selInfo').innerHTML = '<b style="color:var(--signal)">Redigerar text i symbolen</b><br>' +
+      'Dra i texten för att flytta den, eller använd piltangenterna. Esc avslutar.';
+    return;
+  }
+  if (selection.length){
+    const shapes = selection.filter(n => !['text','image'].includes(n.tagName));
+    const hasRect = selection.some(n => n.tagName === 'rect' || (n.tagName === 'g' && n.querySelector('rect')));
+    f = { text:    selection.some(n => n.tagName === 'text' || (n.tagName === 'g' && n.querySelector('text'))),
+          color:   selection.some(n => n.tagName !== 'image'),
+          strokeW: shapes.length > 0,
+          fill:    shapes.some(n => n.tagName !== 'line'),
+          rect:    hasRect,
+          meta:    true,
+          tag:     selection.length > 1 ? selection.length + ' objekt' : label(selection[0]) };
+  } else {
+    f = { text:false, color:false, strokeW:false, fill:false, rect:false, meta:false, tag:'' };
+    $('textVal').value = '';
+  }
+  const onlyText = selection.length > 0 && selection.every(n => n.tagName === 'text');
+  $('secText').hidden = !f.text;
+  $('secMeta').hidden = !f.meta;
+  $('secLook').hidden = !(f.color || f.fill || f.strokeW);
+  $('rowStroke').hidden = !f.color;
+  $('rowStroke').querySelector('label').textContent = onlyText ? 'Textfärg' : 'Linjefärg';
+  ['rowFillCol','rowFillOn','rowFillOp'].forEach(id => $(id).hidden = !f.fill);
+  ['rowStrokeW','rowDash'].forEach(id => $(id).hidden = !f.strokeW);
+  $('rowCorner').hidden = !f.rect;
+  $('swatches').hidden = !f.color;
+  $('lookTag').textContent = f.tag;
+}
+
+function paintSelInfo(){
+  const info = $('selInfo');
+  const groups = selection.filter(n => n.tagName === 'g');
+  $('btnGroup').disabled = selection.length < 2;
+  $('btnUngroup').disabled = $('btnExplode').disabled = !groups.length;
+  $('btnLink').disabled = !(selection.filter(n => n.tagName === 'text').length &&
+                            selection.filter(n => n.tagName !== 'text').length === 1);
+  $('btnUnlink').disabled = !selection.some(n => n.dataset.anchor);
+  $('btnMakeSym').disabled = $('btnMakeTpl').disabled = !selection.length;
+  paintMeta(); updatePanels();
+  if (subSel) return;                       // texten i symbolen har sin egen rubrik
+  if (!selection.length){ info.innerHTML = 'Inget markerat.'; return; }
+  if (selection.length > 1){
+    const b = unionBox(selection);
+    info.innerHTML = `<b style="color:var(--select)">${selection.length} objekt</b><br>` +
+      `<span style="font-family:var(--mono)">${Math.round(b.w)}×${Math.round(b.h)}</span>`;
+    return;
+  }
+  const n = selection[0], b = box(n);
+  info.innerHTML = `<b style="color:var(--select)">${label(n)}</b>${n.id ? ' · <span style="font-family:var(--mono)">'+n.id+'</span>' : ''}<br>` +
+    `<span style="font-family:var(--mono)">${Math.round(b.x)}, ${Math.round(b.y)} · ${Math.round(b.w)}×${Math.round(b.h)}</span>`;
+  const s = n.tagName === 'g' ? (n.querySelector('[stroke]') || n) : n;
+  const st = s.getAttribute('stroke'), fl = n.getAttribute('fill') || s.getAttribute('fill');
+  if (st && st.startsWith('#')) $('strokeCol').value = st;
+  if (fl && fl.startsWith('#')) $('fillCol').value = fl;
+  $('fillOn').checked = !!fl && fl !== 'none';
+  const fo = s.getAttribute('fill-opacity');
+  $('fillOp').value = fo === null ? 100 : Math.round(parseFloat(fo) * 100);
+  $('fillOpVal').textContent = $('fillOp').value + '%';
+  const rc = (n.tagName === 'rect' ? n : n.querySelector('rect'));
+  if (rc) $('cornerR').value = parseFloat(rc.getAttribute('rx')) || 0;
+  if (n.tagName === 'text'){
+    $('textVal').value = readText(n);
+    $('fontSize').value = parseFloat(n.getAttribute('font-size')) || 18;
+    const fam = n.getAttribute('font-family');
+    if (fam && [...$('fontFam').options].some(o => o.value === fam)) $('fontFam').value = fam;
+    $('textAnchor').value = n.getAttribute('text-anchor') || 'start';
+    $('fontItalic').checked = n.getAttribute('font-style') === 'italic';
+    $('fontWeight').checked = +(n.getAttribute('font-weight') || 400) >= 600;
+  }
+}
+function drawHandles(){
+  overlay.innerHTML = '';
+  if (marquee) overlay.appendChild(marquee);
+  selection = selection.filter(n => n.isConnected);
+  if (!selection.length) return;
+  if (subSel && subSel.isConnected){
+    const b = subBox();
+    if (b) overlay.appendChild(mk('rect', { x:b.x-2, y:b.y-2, width:b.w+4, height:b.h+4, class:'subbox' }));
+  }
+  const r = 7 * uPerPx(), one = only();
+  if (one && plainLine(one)){
+    // bakning får bara ske när inget drag pågår, annars räknas flytten två gånger
+    if (!dragMode) bakeMove(one);
+    const t = T(one);
+    [0,1].forEach(i => {
+      const h = mk('circle', { cx:+one.getAttribute(i?'x2':'x1') + t.tx,
+                               cy:+one.getAttribute(i?'y2':'y1') + t.ty, r, class:'handle' });
+      h.dataset.ep = i; overlay.appendChild(h);
+    });
+    return;
+  }
+  if (selection.length > 1)
+    selection.forEach(n => { const b = box(n); overlay.appendChild(mk('rect',{ x:b.x,y:b.y,width:b.w,height:b.h,class:'selitem' })); });
+  const b = unionBox(selection);
+  overlay.appendChild(mk('rect',{ x:b.x,y:b.y,width:b.w,height:b.h,class:'selbox' }));
+  [['tl',b.x,b.y],['tr',b.x+b.w,b.y],['bl',b.x,b.y+b.h],['br',b.x+b.w,b.y+b.h]].forEach(([k,x,y]) => {
+    const h = mk('rect',{ x:x-r, y:y-r, width:r*2, height:r*2, class:'handle' });
+    h.dataset.h = k; overlay.appendChild(h);
+  });
+  // rotationshandtag ovanför markeringen
+  const mx = b.x + b.w/2, my = b.y - 26*uPerPx();
+  overlay.appendChild(mk('line',{ x1:mx, y1:b.y, x2:mx, y2:my, class:'rotstem' }));
+  const rh = mk('circle',{ cx:mx, cy:my, r:r*0.95, class:'handle rot' });
+  rh.dataset.rot = '1'; overlay.appendChild(rh);
+}
+/* Gruppen kan vara skalad och roterad, så en flytt på ritytan måste
+   räknas om till gruppens eget koordinatsystem innan den läggs på texten. */
+function toLocal(owner, dx, dy){
+  const inv = itemMatrix(owner).inverse();
+  const o = new DOMPoint(0,0).matrixTransform(inv);
+  const q = new DOMPoint(dx,dy).matrixTransform(inv);
+  return { x:q.x - o.x, y:q.y - o.y };
+}
+function moveSub(dx, dy){
+  if (!subSel || !selection[0]) return;
+  const d = toLocal(selection[0], dx, dy);
+  const M = IDENT().translate(d.x, d.y).multiply(subOrig);
+  subSel.setAttribute('transform', `matrix(${M.a},${M.b},${M.c},${M.d},${M.e},${M.f})`);
+}
+function subBox(){
+  if (!subSel) return null;
+  const r = subSel.getBoundingClientRect();
+  const inv = board.getScreenCTM().inverse();
+  const a = new DOMPoint(r.left, r.top).matrixTransform(inv);
+  const b = new DOMPoint(r.right, r.bottom).matrixTransform(inv);
+  return { x:a.x, y:a.y, w:b.x-a.x, h:b.y-a.y };
+}
+function bakeMove(line){
+  const t = T(line);
+  if (!t.tx && !t.ty) return;
+  ['x1','x2'].forEach(a => line.setAttribute(a, +line.getAttribute(a)+t.tx));
+  ['y1','y2'].forEach(a => line.setAttribute(a, +line.getAttribute(a)+t.ty));
+  line.dataset.tx = 0; line.dataset.ty = 0; rebase(line);
+}
+
+/* ================================================================
+   OBJEKTLISTA
+   ================================================================ */
+function refresh(){ $('rdN').textContent = allItems().length; paintList(); paintLayers(); }
+function paintList(){
+  const wrap = $('objList'); wrap.innerHTML = '';
+  const lay = activeLayer();
+  if (!lay) return;
+  const kids = [...lay.children].reverse();
+  if (!kids.length){ wrap.innerHTML = '<p class="hint" style="padding:4px 6px">Lagret är tomt.</p>'; return; }
+  kids.slice(0,300).forEach(n => {
+    const row = el('div','li');
+    row.setAttribute('aria-selected', selection.includes(n));
+    const eye = el('button','ic', n.dataset.hidden ? '🙈' : '👁');
+    eye.type='button'; eye.title='Visa / dölj objekt';
+    if (n.dataset.hidden) eye.classList.add('off');
+    eye.onclick = () => { n.dataset.hidden ? delete n.dataset.hidden : n.dataset.hidden = '1';
+                          select(selection.filter(s => s !== n)); paintList(); };
+    const nm = el('button','nm', label(n));
+    nm.type='button';
+    nm.onclick = e => e.shiftKey ? toggleSel(n) : select(n);
+    const lk = el('button','ic', n.dataset.lock ? '🔒' : '🔓');
+    lk.type='button'; lk.title='Lås objekt';
+    lk.onclick = () => { n.dataset.lock ? n.removeAttribute('data-lock') : n.setAttribute('data-lock','1'); paintList(); };
+    const rm = el('button','ic','✕');
+    rm.type='button'; rm.title='Ta bort';
+    rm.onclick = () => { push(); n.remove(); select(selection.filter(s => s !== n)); refresh(); };
+    row.append(eye, nm, lk, rm);
+    wrap.appendChild(row);
+  });
+  if (kids.length > 300) wrap.appendChild(el('p','hint','… och ' + (kids.length-300) + ' till.'));
+}
+
+/* ================================================================
+   HÅRKORS
+   ================================================================ */
+const cross = $('cross');
+let crossAt = null;
+function drawCross(x, y){
+  if (x !== undefined) crossAt = { x, y };
+  cross.innerHTML = '';
+  if (!crossAt || !$('showCross').checked) return;
+  const r = 5 * uPerPx(), c = ui().crossColor, d = ui().crossDash || 'none';
+  const x0 = view.x, x1 = view.x + view.w, y0 = view.y, y1 = view.y + view.h;
+  cross.appendChild(mk('line', { x1:x0, y1:crossAt.y, x2:x1, y2:crossAt.y, stroke:c, 'stroke-dasharray':d }));
+  cross.appendChild(mk('line', { x1:crossAt.x, y1:y0, x2:crossAt.x, y2:y1, stroke:c, 'stroke-dasharray':d }));
+  cross.appendChild(mk('rect', { x:crossAt.x-r, y:crossAt.y-r, width:r*2, height:r*2, stroke:c }));
+}
+function hideCross(){ crossAt = null; cross.innerHTML = ''; }
+$('showCross').addEventListener('change', () => drawCross());
+board.addEventListener('pointerleave', () => { if (!dragMode) hideCross(); });
+
+/* ================================================================
+   PEKHÄNDELSER
+   ================================================================ */
+board.addEventListener('pointerdown', e => {
+  const p = pt(e), x = snap(p.x), y = snap(p.y);
+  if (e.button === 1 || spaceDown){
+    board.setPointerCapture(e.pointerId);
+    dragMode='pan'; panStart={ cx:e.clientX, cy:e.clientY, vx:view.x, vy:view.y };
+    board.classList.add('panning'); e.preventDefault(); return;
+  }
+  if (e.button !== 0) return;
+  board.setPointerCapture(e.pointerId);
+
+  if (e.target.dataset.rot){
+    push();
+    const nodes = selection.concat(followersOf(selection));
+    nodes.forEach(n => { if (n.tagName === 'line') bakeMove(n); });
+    const u = unionBox(nodes);
+    dragMode = 'rotate';
+    dragNodes = nodes;
+    dragStart = { c:{ x:u.x+u.w/2, y:u.y+u.h/2 }, mats:nodes.map(itemMatrix) };
+    dragStart.a0 = Math.atan2(p.y - dragStart.c.y, p.x - dragStart.c.x);
+    return;
+  }
+  if (e.target.classList.contains('handle')){
+    push();
+    dragMode = e.target.dataset.ep !== undefined ? 'endpoint' : 'resize';
+    dragStart = { key:e.target.dataset.h, ep:+e.target.dataset.ep, box:unionBox(selection) };
+    dragNodes = selection.slice(); dragOrigs = dragNodes.map(T);
+    return;
+  }
+  const lay = activeLayer();
+  const blocked = tool !== 'select' && lay && (lay.dataset.llock || lay.dataset.hidden);
+  if (blocked){ setMsg('Lagret "' + lay.dataset.lname + '" är låst eller dolt'); return; }
+
+  if (tool === 'symbol' && pendingSymbol){
+    push();
+    const g = mk('g',{}); g.innerHTML = pendingSymbol.svg;
+    g.id = '' + (pendingSymbol.id||'sym') + '_' + (++idCounter);
+    initItem(g, { name:pendingSymbol.name });
+    // symbolen centreras på klickpunkten
+    g.dataset.tx = x - (+g.dataset.bx + +g.dataset.bw / 2);
+    g.dataset.ty = y - (+g.dataset.by + +g.dataset.bh / 2);
+    applyT(g); select([]); return;
+  }
+  if (tool === 'select' && subSel && selection[0]){
+    const r = subSel.getBoundingClientRect(), pad = 10;
+    if (e.clientX >= r.left-pad && e.clientX <= r.right+pad &&
+        e.clientY >= r.top-pad  && e.clientY <= r.bottom+pad){
+      push();
+      dragMode = 'submove'; dragStart = { x:p.x, y:p.y }; subOrig = ownMatrix(subSel);
+      return;
+    }
+  }
+  if (tool === 'select'){
+    const hit = hitTest(p);
+    if (hit){
+      if (e.shiftKey){ toggleSel(hit); return; }
+      if (!selection.includes(hit)) select(hit);
+      push();
+      dragMode='move'; dragStart={ x:p.x, y:p.y };
+      dragNodes = selection.concat(followersOf(selection));
+      dragOrigs = dragNodes.map(T);
+    } else {
+      if (!e.shiftKey) select([]);
+      dragMode='marquee'; dragStart={ x:p.x, y:p.y, add:e.shiftKey, base:selection.slice() };
+      marquee = mk('rect',{ x:p.x, y:p.y, width:0, height:0, class:'marquee' });
+      overlay.appendChild(marquee);
+    }
+    return;
+  }
+  push();
+  const s = style();
+  if (tool === 'rect')   draft = mk('rect',   { x, y, width:0, height:0, rx:cornerR(), ry:cornerR(), ...s });
+  if (tool === 'circle') draft = mk('ellipse',{ cx:x, cy:y, rx:0, ry:0, ...s });
+  if (tool === 'line')   draft = mk('line',   { x1:x, y1:y, x2:x, y2:y, ...s, fill:'none' });
+  if (tool === 'text'){
+    const n = mk('text',{ x, y, fill:$('strokeCol').value, 'font-size':$('fontSize').value,
+                          'font-family':$('fontFam').value,
+                          'text-anchor':$('textAnchor').value,
+                          'font-style':$('fontItalic').checked ? 'italic' : 'normal',
+                          'font-weight':$('fontWeight').checked ? '700' : '400' });
+    setTextContent(n, 'Text');
+    initItem(n); setTool('select'); select(n);
+    $('textVal').focus(); $('textVal').select(); return;
+  }
+  if (draft){ activeLayer().appendChild(draft); dragMode='draw'; dragStart={ x, y }; }
+});
+
+board.addEventListener('pointermove', e => {
+  const p = pt(e), x = snap(p.x), y = snap(p.y);
+  $('rdX').textContent = Math.round(p.x); $('rdY').textContent = Math.round(p.y);
+  drawCross(x, y);
+  if (dragMode === 'pan'){
+    const s = uPerPx();
+    view.x = panStart.vx - (e.clientX-panStart.cx)*s;
+    view.y = panStart.vy - (e.clientY-panStart.cy)*s;
+    applyView(); return;
+  }
+  if (dragMode === 'marquee' && marquee){
+    marquee.setAttribute('x', Math.min(p.x, dragStart.x));
+    marquee.setAttribute('y', Math.min(p.y, dragStart.y));
+    marquee.setAttribute('width', Math.abs(p.x-dragStart.x));
+    marquee.setAttribute('height', Math.abs(p.y-dragStart.y));
+    return;
+  }
+  if (dragMode === 'draw' && draft){
+    const dx = x - dragStart.x, dy = y - dragStart.y;
+    if (draft.tagName === 'line'){
+      let ang = Math.round(Math.atan2(-dy, dx) * 180 / Math.PI);
+      if (ang < 0) ang += 360;
+      $('rdLen').textContent = `LÄNGD ${Math.round(Math.hypot(dx,dy))}  VINKEL ${ang}°`;
+    } else {
+      $('rdLen').textContent = `B ${Math.abs(Math.round(dx))}  H ${Math.abs(Math.round(dy))}`;
+    }
+    if (draft.tagName === 'rect'){
+      draft.setAttribute('x', Math.min(x,dragStart.x)); draft.setAttribute('y', Math.min(y,dragStart.y));
+      draft.setAttribute('width', Math.abs(x-dragStart.x)); draft.setAttribute('height', Math.abs(y-dragStart.y));
+    } else if (draft.tagName === 'ellipse'){
+      draft.setAttribute('cx',(x+dragStart.x)/2); draft.setAttribute('cy',(y+dragStart.y)/2);
+      draft.setAttribute('rx',Math.abs(x-dragStart.x)/2); draft.setAttribute('ry',Math.abs(y-dragStart.y)/2);
+    } else {
+      let ex=x, ey=y;
+      if (e.shiftKey){ Math.abs(x-dragStart.x) > Math.abs(y-dragStart.y) ? ey=dragStart.y : ex=dragStart.x; }
+      draft.setAttribute('x2',ex); draft.setAttribute('y2',ey);
+    }
+    return;
+  }
+  if (dragMode === 'rotate' && dragNodes){
+    const a = Math.atan2(p.y - dragStart.c.y, p.x - dragStart.c.x);
+    let deg = (a - dragStart.a0) * 180 / Math.PI;
+    const st = rotStep();
+    deg = e.shiftKey ? Math.round(deg) : Math.round(deg / st) * st;   // Shift ger fri vinkel
+    applyRot(dragNodes, dragStart.mats, dragStart.c, deg);
+    $('rdLen').textContent = 'VINKEL ' + (deg < 0 ? deg + 360 : deg) + '°';
+    drawHandles(); return;
+  }
+  if (dragMode === 'submove'){
+    moveSub(snap(p.x - dragStart.x), snap(p.y - dragStart.y));
+    drawHandles(); return;
+  }
+  if (dragMode === 'move' && dragNodes){
+    const dx = snap(p.x-dragStart.x), dy = snap(p.y-dragStart.y);
+    dragNodes.forEach((n,i) => { n.dataset.tx = dragOrigs[i].tx+dx; n.dataset.ty = dragOrigs[i].ty+dy; applyT(n); });
+    drawHandles(); return;
+  }
+  if (dragMode === 'endpoint' && only()){
+    const n = only();
+    n.setAttribute(dragStart.ep?'x2':'x1', x);
+    n.setAttribute(dragStart.ep?'y2':'y1', y);
+    drawHandles(); return;
+  }
+  if (dragMode === 'resize' && dragNodes){
+    const u = dragStart.box, k = dragStart.key;
+    const anchor = { x:k.includes('l')?u.x+u.w:u.x, y:k.includes('t')?u.y+u.h:u.y };
+    let fx = (x-anchor.x)/((k.includes('l')?u.x:u.x+u.w)-anchor.x);
+    let fy = (y-anchor.y)/((k.includes('t')?u.y:u.y+u.h)-anchor.y);
+    if (!isFinite(fx)) fx = 1;
+    if (!isFinite(fy)) fy = 1;
+    fx = Math.max(.05,fx); fy = Math.max(.05,fy);
+    if (e.shiftKey || selection.length > 1){ const m = Math.max(fx,fy); fx = fy = m; }
+    dragNodes.forEach((n,i) => {
+      const o = dragOrigs[i];
+      n.dataset.sx = o.sx*fx; n.dataset.sy = o.sy*fy;
+      n.dataset.tx = anchor.x + (o.tx+o.bx-anchor.x)*fx - o.bx;
+      n.dataset.ty = anchor.y + (o.ty+o.by-anchor.y)*fy - o.by;
+      applyT(n);
+    });
+    drawHandles();
+  }
+});
+
+board.addEventListener('pointerup', () => {
+  board.classList.remove('panning');
+  $('rdLen').textContent = '';
+  if (dragMode === 'marquee' && marquee){
+    const r = { x:+marquee.getAttribute('x'), y:+marquee.getAttribute('y'),
+                w:+marquee.getAttribute('width'), h:+marquee.getAttribute('height') };
+    marquee.remove(); marquee = null;
+    const found = (r.w>2 || r.h>2) ? itemsIn(r) : [];
+    select(dragStart.add ? [...new Set([...dragStart.base, ...found])] : found);
+    if (found.length) setMsg(found.length + ' objekt markerade');
+  }
+  if (dragMode === 'draw' && draft){
+    const b = draft.getBBox();
+    if (b.width < 1 && b.height < 1) draft.remove(); else stamp(draft);
+    draft = null;
+  }
+  if (dragMode === 'endpoint' && only()) rebase(only());
+  if (dragMode === 'submove' && selection[0]) rebase(selection[0]);
+  if (dragMode === 'rotate') $('rdLen').textContent = '';
+  dragMode = null;
+  drawHandles(); paintSelInfo(); refresh();
+});
+
+function textUnder(node, e){
+  const texts = node.tagName === 'text' ? [node] : [...node.querySelectorAll('text')];
+  if (!texts.length) return null;
+  if (texts.length === 1) return texts[0];
+  // flera texter i symbolen: ta den vars ruta ligger närmast pekaren
+  let best = texts[0], bd = Infinity;
+  texts.forEach(t => {
+    const r = t.getBoundingClientRect();
+    const dx = Math.max(r.left - e.clientX, 0, e.clientX - r.right);
+    const dy = Math.max(r.top - e.clientY, 0, e.clientY - r.bottom);
+    const d = Math.hypot(dx, dy);
+    if (d < bd){ bd = d; best = t; }
+  });
+  return best;
+}
+function loadTextPanel(t){
+  $('textVal').value = readText(t);
+  $('fontSize').value = parseFloat(t.getAttribute('font-size')) || 18;
+  const fam = t.getAttribute('font-family');
+  if (fam && [...$('fontFam').options].some(o => o.value === fam)) $('fontFam').value = fam;
+  $('textAnchor').value = t.getAttribute('text-anchor') || 'start';
+  $('fontItalic').checked = t.getAttribute('font-style') === 'italic';
+  $('fontWeight').checked = +(t.getAttribute('font-weight') || 400) >= 600;
+  const fl = t.getAttribute('fill');
+  if (fl && fl.startsWith('#')) $('strokeCol').value = fl;
+}
+board.addEventListener('dblclick', e => {
+  const hit = hitTest(pt(e));
+  if (!hit) return;
+  const t = textUnder(hit, e);
+  if (!t) return;
+  push();
+  select(hit);
+  if (t !== hit){ subSel = t; updatePanels(); }   // text inuti en symbol — gruppen hålls ihop
+  loadTextPanel(t);
+  $('textVal').focus(); $('textVal').select();
+});
+
+/* ================================================================
+   ETIKETTER — text som följer med sin symbol men går att dra fritt
+   ================================================================ */
+function ensureId(n){ if (!n.id) n.id = 'obj_' + (++idCounter); return n.id; }
+function followersOf(nodes){
+  const ids = new Set(nodes.map(n => n.id).filter(Boolean));
+  return allItems().filter(n => n.dataset.anchor && ids.has(n.dataset.anchor) && !nodes.includes(n));
+}
+function linkSel(){
+  const texts = selection.filter(n => n.tagName === 'text');
+  const hosts = selection.filter(n => n.tagName !== 'text');
+  if (!texts.length || hosts.length !== 1) return;
+  push();
+  const id = ensureId(hosts[0]);
+  texts.forEach(t => t.dataset.anchor = id);
+  setMsg(texts.length > 1 ? 'Texterna följer nu med symbolen' : 'Texten följer nu med symbolen');
+  paintSelInfo(); paintList();
+}
+function unlinkSel(){
+  const linked = selection.filter(n => n.dataset.anchor);
+  if (!linked.length) return;
+  push();
+  linked.forEach(n => delete n.dataset.anchor);
+  setMsg('Kopplingen borttagen'); paintSelInfo(); paintList();
+}
+$('btnLink').onclick = linkSel;
+$('btnUnlink').onclick = unlinkSel;
+
+/* ================================================================
+   ROTATION
+   Vinkeln vävs in i objektets bastransform, så markering, handtag
+   och export fortsätter räkna på samma sätt som förut.
+   ================================================================ */
+function applyRot(nodes, mats, c, deg){
+  const R = IDENT().translate(c.x, c.y).rotate(deg).translate(-c.x, -c.y);
+  nodes.forEach((n, i) => {
+    const M = R.multiply(mats[i]);
+    ['tx','ty','sx','sy'].forEach(k => delete n.dataset[k]);
+    setBM(n, M);
+    stamp(n);
+  });
+}
+function rotateSel(deg){
+  if (!selection.length || !deg) return;
+  push();
+  const nodes = selection.concat(followersOf(selection));
+  nodes.forEach(n => { if (n.tagName === 'line') bakeMove(n); });
+  const u = unionBox(nodes);
+  applyRot(nodes, nodes.map(itemMatrix), { x:u.x+u.w/2, y:u.y+u.h/2 }, deg);
+  drawHandles(); paintSelInfo(); refresh();
+  setMsg('Roterade ' + deg + '°');
+}
+const rotStep = () => Math.max(1, +$('rotStep').value || 90);
+$('rotR').onclick = () => rotateSel(rotStep());
+$('rotL').onclick = () => rotateSel(-rotStep());
+
+/* ================================================================
+   SPALTBREDDER
+   ================================================================ */
+function makeGutter(gut, panel, side){
+  gut.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    gut.setPointerCapture(e.pointerId);
+    gut.classList.add('on');
+    const x0 = e.clientX, w0 = panel.getBoundingClientRect().width;
+    const move = ev => {
+      const d = side === 'left' ? ev.clientX - x0 : x0 - ev.clientX;
+      panel.style.width = Math.max(170, Math.min(600, w0 + d)) + 'px';
+    };
+    const up = () => {
+      gut.classList.remove('on');
+      gut.removeEventListener('pointermove', move);
+      gut.removeEventListener('pointerup', up);
+    };
+    gut.addEventListener('pointermove', move);
+    gut.addEventListener('pointerup', up);
+  });
+  gut.addEventListener('dblclick', () => panel.style.width = '');   // tillbaka till standardbredd
+}
+makeGutter($('gutL'), $('left'), 'left');
+makeGutter($('gutR'), $('right'), 'right');
+
+/* ================================================================
+   SPARA URVAL SOM SYMBOL ELLER MALL
+   ================================================================ */
+const STRIPDATA = ['bx','by','bw','bh','tx','ty','sx','sy','item','lock','name','bm','anchor','hidden'];
+function selectionSnippet(bw, bh){
+  const nodes = allItems().filter(n => selection.includes(n));   // i ritordning
+  const b = unionBox(nodes);
+  const k = Math.min(bw / b.w, bh / b.h);
+  const tx = (bw - b.w*k)/2 - b.x*k, ty = (bh - b.h*k)/2 - b.y*k;
+  const inner = nodes.map(n => {
+    const c = n.cloneNode(true);                                  // transform behålls, den bär geometrin
+    STRIPDATA.forEach(d => c.removeAttribute('data-' + d));
+    c.removeAttribute('id');
+    return c.outerHTML;
+  }).join('');
+  return `<g transform="matrix(${+k.toFixed(6)},0,0,${+k.toFixed(6)},${+tx.toFixed(3)},${+ty.toFixed(3)})">${inner}</g>`;
+}
+function saveToLibrary(kind){
+  if (!selection.length) return;
+  const isSym = kind === 'sym';
+  const name = prompt(isSym ? 'Namn på symbolen:' : 'Namn på mallen:', '');
+  if (!name) return;
+  const list = isSym ? store.symbols : store.templates;
+  const cats = [...new Set(list.map(d => d.cat).filter(Boolean))];
+  const cat = prompt('Kategori (finns: ' + cats.join(', ') + ')', 'Egna') || 'Egna';
+  list.push({ id:uid(isSym ? 'sym' : 'tpl'), cat, name,
+              svg:selectionSnippet(isSym ? 60 : 1200, isSym ? 60 : 800) });
+  setMsg((isSym ? 'Symbolen' : 'Mallen') + ' "' + name + '" sparad i ' + cat +
+         ' — exportera inställningarna för att behålla den');
+}
+$('btnMakeSym').onclick = () => saveToLibrary('sym');
+$('btnMakeTpl').onclick = () => saveToLibrary('tpl');
+
+/* ================================================================
+   GRUPPERA / DELA UPP
+   ================================================================ */
+const INHERIT = ['fill','stroke','stroke-width','stroke-dasharray','stroke-linecap','stroke-linejoin',
+                 'stroke-miterlimit','fill-opacity','stroke-opacity','opacity','font-family','font-size',
+                 'font-weight','font-style','text-anchor','letter-spacing','fill-rule','color'];
+function groupSel(){
+  if (selection.length < 2) return;
+  push();
+  const host = selection[0].parentNode;
+  const inOrder = [...host.children].filter(n => selection.includes(n));
+  const rest = selection.filter(n => !inOrder.includes(n));
+  const g = mk('g',{});
+  g.id = '' + 'grupp_' + (++idCounter);
+  host.insertBefore(g, inOrder[inOrder.length-1].nextSibling);
+  inOrder.concat(rest).forEach(n => g.appendChild(n));
+  stamp(g); g.dataset.name = 'Grupp (' + (inOrder.length+rest.length) + ')';
+  select(g); refresh();
+  setMsg('Grupperade ' + (inOrder.length+rest.length) + ' objekt');
+}
+const INKNS = 'http://www.inkscape.org/namespaces/inkscape';
+const isInkLayer = e => e.localName === 'g' &&
+      (e.getAttributeNS(INKNS,'groupmode') === 'layer' || e.getAttribute('inkscape:groupmode') === 'layer');
+const inkLabel = e => e.getAttributeNS(INKNS,'label') || e.getAttribute('inkscape:label') || '';
+// bara ritbara SVG-element — sodipodi:namedview, rdf och liknande ska inte bli objekt
+const drawableKids = e => [...e.children].filter(c => c.namespaceURI === NS &&
+      !/^(defs|style|title|desc|metadata)$/.test(c.localName));
+
+function ungroupOne(g){
+  const M = itemMatrix(g), host = g.parentNode;
+  const kids = drawableKids(g);
+  const out = [];
+  kids.forEach(k => {
+    INHERIT.forEach(a => { if (g.hasAttribute(a) && !k.hasAttribute(a)) k.setAttribute(a, g.getAttribute(a)); });
+    const cm = ownMatrix(k);
+    host.insertBefore(k, g);
+    k.removeAttribute('transform');
+    ['bx','by','bw','bh','tx','ty','sx','sy'].forEach(d => delete k.dataset[d]);
+    setBM(k, M.multiply(cm));
+    stamp(k); out.push(k);
+  });
+  g.remove();
+  return out;
+}
+/* Ett steg som faktiskt ger något: passerar rakt igenom omslag som bara
+   innehåller en enda grupp, t.ex. Inkscapes lager.                        */
+function ungroupStep(g){
+  let out = ungroupOne(g), guard = 0;
+  while (out.length === 1 && out[0].tagName === 'g' && guard++ < 20) out = ungroupOne(out[0]);
+  return out;
+}
+function explodeNode(n, deep){
+  if (n.tagName !== 'g') return [n];
+  const kids = ungroupOne(n);
+  return deep ? kids.flatMap(k => explodeNode(k, true)) : kids;
+}
+function ungroupSel(deep){
+  const groups = selection.filter(n => n.tagName === 'g');
+  if (!groups.length) return;
+  push();
+  let out = [];
+  groups.forEach(g => out = out.concat(deep ? explodeNode(g, true) : ungroupStep(g)));
+  select(out.slice(0,500)); refresh();
+  setMsg((deep ? 'Delade helt i ' : 'Delade upp i ') + out.length + ' objekt');
+}
+$('btnGroup').onclick   = groupSel;
+$('btnUngroup').onclick = () => ungroupSel(false);
+$('btnExplode').onclick = () => ungroupSel(true);
+
+/* ================================================================
+   TANGENTBORD
+   ================================================================ */
+document.addEventListener('keydown', e => {
+  const inField = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
+  if (e.code === 'Space' && !inField){ spaceDown = true; e.preventDefault(); }
+  if (inField) return;
+  if (e.key === 'Escape'){
+    if (subSel){ subSel = null; paintSelInfo(); return; }
+    setTool('select'); select([]); closeLib(); return;
+  }
+  if (e.key === 'PageUp' || e.key === 'PageDown'){
+    if (!selection.length) return;
+    e.preventDefault();
+    bump(e.key === 'PageUp' ? 1 : -1, e.ctrlKey || e.metaKey || e.shiftKey);
+    return;
+  }
+  if (e.ctrlKey || e.metaKey){
+    const k = e.key.toLowerCase();
+    if (k === 'z'){ e.preventDefault(); e.shiftKey ? redo() : undo(); }
+    if (k === 'y'){ e.preventDefault(); redo(); }
+    if (k === 'd'){ e.preventDefault(); duplicate(); }
+    if (k === 'g'){ e.preventDefault(); e.shiftKey ? ungroupSel(false) : groupSel(); }
+    if (k === 'r'){ e.preventDefault(); rotateSel(e.shiftKey ? -rotStep() : rotStep()); }
+    if (k === 'a'){ e.preventDefault(); select(allItems().filter(pickable)); }
+    return;
+  }
+  const keys = { v:'select', l:'line', r:'rect', c:'circle', t:'text' };
+  if (keys[e.key.toLowerCase()]){ setTool(keys[e.key.toLowerCase()]); return; }
+  if ((e.key === 'Delete' || e.key === 'Backspace') && selection.length){
+    e.preventDefault(); push();
+    const kill = selection.concat(followersOf(selection));
+    kill.forEach(s => s.remove());
+    select([]); refresh(); setMsg(kill.length + ' objekt borttagna');
+  }
+  if (subSel && selection[0] && e.key.startsWith('Arrow')){
+    e.preventDefault(); const g = snapStep();
+    subOrig = ownMatrix(subSel);
+    moveSub(e.key === 'ArrowLeft' ? -g : e.key === 'ArrowRight' ? g : 0,
+            e.key === 'ArrowUp'   ? -g : e.key === 'ArrowDown'  ? g : 0);
+    rebase(selection[0]); drawHandles(); return;
+  }
+  if (selection.length && e.key.startsWith('Arrow')){
+    e.preventDefault(); const g = gridSize();
+    const dx = e.key==='ArrowLeft'?-g:e.key==='ArrowRight'?g:0;
+    const dy = e.key==='ArrowUp'?-g:e.key==='ArrowDown'?g:0;
+    selection.concat(followersOf(selection))
+      .forEach(n => { n.dataset.tx = +n.dataset.tx+dx; n.dataset.ty = +n.dataset.ty+dy; applyT(n); });
+    drawHandles();
+  }
+});
+document.addEventListener('keyup', e => { if (e.code === 'Space') spaceDown = false; });
+
+/* ================================================================
+   VY, ZOOM, SIDA
+   ================================================================ */
+function applyView(){
+  board.setAttribute('viewBox', `${view.x} ${view.y} ${view.w} ${view.h}`);
+  $('zLabel').textContent = Math.round(rectOf().width/view.w*100) + '%';
+  drawHandles(); drawCross();
+}
+function fitView(){
+  const r = rectOf(), ar = r.width/Math.max(1,r.height), m = 1.08;
+  let w = doc.w*m, h = doc.h*m;
+  if (w/h < ar) w = h*ar; else h = w/ar;
+  view = { x:(doc.w-w)/2, y:(doc.h-h)/2, w, h };
+  applyView();
+}
+function zoomAt(px,py,f){
+  const nw = Math.min(doc.w*6, Math.max(doc.w/80, view.w*f)), k = nw/view.w;
+  view.x = px-(px-view.x)*k; view.y = py-(py-view.y)*k;
+  view.w = nw; view.h *= k;
+  applyView();
+}
+board.addEventListener('wheel', e => {
+  e.preventDefault();
+  const p = pt(e);
+  zoomAt(p.x, p.y, e.deltaY > 0 ? 1.15 : 1/1.15);
+}, { passive:false });
+$('zIn').onclick  = () => zoomAt(view.x+view.w/2, view.y+view.h/2, 1/1.3);
+$('zOut').onclick = () => zoomAt(view.x+view.w/2, view.y+view.h/2, 1.3);
+$('zFit').onclick = fitView;
+new ResizeObserver(() => {
+  const r = rectOf(); if (!r.width) return;
+  view.h = view.w*(r.height/r.width); applyView();
+}).observe(board.parentElement);
+
+function setDoc(w,h){
+  doc.w = Math.max(100,w|0); doc.h = Math.max(100,h|0);
+  $('paper').setAttribute('width',doc.w);  $('paper').setAttribute('height',doc.h);
+  $('gridbg').setAttribute('width',doc.w); $('gridbg').setAttribute('height',doc.h);
+  $('docW').value = doc.w; $('docH').value = doc.h;
+  syncBar(); fitView();
+}
+$('docW').addEventListener('change', () => { setDoc(+$('docW').value, doc.h); $('docPreset').value=''; });
+$('docH').addEventListener('change', () => { setDoc(doc.w, +$('docH').value); $('docPreset').value=''; });
+$('docPreset').addEventListener('change', e => {
+  if (!e.target.value) return;
+  const [w,h] = e.target.value.split('x').map(Number); setDoc(w,h);
+});
+
+/* ================================================================
+   VERKTYG & LINJETYPER
+   ================================================================ */
+const TOOLS = [
+  ['select','Välj','<path d="M5 3l13 8-6 1 3 6-2 1-3-6-5 4z"/>'],
+  ['line','Linje','<path d="M4 18L18 5"/><circle cx="4" cy="18" r="2"/><circle cx="18" cy="5" r="2"/>'],
+  ['rect','Fyrkant','<rect x="3.5" y="5.5" width="15" height="11" rx="1"/>'],
+  ['circle','Cirkel','<circle cx="11" cy="11" r="7"/>'],
+  ['text','Text','<path d="M4 6V4h14v2M11 4v14M8 18h6"/>'],
+];
+TOOLS.forEach(([id,lbl,icon]) => {
+  const b = el('button','tool');
+  b.type='button'; b.dataset.tool = id;
+  b.setAttribute('aria-pressed', id === 'select');
+  b.innerHTML = `<svg viewBox="0 0 22 22">${icon}</svg><span>${lbl}</span>`;
+  b.onclick = () => setTool(id);
+  $('tools').appendChild(b);
+});
+function setTool(t){
+  tool = t;
+  if (t !== 'symbol') pendingSymbol = null;
+  if (t !== 'line'){ drawCap = null; if (activePreset !== null){ activePreset = null; paintPresets(); } }
+  document.querySelectorAll('.tool').forEach(b => b.setAttribute('aria-pressed', b.dataset.tool === t));
+  board.classList.toggle('selecting', t === 'select');
+  if (t !== 'select') select([]);
+  updatePanels();
+}
+function paintPresets(){
+  const wrap = $('presets'); wrap.innerHTML = '';
+  $('stdTag').textContent = std() ? std().name : '';
+  (std() ? std().lines : []).forEach((p,i) => {
+    const b = el('button','preset');
+    b.type='button';
+    b.setAttribute('aria-pressed', activePreset === i);
+    const bar = p.dash ? `repeating-linear-gradient(90deg,${p.color} 0 6px,transparent 6px 11px)` : p.color;
+    b.innerHTML = `<i style="height:${Math.min(8,Math.max(2,p.w))}px;background:${bar}"></i><span>${p.name}</span>`;
+    b.onclick = () => {
+      $('strokeCol').value = p.color; $('strokeW').value = p.w;
+      $('dashed').checked = !!p.dash;
+      drawCap = p.cap || ui().lineCap;
+      setTool('line'); activePreset = i; paintPresets();
+      setMsg(p.name + ' — rita linjer, Esc avslutar');
+    };
+    wrap.appendChild(b);
+  });
+  if (!wrap.children.length) wrap.innerHTML = '<p class="hint">Inga linjetyper. Lägg till dem under Inställningar.</p>';
+}
+function paintSwatches(){
+  const wrap = $('swatches'); wrap.innerHTML = '';
+  (std() ? std().swatches : []).forEach(c => {
+    const b = el('button','sw');
+    b.type='button'; b.style.background = c; b.title = c + '  (Shift = fyllning)';
+    b.onclick = e => {
+      if (e.shiftKey){ $('fillCol').value = c; $('fillOn').checked = true; }
+      else $('strokeCol').value = c;
+      applyStyle();
+    };
+    wrap.appendChild(b);
+  });
+}
+function applyStandard(){ activePreset = null; drawCap = null; paintPresets(); paintSwatches(); }
+
+/* ================================================================
+   STIL PÅ MARKERAT
+   ================================================================ */
+function applyTextProps(t){
+  t.setAttribute('fill', $('strokeCol').value);
+  t.setAttribute('font-size', $('fontSize').value);
+  t.setAttribute('font-family', $('fontFam').value);
+  t.setAttribute('text-anchor', $('textAnchor').value);
+  t.setAttribute('font-style', $('fontItalic').checked ? 'italic' : 'normal');
+  t.setAttribute('font-weight', $('fontWeight').checked ? '700' : '400');
+  setTextContent(t, $('textVal').value);
+}
+function applyStyle(){
+  $('fillOpVal').textContent = $('fillOp').value + '%';
+  if (subSel){
+    applyTextProps(subSel);
+    if (selection[0]) rebase(selection[0]);
+    drawHandles(); paintList();
+    return;
+  }
+  if (!selection.length) return;
+  const s = style(), on = $('fillOn').checked;
+  selection.forEach(sn => {
+    const isGroup = sn.tagName === 'g';
+    const targets = isGroup ? [...sn.querySelectorAll('*')] : [sn];
+    targets.forEach(n => {
+      if (n.tagName === 'text' || n.tagName === 'tspan'){ n.setAttribute('fill', s.stroke); return; }
+      n.setAttribute('stroke', s.stroke);
+      n.setAttribute('stroke-width', s['stroke-width']);
+      n.setAttribute('stroke-dasharray', s['stroke-dasharray']);
+      n.setAttribute('stroke-linecap', s['stroke-linecap']);
+      n.setAttribute('stroke-linejoin', s['stroke-linejoin']);
+      // inuti en symbol rörs bara de delar som redan var fyllda, så formen behåller sin uppbyggnad
+      const cur = n.getAttribute('fill');
+      if (!isGroup || (cur && cur !== 'none')){
+        if (on){ n.setAttribute('fill', s.fill); n.setAttribute('fill-opacity', s['fill-opacity']); }
+        else   { n.setAttribute('fill', 'none'); n.removeAttribute('fill-opacity'); }
+      }
+      if (n.tagName === 'rect'){ n.setAttribute('rx', cornerR()); n.setAttribute('ry', cornerR()); }
+    });
+    if (sn.tagName === 'text'){
+      sn.setAttribute('font-size', $('fontSize').value);
+      sn.setAttribute('font-family', $('fontFam').value);
+      sn.setAttribute('text-anchor', $('textAnchor').value);
+      sn.setAttribute('font-style', $('fontItalic').checked ? 'italic' : 'normal');
+      sn.setAttribute('font-weight', $('fontWeight').checked ? '700' : '400');
+      const val = (selection.length === 1 && $('textVal').value !== '') ? $('textVal').value : readText(sn);
+      setTextContent(sn, val);
+      delete sn.dataset.name;
+      rebase(sn);
+    }
+  });
+  drawHandles(); paintList();
+}
+// väljer man färg eller täckning menar man rimligen att objektet ska fyllas
+['fillCol','fillOp'].forEach(id => $(id).addEventListener('input', () => $('fillOn').checked = true));
+['strokeCol','fillCol','fillOn','fillOp','strokeW','cornerR','dashed',
+ 'fontSize','fontWeight','fontItalic','fontFam','textAnchor','textVal']
+  .forEach(id => $(id).addEventListener('input', applyStyle));
+
+function applyMeta(){
+  if (!selection.length) return;
+  const cls = $('objClass').value.trim(), st = $('objStyle').value.trim();
+  selection.forEach(n => {
+    cls ? n.setAttribute('class', cls) : n.removeAttribute('class');
+    st  ? n.setAttribute('style', st)  : n.removeAttribute('style');
+  });
+  if (selection.length === 1){
+    const v = $('objId').value.trim();
+    v ? selection[0].setAttribute('id', v) : selection[0].removeAttribute('id');
+  }
+  paintSelInfo();
+}
+['objClass','objId','objStyle'].forEach(id => $(id).addEventListener('change', applyMeta));
+
+/* ---- vyfärger: gäller bara på skärmen, exporten är alltid vit ---- */
+const PAPERS = [['#f5f7f5','Vit'],['#14191d','Svart'],['#0e1c33','Mörkblå'],['#8d959b','Grå']];
+const GRIDTONES = [['#d3ddd9','#b3c3be','Låg'],['#9aaba6','#7d8f8a','Mellan'],
+                   ['#5a6c74','#74868f','Hög'],['#3a3a3a','#000000','Svart']];
+function applyPaper(){
+  const u = ui();
+  $('paper').setAttribute('fill', u.paper);
+  const t = GRIDTONES[u.gridTone] || GRIDTONES[0];
+  $('gridpat').firstElementChild.setAttribute('stroke', t[0]);
+  $('gridpat10').lastElementChild.setAttribute('stroke', t[1]);
+  applyGridOpacity();
+  paintViewSwatches();
+}
+function applyGridOpacity(){
+  const v = ui().gridOpacity === undefined ? 100 : +ui().gridOpacity;
+  $('gridbg').setAttribute('opacity', v / 100);
+  $('gridOp').value = v;
+  $('gridOpVal').textContent = v + '%';
+}
+$('gridOp').addEventListener('input', () => {
+  ui().gridOpacity = +$('gridOp').value;
+  applyGridOpacity();
+});
+const CROSSCOLORS = [['#111111','Svart'],['#c8102e','Röd'],['#2e9e4b','Grön'],
+                     ['#00c2c7','Turkos'],['#ffffff','Vit']];
+function paintCrossSwatches(){
+  const u = ui(), wrap = $('crossSw');
+  wrap.innerHTML = '';
+  CROSSCOLORS.forEach(([c,n]) => {
+    const b = el('button','sw'); b.type='button'; b.title = n; b.style.background = c;
+    b.setAttribute('aria-pressed', u.crossColor.toLowerCase() === c);
+    b.onclick = () => { u.crossColor = c; $('crossCol').value = c; drawCross(); paintCrossSwatches(); };
+    wrap.appendChild(b);
+  });
+}
+function paintViewSwatches(){
+  const u = ui();
+  const ps = $('paperSw'); ps.innerHTML = '';
+  PAPERS.forEach(([c,n]) => {
+    const b = el('button','sw'); b.type='button'; b.title = n; b.style.background = c;
+    b.setAttribute('aria-pressed', u.paper === c);
+    b.onclick = () => { u.paper = c; applyPaper(); };
+    ps.appendChild(b);
+  });
+  const gs = $('gridSw'); gs.innerHTML = '';
+  GRIDTONES.forEach(([a,,n], i) => {
+    const b = el('button','sw'); b.type='button'; b.title = 'Kontrast: ' + n; b.style.background = a;
+    b.setAttribute('aria-pressed', (u.gridTone||0) === i);
+    b.onclick = () => { u.gridTone = i; applyPaper(); };
+    gs.appendChild(b);
+  });
+}
+
+function syncBar(){
+  const u = ui();
+  $('crossCol').value = u.crossColor;
+  $('snapStepIn').value = snapStep();
+  $('gridCount').value = Math.max(2, Math.round(doc.w / gridSize()));
+  paintCrossSwatches(); applyGridOpacity();
+}
+$('crossCol').addEventListener('input', () => {
+  ui().crossColor = $('crossCol').value; drawCross(); paintCrossSwatches();
+});
+$('snapStepIn').addEventListener('input', () => {
+  const u = ui();
+  u.snapFollowGrid = false;
+  u.snapStep = Math.max(0.5, +$('snapStepIn').value || 20);
+  $('rdS').textContent = snapStep();
+});
+$('gridCount').addEventListener('input', () => {
+  const c = Math.max(2, +$('gridCount').value || 20);
+  $('gridSize').value = Math.max(2, Math.round(doc.w / c));
+  updateGrid();
+});
+
+function updateGrid(){
+  const g = gridSize(), maj = g*5;
+  const p = $('gridpat'), p10 = $('gridpat10');
+  p.setAttribute('width',g); p.setAttribute('height',g);
+  p.firstElementChild.setAttribute('d', `M${g} 0H0V${g}`);
+  p10.setAttribute('width',maj); p10.setAttribute('height',maj);
+  p10.firstElementChild.setAttribute('width',maj); p10.firstElementChild.setAttribute('height',maj);
+  p10.lastElementChild.setAttribute('d', `M${maj} 0H0V${maj}`);
+  $('rdG').textContent = g;
+  $('rdS').textContent = snapStep();
+  syncBar(); drawCross();
+}
+$('gridSize').addEventListener('input', updateGrid);
+$('showGrid').addEventListener('change', () => $('gridbg').style.display = $('showGrid').checked ? '' : 'none');
+
+/* ================================================================
+   OBJEKTÅTGÄRDER
+   ================================================================ */
+function duplicate(){
+  if (!selection.length) return; push();
+  const map = new Map();
+  const copies = selection.concat(followersOf(selection)).map(n => {
+    const c = n.cloneNode(true);
+    if (c.id){ const nid = c.id.replace(/_\d+$/,'') + '_' + (++idCounter); map.set(n.id, nid); c.id = nid; }
+    c.dataset.tx = +n.dataset.tx + gridSize(); c.dataset.ty = +n.dataset.ty + gridSize();
+    n.parentNode.appendChild(c); applyT(c); return c;
+  });
+  copies.forEach(c => { if (c.dataset.anchor && map.has(c.dataset.anchor)) c.dataset.anchor = map.get(c.dataset.anchor); });
+  select(copies); refresh();
+}
+$('btnDup').onclick = duplicate;
+$('btnDel').onclick = () => {
+  if (!selection.length) return;
+  push(); selection.concat(followersOf(selection)).forEach(n => n.remove()); select([]); refresh();
+};
+function bump(dir, all){
+  if (!selection.length) return;
+  push();
+  // i DOM-ordning, bakifrån när något ska fram, så markerade objekt inte byter plats med varandra
+  const order = allItems().filter(n => selection.includes(n));
+  (dir > 0 ? order.reverse() : order).forEach(n => {
+    const p = n.parentNode;
+    if (all){ dir > 0 ? p.appendChild(n) : p.insertBefore(n, p.firstChild); return; }
+    const sib = dir > 0 ? n.nextElementSibling : n.previousElementSibling;
+    if (sib) dir > 0 ? p.insertBefore(sib, n) : p.insertBefore(n, sib);
+  });
+  refresh();
+}
+$('btnFront').onclick = () => bump(1, true);
+$('btnBack').onclick  = () => bump(-1, true);
+$('btnUndo').onclick = undo;
+$('btnRedo').onclick = redo;
+$('btnClear').onclick = () => {
+  if (!confirm('Rensa hela ritytan? Lagren behålls.')) return;
+  push(); layers().forEach(l => l.innerHTML = ''); select([]); refresh();
+};
+
+/* ================================================================
+   SVG-INLÄSNING
+   ================================================================ */
+function cssToAttrs(root){
+  [...root.querySelectorAll('style')].forEach(st => {
+    const css = st.textContent.replace(/\/\*[\s\S]*?\*\//g,'');
+    css.split('}').forEach(chunk => {
+      const i = chunk.indexOf('{'); if (i < 0) return;
+      const sels = chunk.slice(0,i), body = chunk.slice(i+1);
+      const decls = body.split(';').map(d => d.trim()).filter(Boolean).map(d => {
+        const j = d.indexOf(':'); return j < 0 ? null : [d.slice(0,j).trim(), d.slice(j+1).trim()];
+      }).filter(Boolean);
+      sels.split(',').forEach(sel => {
+        sel = sel.trim(); if (!sel || sel.startsWith('@')) return;
+        let els = [];
+        try { els = [...root.querySelectorAll(sel)]; } catch(err){ return; }
+        els.forEach(e2 => decls.forEach(([k,v]) => { if (!e2.hasAttribute(k)) e2.setAttribute(k,v); }));
+      });
+    });
+    st.remove();
+  });
+}
+function inlineStyleToAttrs(root){
+  [...root.querySelectorAll('[style]')].forEach(e2 => {
+    e2.getAttribute('style').split(';').forEach(d => {
+      const i = d.indexOf(':'); if (i < 0) return;
+      const k = d.slice(0,i).trim(), v = d.slice(i+1).trim();
+      if (k && v && !k.startsWith('transform') && !k.startsWith('-')) e2.setAttribute(k,v);
+    });
+    e2.removeAttribute('style');
+  });
+}
+function parseSVG(text){
+  const root = new DOMParser().parseFromString(text,'image/svg+xml').documentElement;
+  if (root.nodeName === 'parsererror' || root.tagName !== 'svg') return null;
+  cssToAttrs(root); inlineStyleToAttrs(root);
+  return root;
+}
+function fitMatrix(root, bw, bh){
+  const vb = (root.getAttribute('viewBox')||'').trim().split(/[\s,]+/).map(Number);
+  const has = vb.length === 4 && vb.every(v => isFinite(v));
+  const w = has ? vb[2] : (parseFloat(root.getAttribute('width'))  || bw);
+  const h = has ? vb[3] : (parseFloat(root.getAttribute('height')) || bh);
+  const k = Math.min(bw/w, bh/h);
+  return IDENT().translate((bw-w*k)/2, (bh-h*k)/2).scale(k).translate(has?-vb[0]:0, has?-vb[1]:0);
+}
+function innerOf(root){
+  return [...root.children]
+    .filter(c => !/^(title|desc|metadata|style)$/.test(c.tagName))
+    .map(c => c.outerHTML).join('');
+}
+function svgToSnippet(text, bw, bh){
+  const root = parseSVG(text); if (!root) return null;
+  const m = fitMatrix(root, bw, bh);
+  return `<g transform="matrix(${m.a},${m.b},${m.c},${m.d},${m.e},${m.f})">${innerOf(root)}</g>`;
+}
+function importSVG(text, fname){
+  const root = parseSVG(text);
+  if (!root){ setMsg('Kunde inte läsa filen som SVG'); return; }
+  push();
+  const defs = board.querySelector('defs');
+  [...root.querySelectorAll('defs')].forEach(d => {
+    [...d.children].forEach(c => defs.appendChild(document.importNode(c,true)));
+    d.remove();
+  });
+
+  const m = fitMatrix(root, doc.w, doc.h);
+  const mode = $('importMode').value;
+  const kids = drawableKids(root);
+  if (!kids.length){ setMsg('Filen innehöll inget ritbart'); return; }
+
+  const build = (nodes, layerName) => {
+    const host = layerName ? newLayer(layerName) : activeLayer();
+    const g = mk('g', {});
+    INHERIT.forEach(a => { if (root.hasAttribute(a)) g.setAttribute(a, root.getAttribute(a)); });
+    nodes.forEach(c => g.appendChild(document.importNode(c, true)));
+    host.appendChild(g);
+    setBM(g, m); stamp(g);
+    g.id = 'import_' + (++idCounter);
+    g.dataset.name = layerName ? 'Import: ' + layerName : fname;
+    if (mode === 'one')  return [g];
+    if (mode === 'full') return explodeNode(g, true);
+    return ungroupStep(g);
+  };
+
+  const inkLayers = kids.filter(isInkLayer);
+  let made = [];
+  if (mode !== 'one' && inkLayers.length){
+    inkLayers.forEach(lg => { made = made.concat(build([lg], inkLabel(lg) || fname)); });
+    const rest = kids.filter(c => !inkLayers.includes(c));
+    if (rest.length) made = made.concat(build(rest, null));
+  } else {
+    made = build(kids, null);
+  }
+
+  select(made.slice(0, 500)); refresh();
+  setMsg(mode === 'one'
+    ? fname + ' inläst som ett objekt — använd "Dela upp"'
+    : fname + ' inläst, ' + made.length + ' objekt' + (inkLayers.length > 1 ? ' i ' + inkLayers.length + ' lager' : ''));
+}
+$('btnImport').onclick = () => $('fileIn').click();
+$('fileIn').onchange = e => {
+  const f = e.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = () => importSVG(r.result, f.name.replace(/\.svg$/i,''));
+  r.readAsText(f); e.target.value = '';
+};
+
+/* ================================================================
+   BIBLIOTEKSDIALOG
+   ================================================================ */
+let libMode = 'symbol', libCat = null;
+function openLib(mode){
+  libMode = mode; libCat = null;
+  $('libTitle').textContent = mode === 'symbol' ? 'Symbolbibliotek' : 'Mallbibliotek';
+  $('libSearch').value = '';
+  $('libItems').classList.toggle('tpl', mode === 'template');
+  paintLib(); $('lib').hidden = false; $('libSearch').focus();
+}
+function closeLib(){ $('lib').hidden = true; }
+$('btnSymLib').onclick = () => openLib('symbol');
+$('btnTplLib').onclick = () => openLib('template');
+$('libClose').onclick = closeLib;
+$('libEdit').onclick = () => { closeLib(); openSettings(libMode === 'symbol' ? 'sym' : 'tpl'); };
+$('lib').addEventListener('click', e => { if (e.target.id === 'lib') closeLib(); });
+$('libSearch').addEventListener('input', paintLib);
+$('libSearch').addEventListener('keydown', e => { if (e.key === 'Escape') closeLib(); });
+
+function paintLib(){
+  const data = libMode === 'symbol' ? store.symbols : store.templates;
+  const q = $('libSearch').value.trim().toLowerCase();
+  const cats = [...new Set(data.map(d => d.cat))];
+  const nav = $('libCats'); nav.innerHTML = '';
+  [['','Alla (' + data.length + ')']].concat(cats.map(c => [c,c])).forEach(([val,lbl]) => {
+    const b = el('button', null, lbl);
+    b.type = 'button';
+    b.setAttribute('aria-pressed', (libCat||'') === val);
+    b.onclick = () => { libCat = val || null; paintLib(); };
+    nav.appendChild(b);
+  });
+  const items = $('libItems'); items.innerHTML = '';
+  data.filter(d => (!libCat || d.cat === libCat) &&
+                   (!q || d.name.toLowerCase().includes(q) || (d.cat||'').toLowerCase().includes(q)))
+      .forEach(d => {
+    const c = el('button','card');
+    c.type = 'button';
+    c.innerHTML = `<svg viewBox="${libMode === 'symbol' ? '0 0 60 60' : '0 0 1200 800'}" preserveAspectRatio="xMidYMid meet">${d.svg}</svg><span>${d.name}</span>`;
+    c.onclick = () => libMode === 'symbol' ? pickSymbol(d) : placeTemplate(d);
+    items.appendChild(c);
+  });
+  if (!items.children.length) items.innerHTML = '<p class="hint">Inget matchar sökningen.</p>';
+}
+function pickSymbol(s){
+  setTool('symbol'); pendingSymbol = s; closeLib();
+  if (!recent.find(r => r.id === s.id)){ recent.unshift(s); if (recent.length > 8) recent.pop(); paintRecent(); }
+  setMsg(s.name + ' — klicka för att placera flera, Esc avslutar');
+}
+function paintRecent(){
+  const wrap = $('recent'); wrap.innerHTML = '';
+  recent.forEach(s => {
+    const c = el('button','chip');
+    c.type='button'; c.title = s.name;
+    c.innerHTML = `<svg viewBox="0 0 60 60">${s.svg}</svg>`;
+    c.onclick = () => pickSymbol(s);
+    wrap.appendChild(c);
+  });
+}
+function placeTemplate(t){
+  push();
+  const g = mk('g',{}); g.innerHTML = t.svg;
+  g.id = '' + 'mall_' + (++idCounter);
+  initItem(g, { name:'Mall: ' + t.name });
+  activeLayer().insertBefore(g, activeLayer().firstChild);
+  const k = Math.min(doc.w/1200, doc.h/800);
+  g.dataset.sx = k; g.dataset.sy = k;
+  g.dataset.tx = (doc.w - +g.dataset.bw * k)/2 - +g.dataset.bx;
+  g.dataset.ty = (doc.h - +g.dataset.bh * k)/2 - +g.dataset.by;
+  applyT(g); select(g); closeLib(); refresh();
+  setMsg('Mall inlagd längst bak — "Dela upp" delar den i enskilda objekt');
+}
+
+/* ================================================================
+   INSTÄLLNINGAR
+   ================================================================ */
+const TABS = [['std','Kundstandarder'],['sym','Symboler'],['tpl','Mallar'],['draw','Ritning'],['file','Filer']];
+let setTab = 'std', stdIdx = 0, symIdx = 0, tplIdx = 0, libTarget = null;
+
+function openSettings(tab){
+  setTab = tab || 'std';
+  $('settings').hidden = false;
+  renderSettings();
+}
+function closeSettings(){ $('settings').hidden = true; applyStandard(); updateGrid(); applyUserCSS(); applyPaper(); paintLib(); }
+$('btnSettings').onclick = () => openSettings('std');
+$('setClose').onclick = closeSettings;
+$('settings').addEventListener('click', e => { if (e.target.id === 'settings') closeSettings(); });
+
+function renderSettings(){
+  const tabs = $('setTabs'); tabs.innerHTML = '';
+  TABS.forEach(([id,lbl]) => {
+    const b = el('button', null, lbl);
+    b.type='button'; b.setAttribute('aria-pressed', setTab === id);
+    b.onclick = () => { setTab = id; renderSettings(); };
+    tabs.appendChild(b);
+  });
+  ({ std:renderStd, sym:() => renderLibTab('sym'), tpl:() => renderLibTab('tpl'),
+     draw:renderDraw, file:renderFiles })[setTab]();
+}
+
+/* --- kundstandarder --- */
+function renderStd(){
+  const side = $('setList'), foot = $('setFoot'), main = $('setMain');
+  $('setSide').style.display = '';
+  side.innerHTML = ''; foot.innerHTML = ''; main.innerHTML = '';
+  store.standards.forEach((s,i) => {
+    const b = el('button','entry');
+    b.type='button'; b.setAttribute('aria-pressed', i === stdIdx);
+    b.innerHTML = `<div class="t">${s.name}<small>${s.lines.length} linjetyper${s.id === store.activeStandard ? ' · aktiv' : ''}</small></div>`;
+    b.onclick = () => { stdIdx = i; renderStd(); };
+    side.appendChild(b);
+  });
+  const add = el('button','btn sm','Ny'); add.onclick = () => {
+    const seed = defaultStore().standards[0];
+    store.standards.push({ id:uid('std'), name:'Ny kundstandard',
+                           swatches:seed.swatches.slice(),
+                           lines:JSON.parse(JSON.stringify(seed.lines)) });
+    stdIdx = store.standards.length-1; renderStd();
+  };
+  const dup = el('button','btn sm','Duplicera'); dup.onclick = () => {
+    const c = JSON.parse(JSON.stringify(store.standards[stdIdx]));
+    c.id = uid('std'); c.name += ' (kopia)';
+    store.standards.push(c); stdIdx = store.standards.length-1; renderStd();
+  };
+  const del = el('button','btn sm','Ta bort'); del.onclick = () => {
+    if (store.standards.length < 2) return alert('Minst en standard måste finnas.');
+    if (!confirm('Ta bort "' + store.standards[stdIdx].name + '"?')) return;
+    const removed = store.standards.splice(stdIdx,1)[0];
+    if (store.activeStandard === removed.id) store.activeStandard = store.standards[0].id;
+    stdIdx = 0; renderStd(); applyStandard();
+  };
+  foot.append(add, dup, del);
+
+  const s = store.standards[stdIdx];
+  if (!s) return;
+  const head = el('div');
+  head.innerHTML = `<h4>${s.name}</h4><p class="sub">Linjetyperna nedan blir knapparna i vänsterpanelen när standarden är vald.</p>`;
+  main.appendChild(head);
+
+  const nameFld = el('div','fld');
+  nameFld.innerHTML = '<label>Namn på standarden</label>';
+  const nameIn = document.createElement('input');
+  nameIn.type='text'; nameIn.className='wide'; nameIn.value = s.name;
+  nameIn.oninput = () => { s.name = nameIn.value; $('stdTag').textContent = std().name; };
+  nameFld.appendChild(nameIn);
+  main.appendChild(nameFld);
+
+  const useBtn = el('button','btn', s.id === store.activeStandard ? 'Används nu' : 'Använd denna standard');
+  useBtn.disabled = s.id === store.activeStandard;
+  useBtn.onclick = () => { store.activeStandard = s.id; applyStandard(); renderStd(); setMsg('Standard: ' + s.name); };
+  main.appendChild(useBtn);
+
+  const hdr = el('div','lrow');
+  ['Benämning','Färg','Tjocklek','Streckning','Ändar',''].forEach(t => hdr.appendChild(el('div','lhead',t)));
+  main.appendChild(el('div','fld')).appendChild(hdr);
+
+  const rows = el('div');
+  s.lines.forEach((p,i) => {
+    const r = el('div','lrow');
+    const nm = document.createElement('input'); nm.type='text'; nm.value = p.name;
+    nm.oninput = () => p.name = nm.value;
+    const co = document.createElement('input'); co.type='color'; co.value = p.color;
+    co.oninput = () => p.color = co.value;
+    const wi = document.createElement('input'); wi.type='number'; wi.min='0.5'; wi.step='0.5'; wi.value = p.w;
+    wi.oninput = () => p.w = +wi.value;
+    const da = document.createElement('select');
+    DASHES.forEach(([v,t]) => { const o = document.createElement('option'); o.value=v; o.textContent=t; da.appendChild(o); });
+    da.value = p.dash || '';
+    da.onchange = () => p.dash = da.value;
+    const cp = document.createElement('select');
+    [['round','Rundade'],['butt','Fyrkantiga']].forEach(([v,t]) => {
+      const o = document.createElement('option'); o.value=v; o.textContent=t; cp.appendChild(o);
+    });
+    cp.value = p.cap || ui().lineCap;
+    cp.onchange = () => p.cap = cp.value;
+    const x = el('button','xbtn','✕');
+    x.onclick = () => { s.lines.splice(i,1); renderStd(); };
+    r.append(nm,co,wi,da,cp,x);
+    rows.appendChild(r);
+  });
+  main.appendChild(rows);
+  const addLine = el('button','btn sm','Lägg till linjetyp');
+  addLine.style.marginTop = '6px';
+  addLine.onclick = () => { s.lines.push({ name:'Ny linje', color:'#1b2a33', w:2, dash:'', cap:ui().lineCap }); renderStd(); };
+  main.appendChild(addLine);
+
+  const swWrap = el('div','fld');
+  swWrap.style.marginTop = '22px';
+  swWrap.innerHTML = '<label>Snabbfärger i panelen</label>';
+  const sws = el('div','swatches');
+  s.swatches.forEach((c,i) => {
+    const holder = el('div');
+    holder.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:2px';
+    const inp = document.createElement('input'); inp.type='color'; inp.value = c;
+    inp.oninput = () => s.swatches[i] = inp.value;
+    const x = el('button','xbtn','✕'); x.style.height='16px';
+    x.onclick = () => { s.swatches.splice(i,1); renderStd(); };
+    holder.append(inp,x); sws.appendChild(holder);
+  });
+  const addSw = el('button','btn sm','+');
+  addSw.onclick = () => { s.swatches.push('#888888'); renderStd(); };
+  sws.appendChild(addSw);
+  swWrap.appendChild(sws);
+  main.appendChild(swWrap);
+}
+
+/* --- symbol- och mallredigering --- */
+function renderLibTab(kind){
+  const isSym = kind === 'sym';
+  const data = isSym ? store.symbols : store.templates;
+  const bw = isSym ? 60 : 1200, bh = isSym ? 60 : 800;
+  let idx = isSym ? symIdx : tplIdx;
+  if (idx >= data.length) idx = Math.max(0, data.length-1);
+  isSym ? symIdx = idx : tplIdx = idx;
+
+  const side = $('setList'), foot = $('setFoot'), main = $('setMain');
+  $('setSide').style.display = '';
+  side.innerHTML = ''; foot.innerHTML = ''; main.innerHTML = '';
+
+  let lastCat = null;
+  data.forEach((d,i) => {
+    if (d.cat !== lastCat){
+      lastCat = d.cat;
+      const h = el('div', null, d.cat || 'Utan kategori');
+      h.style.cssText = 'font-family:var(--mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);padding:10px 6px 4px';
+      side.appendChild(h);
+    }
+    const b = el('button','entry');
+    b.type='button'; b.setAttribute('aria-pressed', i === idx);
+    b.innerHTML = `<div class="thumb"><svg viewBox="0 0 ${bw} ${bh}" preserveAspectRatio="xMidYMid meet">${d.svg}</svg></div><div class="t">${d.name}</div>`;
+    b.onclick = () => { isSym ? symIdx = i : tplIdx = i; renderLibTab(kind); };
+    side.appendChild(b);
+  });
+
+  const add = el('button','btn sm','Ny');
+  add.onclick = () => {
+    data.push({ id:uid(isSym?'sym':'tpl'), cat:'Egna', name:'Ny ' + (isSym?'symbol':'mall'),
+                svg: isSym ? '<circle cx="30" cy="30" r="20" stroke="#1b2a33" stroke-width="2" fill="#fff"/>'
+                           : '<rect x="40" y="40" width="1120" height="720" stroke="#1b2a33" stroke-width="2" fill="none"/>' });
+    isSym ? symIdx = data.length-1 : tplIdx = data.length-1;
+    renderLibTab(kind);
+  };
+  const imp = el('button','btn sm','Från SVG');
+  imp.onclick = () => { libTarget = kind; $('fileLib').click(); };
+  const del = el('button','btn sm','Ta bort');
+  del.onclick = () => {
+    if (!data.length) return;
+    if (!confirm('Ta bort "' + data[idx].name + '"?')) return;
+    data.splice(idx,1); renderLibTab(kind);
+  };
+  foot.append(add, imp, del);
+
+  const d = data[idx];
+  if (!d){ main.innerHTML = '<p class="sub">Inget valt. Skapa en ny post eller läs in en SVG-fil.</p>'; return; }
+
+  const grid = el('div','editgrid');
+  const prev = el('div','prev');
+  const drawPrev = () => prev.innerHTML = `<svg viewBox="0 0 ${bw} ${bh}" preserveAspectRatio="xMidYMid meet">${d.svg}</svg>`;
+  drawPrev();
+
+  const form = el('div');
+  const cats = [...new Set(data.map(x => x.cat).filter(Boolean))];
+  form.innerHTML =
+    `<div class="fld"><label>Namn</label><input type="text" class="wide" id="edName"></div>
+     <div class="fld"><label>Kategori</label><input type="text" class="wide" id="edCat" list="edCats">
+       <datalist id="edCats">${cats.map(c => `<option value="${c}">`).join('')}</datalist></div>
+     <div class="fld"><label>SVG-kod — rita inom ${bw} × ${bh}</label>
+       <textarea id="edSvg" rows="12"></textarea></div>
+     <p class="sub" style="margin:0">Klistra in innehållet mellan &lt;svg&gt;-taggarna. Förhandsvisningen uppdateras när du skriver.</p>`;
+  grid.append(prev, form);
+  main.appendChild(grid);
+
+  const nm = form.querySelector('#edName'), ct = form.querySelector('#edCat'), sv = form.querySelector('#edSvg');
+  nm.value = d.name; ct.value = d.cat || ''; sv.value = d.svg;
+  nm.oninput = () => { d.name = nm.value; };
+  ct.oninput = () => { d.cat = ct.value; };
+  sv.oninput = () => { d.svg = sv.value; drawPrev(); };
+  nm.onchange = ct.onchange = () => renderLibTab(kind);
+}
+$('fileLib').onchange = e => {
+  const f = e.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    const isSym = libTarget === 'sym';
+    const snippet = svgToSnippet(r.result, isSym ? 60 : 1200, isSym ? 60 : 800);
+    if (!snippet) return alert('Kunde inte läsa filen som SVG.');
+    const data = isSym ? store.symbols : store.templates;
+    data.push({ id:uid(isSym?'sym':'tpl'), cat:'Egna', name:f.name.replace(/\.svg$/i,''), svg:snippet });
+    isSym ? symIdx = data.length-1 : tplIdx = data.length-1;
+    renderLibTab(libTarget);
+  };
+  r.readAsText(f); e.target.value = '';
+};
+
+/* --- ritinställningar --- */
+function renderDraw(){
+  $('setSide').style.display = 'none';
+  const u = ui(), main = $('setMain');
+  main.innerHTML =
+    `<h4>Hårkors</h4>
+     <p class="sub">Riktlinjerna som följer muspekaren över hela ritytan.</p>
+     <div style="max-width:420px">
+       <div class="row"><label for="cxCol">Färg</label><input type="color" id="cxCol"></div>
+       <div class="row"><label for="cxDash">Linjetyp</label><select id="cxDash" style="width:150px"></select></div>
+     </div>
+     <h4 style="margin-top:26px">Linjeändar och hörn</h4>
+     <p class="sub">Gäller nya linjer och former, och det du ändrar på markerade objekt.</p>
+     <div style="max-width:420px">
+       <div class="row"><label for="cpStyle">Form</label><select id="cpStyle" style="width:150px">
+         <option value="round">Rundade</option><option value="butt">Fyrkantiga</option></select></div>
+     </div>
+     <h4 style="margin-top:26px">Fäst mot rutnät</h4>
+     <p class="sub">Steget avgör hur grovt allt hamnar när "Fäst mot rutnät" är på — både när du ritar,
+     flyttar och skalar. Rutnätet du ser kan ha en annan täthet än steget.</p>
+     <div style="max-width:420px">
+       <div class="row"><label for="snFollow">Använd samma som rutnätet</label><input type="checkbox" id="snFollow"></div>
+       <div class="row"><label for="snStep">Eget steg (px)</label><input type="number" id="snStep" min="0.5" max="500" step="0.5"></div>
+     </div>
+     <h4 style="margin-top:26px">Stilmall</h4>
+     <p class="sub">CSS som följer med i den sparade SVG:n. Definiera klasserna ni sätter på objekten,
+     så kan SCADA-systemet ta över dem därifrån. Reglerna visas direkt på ritytan.</p>
+     <textarea id="cssBox" rows="10" placeholder=".pump { fill:#dbe7ee; stroke:#1b2a33 }&#10;.status-drift { fill:#2e9e4b }"></textarea>`;
+
+  const col = $('cxCol'), dash = $('cxDash'), follow = $('snFollow'), step = $('snStep'),
+        cap = $('cpStyle'), cssBox = $('cssBox');
+  col.value = u.crossColor;
+  DASHES.forEach(([v,t]) => { const o = document.createElement('option'); o.value = v; o.textContent = t; dash.appendChild(o); });
+  dash.value = u.crossDash || '';
+  follow.checked = !!u.snapFollowGrid;
+  step.value = u.snapStep;
+  step.disabled = follow.checked;
+  cap.value = u.lineCap;
+  cssBox.value = u.css || '';
+
+  col.oninput   = () => { u.crossColor = col.value; drawCross(); };
+  dash.onchange = () => { u.crossDash = dash.value; drawCross(); };
+  follow.onchange = () => { u.snapFollowGrid = follow.checked; step.disabled = follow.checked; updateGrid(); };
+  step.oninput  = () => { u.snapStep = +step.value || 20; updateGrid(); };
+  cap.onchange  = () => { u.lineCap = cap.value; u.lineJoin = cap.value === 'round' ? 'round' : 'miter'; };
+  cssBox.oninput = () => { u.css = cssBox.value; applyUserCSS(); };
+}
+
+/* Stilmallen skrivs in scopad till ritytan så den inte kan påverka verktygets eget gränssnitt. */
+function scopeCSS(css){
+  return (css || '').replace(/\/\*[\s\S]*?\*\//g,'').split('}').map(chunk => {
+    const i = chunk.indexOf('{');
+    if (i < 0) return '';
+    const sels = chunk.slice(0,i).split(',').map(s => s.trim()).filter(Boolean)
+                  .map(s => s.startsWith('@') ? s : '#board ' + s).join(',');
+    return sels ? sels + '{' + chunk.slice(i+1) + '}' : '';
+  }).join('\n');
+}
+function applyUserCSS(){
+  let tag = document.getElementById('userCSS');
+  if (!tag){ tag = document.createElement('style'); tag.id = 'userCSS'; document.head.appendChild(tag); }
+  tag.textContent = scopeCSS(ui().css);
+}
+
+/* --- filer --- */
+function renderFiles(){
+  $('setSide').style.display = 'none';
+  const main = $('setMain');
+  main.innerHTML =
+    `<h4>Inställningsfil</h4>
+     <p class="sub">Kundstandarder, symboler och mallar. Spara dem som gemensamma inställningar så får alla samma uppsättning.
+     Du kan också exportera dem till en fil eller läsa in en fil från dagens program.</p>`;
+  const bar = el('div','stack');
+  bar.style.maxWidth = '520px';
+  const exp = el('button','btn primary','Exportera inställningar');
+  exp.onclick = () => {
+    const blob = new Blob([JSON.stringify(store, null, 2)], { type:'application/json' });
+    download(blob, 'ritbord-installningar.json');
+  };
+  const imp = el('button','btn','Läs in inställningar');
+  imp.onclick = () => $('fileCfg').click();
+  const rst = el('button','btn','Återställ standard');
+  rst.onclick = () => {
+    if (!confirm('Återställ alla standarder, symboler och mallar till grundläget?')) return;
+    store = defaultStore(); applyStandard(); renderSettings(); setMsg('Inställningar återställda');
+  };
+  bar.append(exp, imp, rst);
+  main.appendChild(bar);
+  const v = rbVard();
+  if (v){
+    const gem = el('div','stack');
+    gem.style.cssText = 'max-width:520px;margin-top:14px';
+    const spara = el('button','btn primary', v.kanInstallningar ? 'Spara som gemensamma inställningar för alla' : 'Gemensamma inställningar (bara Admin, Projektledare och System kan spara)');
+    spara.disabled = !v.kanInstallningar;
+    spara.onclick = async () => {
+      spara.disabled = true;
+      const ok = await v.sparaInstallningar(JSON.stringify(store));
+      setMsg(ok ? 'Inställningarna sparade för alla' : 'Inställningarna kunde inte sparas');
+      spara.disabled = false;
+    };
+    gem.append(spara);
+    main.appendChild(gem);
+    const info = el('p','sub');
+    info.style.marginTop = '8px';
+    info.textContent = 'Gemensamma inställningar läses in automatiskt av alla som öppnar Ritbordet i Projekteringsverktyg.';
+    main.appendChild(info);
+  }
+
+  const stat = el('p','sub');
+  stat.style.marginTop = '20px';
+  stat.textContent = `${store.standards.length} kundstandarder · ${store.symbols.length} symboler · ${store.templates.length} mallar`;
+  main.appendChild(stat);
+}
+$('fileCfg').onchange = e => {
+  const f = e.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try {
+      const inc = JSON.parse(r.result);
+      if (!inc.standards || !inc.symbols) throw new Error('fel format');
+      store = inc;
+      if (!std()) store.activeStandard = store.standards[0].id;
+      stdIdx = symIdx = tplIdx = 0;
+      ui(); applyStandard(); updateGrid(); applyPaper(); renderSettings(); setMsg('Inställningar inlästa från ' + f.name);
+    } catch(err){ alert('Kunde inte läsa filen: ' + err.message); }
+  };
+  r.readAsText(f); e.target.value = '';
+};
+
+/* ================================================================
+   EXPORT
+   ================================================================ */
+function fileName(ext){
+  return ($('baseName').value.trim() || 'bakgrund') + '.' + ext;
+}
+const updateFn = () => $('fnPrev').textContent = fileName('svg');
+$('baseName').addEventListener('input', updateFn);
+
+function cleanCopy(){
+  const c = board.cloneNode(true);
+  c.querySelector('#gridbg').remove();
+  c.querySelector('#overlay').remove();
+  c.setAttribute('viewBox', `0 0 ${doc.w} ${doc.h}`);
+  c.setAttribute('width', doc.w); c.setAttribute('height', doc.h);
+  c.setAttribute('xmlns', NS);
+  c.removeAttribute('style'); c.removeAttribute('class');
+  const paper = c.querySelector('#paper');
+  paper.setAttribute('fill','#ffffff');
+  paper.removeAttribute('stroke'); paper.removeAttribute('vector-effect');
+  c.querySelectorAll('[data-hidden],[data-noexp]').forEach(n => n.remove());
+  c.querySelectorAll('[data-lid]').forEach(g => {
+    g.setAttribute('id', 'lager_' + (g.dataset.lname||'').replace(/\W+/g,'_').toLowerCase());
+  });
+  c.querySelectorAll('*').forEach(n => {
+    ['bx','by','bw','bh','tx','ty','sx','sy','item','lock','name','bm','lid','lname','llock',
+     'hidden','anchor','op','noexp']
+      .forEach(d => n.removeAttribute('data-' + d));
+  });
+  if ((ui().css || '').trim()){
+    const st = document.createElementNS(NS, 'style');
+    st.textContent = '\n' + ui().css.trim() + '\n';
+    c.insertBefore(st, c.firstChild);
+  }
+  return c;
+}
+$('btnSvg').onclick = () => {
+  const s = new XMLSerializer().serializeToString(cleanCopy());
+  download(new Blob(['<?xml version="1.0" encoding="UTF-8"?>\n' + s], { type:'image/svg+xml' }), fileName('svg'));
+  setMsg('Sparade ' + fileName('svg'));
+};
+/* PDF görs i tre steg: vektor via svg2pdf, annars som bild, annars
+   webbläsarens egen utskrift. Biblioteken ligger på ett CDN och kan
+   vara blockerade på ett företagsnät, därför reservvägarna.          */
+function svgToPng(svgEl, w, h, scale = 2){
+  return new Promise((res, rej) => {
+    const str = new XMLSerializer().serializeToString(svgEl);
+    const im = new Image();
+    im.onload = () => {
+      const cv = document.createElement('canvas');
+      cv.width = Math.round(w*scale); cv.height = Math.round(h*scale);
+      const cx = cv.getContext('2d');
+      cx.fillStyle = '#ffffff'; cx.fillRect(0, 0, cv.width, cv.height);
+      cx.drawImage(im, 0, 0, cv.width, cv.height);
+      try { res(cv.toDataURL('image/png')); } catch(e){ rej(e); }
+    };
+    im.onerror = () => rej(new Error('kunde inte rendera ritningen'));
+    im.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(str);
+  });
+}
+function printFallback(svgEl){
+  const str = new XMLSerializer().serializeToString(svgEl);
+  const wnd = window.open('', '_blank');
+  if (!wnd){ setMsg('Tillåt popup-fönster, annars går utskrift inte att öppna'); return; }
+  wnd.document.write('<!doctype html><html><head><meta charset="utf-8"><title>' + fileName('pdf') +
+    '</title><style>@page{size:' + doc.w + 'px ' + doc.h + 'px;margin:0}' +
+    'html,body{margin:0;padding:0}svg{width:100%;height:auto;display:block}</style></head><body>' +
+    str + '</body></html>');
+  wnd.document.close();
+  wnd.focus();
+  setTimeout(() => wnd.print(), 400);
+  setMsg('Välj "Spara som PDF" i utskriftsdialogen');
+}
+function loadScript(src){
+  return new Promise((res, rej) => {
+    const el = document.createElement('script');
+    el.src = src; el.onload = res; el.onerror = () => rej(new Error(src));
+    document.head.appendChild(el);
+  });
+}
+const hasPdfLib = () => !!(window.jspdf && window.jspdf.jsPDF);
+/* Ett företagsnät släpper ofta igenom ett CDN men inte ett annat. */
+async function ensurePdfLibs(){
+  if (hasPdfLib()) return true;
+  const sets = [
+    ['https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js',
+     'https://cdn.jsdelivr.net/npm/svg2pdf.js@2.2.1/dist/svg2pdf.umd.min.js'],
+    ['https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js',
+     'https://unpkg.com/svg2pdf.js@2.2.1/dist/svg2pdf.umd.min.js'],
+  ];
+  for (const [a, b] of sets){
+    try {
+      if (!hasPdfLib()) await loadScript(a);
+      if (hasPdfLib()){ try { await loadScript(b); } catch(e){ console.warn('svg2pdf saknas', e); } return true; }
+    } catch(err){ console.warn('kunde inte hämta', err.message); }
+  }
+  return hasPdfLib();
+}
+$('btnPdf').onclick = async () => {
+  const w = doc.w * 0.75, h = doc.h * 0.75;
+  let svgEl;
+  try { svgEl = cleanCopy(); }
+  catch(err){ console.error(err); setMsg('Kunde inte förbereda ritningen — se konsolen'); return; }
+
+  if (!hasPdfLib()){ setMsg('Hämtar PDF-bibliotek…'); await ensurePdfLibs(); }
+  const ctor = window.jspdf && window.jspdf.jsPDF;
+  if (!ctor){
+    setMsg('PDF-biblioteket kunde inte hämtas — öppnar utskrift i stället');
+    return printFallback(svgEl);
+  }
+
+  let pdf;
+  try {
+    pdf = new ctor({ orientation: w > h ? 'landscape' : 'portrait', unit:'pt', format:[w, h] });
+  } catch(err){ console.error(err); return printFallback(svgEl); }
+
+  // 1: vektor
+  if (typeof pdf.svg === 'function'){
+    const holder = document.createElement('div');
+    holder.style.cssText = 'position:fixed;left:-9999px;top:0';
+    holder.appendChild(svgEl); document.body.appendChild(holder);
+    try {
+      setMsg('Skapar PDF…');
+      await pdf.svg(svgEl, { x:0, y:0, width:w, height:h });
+      pdf.save(fileName('pdf'));
+      setMsg('Sparade ' + fileName('pdf'));
+      return;
+    } catch(err){
+      console.error('svg2pdf misslyckades:', err);
+      setMsg('Vektorexport misslyckades — försöker som bild');
+    } finally { holder.remove(); }
+  }
+
+  // 2: bild i PDF
+  try {
+    const png = await svgToPng(cleanCopy(), doc.w, doc.h, 2);
+    const p2 = new ctor({ orientation: w > h ? 'landscape' : 'portrait', unit:'pt', format:[w, h] });
+    p2.addImage(png, 'PNG', 0, 0, w, h);
+    p2.save(fileName('pdf'));
+    setMsg('Sparade ' + fileName('pdf') + ' som bild');
+    return;
+  } catch(err){ console.error('bildexport misslyckades:', err); }
+
+  // 3: utskrift
+  setMsg('PDF misslyckades — öppnar utskrift i stället');
+  printFallback(cleanCopy());
+};
+function download(blob, name){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+/* ================================================================
+   START
+   ================================================================ */
+$('tglLeft').onclick  = () => $('left').classList.toggle('open');
+$('tglRight').onclick = () => $('right').classList.toggle('open');
+
+newLayer('Bakgrund');
+newLayer('Ritning');
+updateGrid(); updateFn(); applyStandard(); applyUserCSS(); applyPaper(); refresh(); paintSelInfo(); updatePanels();
+requestAnimationFrame(() => setDoc(1920, 1080));
+/* ================================================================
+   PROJEKTERINGSVERKTYG: bilden sparas på servern
+   Webbappen (window.parent) lägger ut rbVard. Bilden sparas automatiskt
+   varannan sekund när den ändrats. Kundstandarder, symboler och mallar
+   är gemensamma för alla och hämtas från servern.
+   ================================================================ */
+function rbVard(){ try { return (window.parent && window.parent !== window && window.parent.rbVard) || null; } catch(e){ return null; } }
+let rbKopplad = false, rbSenast = null, rbSparar = false, rbTimer = null;
+function rbStatus(t){ const e = $('rbSparstatus'); if (e) e.textContent = t; }
+function rbData(){
+  return JSON.stringify({ v:1, doc:{ w:doc.w, h:doc.h }, stage: stage.innerHTML, idCounter, activeLayerId });
+}
+/** Laddar en bild (json från servern, eller null för en ny tom bild). */
+function rbLadda(json, namn){
+  let d = null;
+  try { d = json ? JSON.parse(json) : null; } catch(e){ d = null; }
+  undoStack.length = 0; redoStack.length = 0;
+  stage.innerHTML = '';
+  if (d && d.stage){
+    stage.innerHTML = d.stage;
+    // Nya objekt får löpnummer som inte krockar med de sparade.
+    let max = d.idCounter || 0;
+    (d.stage.match(/_(\d+)"/g) || []).forEach(m => { const n = parseInt(m.slice(1), 10); if (n > max) max = n; });
+    idCounter = max;
+    activeLayerId = d.activeLayerId && stage.querySelector(`[data-lid="${d.activeLayerId}"]`) ? d.activeLayerId
+                  : (stage.lastElementChild ? stage.lastElementChild.dataset.lid : null);
+    if (!stage.firstElementChild){ newLayer('Bakgrund'); newLayer('Ritning'); }
+  } else {
+    newLayer('Bakgrund'); newLayer('Ritning');
+  }
+  if (namn){ $('baseName').value = namn; updateFn(); }
+  select([]); paintLayers(); refresh();
+  const w = d && d.doc ? d.doc.w : 1920, h = d && d.doc ? d.doc.h : 1080;
+  setDoc(w, h);
+  rbSenast = rbData();
+  rbKopplad = true;
+  rbStatus('Sparad');
+  if (!rbTimer) rbTimer = setInterval(rbKontrollera, 2000);
+}
+window.rbLadda = rbLadda;
+async function rbKontrollera(){
+  if (!rbKopplad || rbSparar || !rbVard()) return;
+  if (rbData() === rbSenast) return;
+  await rbSparaNu();
+}
+async function rbSparaNu(){
+  const v = rbVard(); if (!v || !rbKopplad || rbSparar) return;
+  const data = rbData();
+  if (data === rbSenast) return;
+  rbSparar = true; rbStatus('Sparar…');
+  try {
+    const svar = await v.spara(data);
+    if (svar === 'ok' || svar === 'lasläge'){ rbSenast = data; rbStatus(svar === 'ok' ? 'Sparad' : 'Endast läsning'); }
+    else rbStatus(svar === 'konflikt' ? 'Uppdaterad från annan' : 'Kunde inte spara');
+  } catch(e){ rbStatus('Kunde inte spara'); }
+  finally { rbSparar = false; }
+}
+window.rbSparaNu = rbSparaNu;
+/** Gemensamma inställningar från servern (null = använd grundinställningarna). */
+function rbInstallningar(json){
+  if (!json) return;
+  try {
+    const inc = JSON.parse(json);
+    if (!inc.standards || !inc.symbols) return;
+    store = inc;
+    if (!std()) store.activeStandard = store.standards[0].id;
+    stdIdx = symIdx = tplIdx = 0;
+    ui(); applyStandard(); updateGrid(); applyPaper(); applyUserCSS();
+  } catch(e){ console.warn('Ritbordets inställningar kunde inte läsas', e); }
+}
+window.rbInstallningar = rbInstallningar;
+/** Webbappens färgtema. */
+function rbTema(t){
+  const st = document.documentElement.style, sat = (k, v) => { if (v) st.setProperty(k, v); };
+  sat('--bg', t.bg); sat('--panel', t.yta); sat('--panel-2', t.yta2); sat('--line', t.linje);
+  sat('--ink', t.text); sat('--muted', t.dampad); sat('--signal', t.accent); sat('--select', t.accent);
+  sat('--canvas', t.ljust ? `color-mix(in srgb, ${t.bg} 85%, #000)` : `color-mix(in srgb, ${t.bg} 70%, #000)`);
+  sat('--sans', t.sans); sat('--mono', t.mono);
+}
+window.rbTema = rbTema;
+window.addEventListener('beforeunload', () => { if (rbKopplad && rbData() !== rbSenast) rbSparaNu(); });
+try { const v = rbVard(); if (v && v.redo) v.redo(); } catch(e){}
+
+window.addEventListener('load', () => {
+  const miss = [];
+  if (!(window.jspdf && window.jspdf.jsPDF)) miss.push('PDF-export');
+  if (!window.pdfjsLib) miss.push('PDF-import');
+  if (miss.length) setMsg('Kunde inte ladda: ' + miss.join(', ') + ' — kontrollera nätverket');
+});
+</script>
+</body>
+</html>

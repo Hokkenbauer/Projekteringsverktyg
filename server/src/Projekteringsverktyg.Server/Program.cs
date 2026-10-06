@@ -153,6 +153,7 @@ app.MapListEndpoints();
 app.MapTextEndpoints();
 app.MapFilEndpoints();
 app.MapRitningEndpoints();
+app.MapRitbordEndpoints();
 app.MapKatalogEndpoints();
 app.MapKomponentMallEndpoints();
 app.MapKontrollEndpoints();
