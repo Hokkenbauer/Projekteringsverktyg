@@ -234,12 +234,13 @@ a.knapp { text-decoration: none; color: var(--text); }
 .versioner { margin-top: 16px; }
 .tal.klickbar { text-align: left; color: var(--text); font: inherit; cursor: pointer; }
 .tal.klickbar:hover { border-color: var(--accent); }
-.ritningsyta { display: flex; flex-direction: column; height: calc(100vh - 150px); min-height: 520px; }
-.ritningsyta.helskarm { position: fixed; inset: 0; z-index: 50; height: auto; background: var(--bg); padding: 8px; }
-.ritningshuvud { display: flex; align-items: center; gap: 16px; margin-bottom: 8px; }
-.ritningshuvud p { flex: 1; margin: 0; font-size: 12.5px; max-width: 80ch; }
-.ritningsyta.helskarm .ritningshuvud .brodsmula, .ritningsyta.helskarm .ritningshuvud h1 { display: none; }
-.ritningsram { flex: 1; width: 100%; border: 1px solid var(--linje); border-radius: var(--r); background: #0d1014; }
+.ritningsyta { display: flex; flex-direction: column; height: calc(100vh - 128px); min-height: 480px; }
+.ritningsyta.helskarm { position: fixed; inset: 0; z-index: 50; height: auto; background: var(--bg); padding: 6px; }
+.ritningshuvud { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.ritningshuvud h1 { font-size: 18px; margin: 0; }
+.ritningshuvud .grow { flex: 1; }
+.hjalp { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--linje); color: var(--dampad); font-size: 12px; cursor: help; }
+.ritningsram { flex: 1; width: 100%; border: 1px solid var(--linje); border-radius: var(--r); background: var(--yta); }
 .dialog { border: 1px solid var(--linje); border-radius: calc(var(--r) * 2); padding: 0; background: var(--yta); color: var(--text); width: min(640px, 94vw); max-height: 88vh; box-shadow: 0 24px 70px rgba(0,0,0,.45); }
 .dialog.bred { width: min(1100px, 96vw); }
 .dialog::backdrop { background: rgba(5, 10, 18, .55); }
@@ -283,3 +284,21 @@ table.enkel.tat td, table.enkel.tat th { padding: 5px 8px; font-size: 12.5px; }
 .riskmatris th { font-size: 12px; color: var(--dampad); padding: 4px 8px; }
 .riskmatris td { width: 46px; height: 34px; text-align: center; font-weight: 600; border-radius: 4px; color: #fff; }
 .riskmatris td.risk-lag { background: #2F855A; } .riskmatris td.risk-medel { background: #D69E2E; color: #1a1300; } .riskmatris td.risk-hog { background: #C53030; }
+.infoknapp { width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--linje); background: var(--yta); color: var(--accent); font: italic 600 12px/1 Georgia, serif; padding: 0; }
+.infoknapp:hover { border-color: var(--accent); background: var(--accent-mjuk); }
+.grid tr.fokus td { animation: fokus 2.6s ease-out; }
+@keyframes fokus { 0%, 40% { background: color-mix(in srgb, var(--accent) 28%, transparent); } 100% { background: transparent; } }
+.infopanel { position: fixed; top: 0; right: 0; bottom: 0; width: min(420px, 100vw); z-index: 60; background: var(--yta); border-left: 1px solid var(--linje); box-shadow: -18px 0 50px rgba(0,0,0,.28); overflow: auto; padding: 0 18px 24px; }
+.infopanel header { position: sticky; top: 0; background: var(--yta); display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; padding: 16px 0 12px; border-bottom: 1px solid var(--linje); }
+.infopanel h2 { margin: 2px 0; font-size: 19px; }
+.infopanel h3 { font-family: var(--font-smal); font-size: 12px; text-transform: uppercase; letter-spacing: .07em; color: var(--dampad); margin: 18px 0 8px; }
+.finnsi { list-style: none; margin: 0; padding: 0; border: 1px solid var(--linje); border-radius: var(--r); }
+.finnsi li { display: flex; flex-direction: column; gap: 2px; padding: 9px 12px; border-bottom: 1px solid var(--linje); }
+.finnsi li:last-child { border-bottom: 0; }
+.finnsi li span { font-size: 12.5px; color: var(--dampad); }
+.finnsi .lank { font-weight: 500; }
+.uppgifter { margin: 0; display: grid; gap: 6px; }
+.uppgifter div { display: grid; grid-template-columns: 130px 1fr; gap: 8px; font-size: 13px; }
+.uppgifter dt { color: var(--dampad); }
+.uppgifter dd { margin: 0; overflow-wrap: anywhere; }
+.infopanel .minilista li { display: grid; grid-template-columns: 96px 1fr; gap: 8px; font-size: 12.5px; }

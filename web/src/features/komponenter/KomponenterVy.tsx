@@ -17,6 +17,8 @@ type Props = {
   onNy: () => void;
   onTaBort: (ids: string[]) => void;
   lasläge?: boolean;
+  onInfo: (k: Komponent) => void;
+  fokusId?: string | null;
 };
 
 /** Förslag = katalogen från servern plus det som redan finns i projektet, utan dubbletter. */
@@ -33,7 +35,7 @@ function forslag(kataloger: Kataloger, komponenter: Komponent[], falt: keyof Kat
 const MALLFALT = ["beteckning", "system", "komponenttyp", "signaltyp", "placering", "beskrivning", "ovrigt", "anslutsTill", "kabeltyp", "produkttyp", "produkt", "monteringsanvisning"] as const;
 
 export function KomponenterVy({
-  projektId, kanHanteraMallar, onUppdatera, visaMeddelande, komponenter, kataloger, blinkar, onAndra, onNy, onTaBort, lasläge,
+  projektId, kanHanteraMallar, onUppdatera, visaMeddelande, komponenter, kataloger, blinkar, onAndra, onNy, onTaBort, lasläge, onInfo, fokusId,
 }: Props) {
   const [mallOppen, setMallOppen] = useState(false);
   const [importerar, setImporterar] = useState(false);
@@ -111,6 +113,8 @@ export function KomponenterVy({
         onTaBort={onTaBort}
         blinkar={blinkar}
         lasläge={lasläge}
+        onInfo={onInfo}
+        fokusId={fokusId}
         markeradeVerktyg={kanHanteraMallar ? (ids) => (
           <button className="knapp" disabled={ids.length === 0} onClick={() => void sparaSomMall(ids)}>Spara markerade som mall</button>
         ) : undefined}

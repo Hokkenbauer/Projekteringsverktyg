@@ -63,9 +63,12 @@ type Props = {
   inbaddad?: boolean;
   /** Dölj listans egen utskriftsknapp (när vyn runt omkring har en egen). */
   utanUtskrift?: boolean;
+  /** Komponentinformation (bara listor som följer Komponenter). */
+  onInfo?: (komponentId: string) => void;
+  fokusId?: string | null;
 };
 
-export function ListVy({ def, grupp, rader, komponenter, projekt, blinkar, lasläge, onAndra, onNy, onTaBort, onExcel, onFlik, inbaddad, utanUtskrift }: Props) {
+export function ListVy({ def, grupp, rader, komponenter, projekt, blinkar, lasläge, onAndra, onNy, onTaBort, onExcel, onFlik, inbaddad, utanUtskrift, onInfo, fokusId }: Props) {
   const visade = useMemo(() => byggRader(def, rader ?? [], komponenter), [def, rader, komponenter]);
 
   const kolumner: Kolumn<VisadRad>[] = useMemo(
@@ -145,6 +148,8 @@ export function ListVy({ def, grupp, rader, komponenter, projekt, blinkar, lasl�
           blinkar={blinkar}
           lasläge={lasläge}
           tomText={tomText}
+          onInfo={def.kopplad && onInfo ? (r) => onInfo(r.id) : undefined}
+          fokusId={fokusId}
           cellKlass={(r, nyckel) => {
             const kol = def.kolumner.find((k) => k.nyckel === nyckel);
             if (kol?.typ !== "produkt" || !def.id.startsWith("risk-")) return undefined;

@@ -11,6 +11,7 @@ import { ProjektfilerVy } from "../filer/ProjektfilerVy";
 import { ListVy, type VisadRad } from "../listor/ListVy";
 import { PlaceringsritningVy } from "../ritning/PlaceringsritningVy";
 import { KomponenterVy } from "../komponenter/KomponenterVy";
+import { KomponentInfo } from "../komponenter/KomponentInfo";
 import { KontrollerVy, type Kontroll } from "../kontroller/KontrollerVy";
 import { RiskVy } from "../risk/RiskVy";
 import { ProjektStatusVy } from "../status/ProjektStatusVy";
@@ -47,6 +48,9 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
   const [filVersion, setFilVersion] = useState(0);
   const [ritningVersion, setRitningVersion] = useState(0);
   const [kontrollVersion, setKontrollVersion] = useState(0);
+  const [infoId, setInfoId] = useState<string | null>(null);
+  const [fokus, setFokus] = useState<{ flik: string; id: string } | null>(null);
+  const [ritningFokus, setRitningFokus] = useState<string | null>(null);
   const [valdKontroll, setValdKontroll] = useState<Record<string, Kontroll | null>>({});
   // Vilka listor och texter som är hämtade, så att livesynken vet vad som ska uppdateras.
   const hamtadeListor = useRef<Set<string>>(new Set());
@@ -362,6 +366,17 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
     : aktivKontroll && kontrollDef
       ? { ...kontrollDef, id: listId, namn: aktivKontroll.namn, ingress: aktivKontroll.beskrivning || kontrollDef.ingress }
       : listdefinitioner.find((d) => d.id === listId);
+  /** Från Komponentinformation: gå till fliken och visa komponentens rad. */
+  const gaTill = (malFlik: string, komponentId: string) => {
+    const grupp = hittaFlik(malFlik)?.grupp.namn;
+    if (grupp) setOppnaGrupper((g) => new Set(g).add(grupp));
+    setFokus({ flik: malFlik, id: komponentId });
+    window.setTimeout(() => setFokus((f) => (f?.id === komponentId ? null : f)), 3500);
+    if (malFlik === "placeringsritningar") setRitningFokus(komponentId);
+    onFlik(malFlik);
+  };
+  const fokusHar = fokus && fokus.flik === flik ? fokus.id : null;
+
   const listVy = (inbaddad: boolean) => listDef && vald ? (
     <ListVy
       key={listDef.id}
@@ -379,6 +394,8 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
       onFlik={onFlik}
       inbaddad={inbaddad}
       utanUtskrift={!!riskVariant}
+      onInfo={setInfoId}
+      fokusId={fokusHar}
     />
   ) : <p className="dampad">Hämtar…</p>;
   const skrivbar = mig.rattigheter.skriva;
@@ -436,6 +453,7 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
         {flik === "komponenter" && (
           <KomponenterVy
             projektId={projektId} kanHanteraMallar={!!mig.rattigheter.hanteraMallar} onUppdatera={() => void hamtaAllt()} visaMeddelande={visaMeddelande}
+            onInfo={(k) => setInfoId(k.id)} fokusId={fokusHar}
             komponenter={komponenter} kataloger={kataloger} blinkar={blinkar} onAndra={andra} onNy={ny} onTaBort={taBort} lasläge={!mig.rattigheter.skriva} />
         )}
         {flik === "oversikt" && projekt && (
@@ -508,6 +526,9 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
             installationslista={listor.installationslista}
             kataloger={kataloger}
             uppdaterad={ritningVersion}
+            fokusKomponent={ritningFokus}
+            onFokusVisad={() => setRitningFokus(null)}
+            onVisaKomponent={setInfoId}
             lasläge={!skrivbar}
             laggKomponent={lagg}
             taBortKomponentLokalt={(id) => setKomponenter((l) => l.filter((x) => x.id !== id))}
@@ -531,6 +552,17 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
           </>
         )}
       </main>
+      {infoId && (
+        <KomponentInfo
+          projektId={projektId}
+          komponent={komponenter.find((k) => k.id === infoId)}
+          listdefinitioner={listdefinitioner}
+          onStang={() => setInfoId(null)}
+          onGaTill={(f, id) => { gaTill(f, id); if (window.innerWidth < 1300) setInfoId(null); }}
+          onVisaPaRitning={(id) => { gaTill("placeringsritningar", id); setInfoId(null); }}
+          uppdaterad={loggVersion}
+        />
+      )}
     </div>
   );
 }

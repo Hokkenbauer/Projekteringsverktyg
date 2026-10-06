@@ -9,9 +9,15 @@
 <script src="lib/jspdf.umd.min.js"></script>
 <style>
 :root{
+  /* Standard = mörkt. Webbappen skickar sitt tema med pvTema() så att verktyget följer valt tema. */
   --bg:#0d1014; --panel:#141920; --panel2:#1a212a; --line:#26303c; --line2:#33404f;
-  --txt:#dfe5ec; --txt2:#8e9bab; --txt3:#5f6d7d;
-  --accent:#2ec4b6; --accent-dim:#1d7f76; --accent2:#4d9fc4; --hit:#8ee06a; --done:#37c26a; --danger:#e2564a; --warn:#e0a33c;
+  --txt:#dfe5ec; --txt2:#8e9bab; --txt3:#6b7a8b;
+  --accent:#2ec4b6; --accent-txt:#06201d; --accent-dim:#1d7f76; --accent2:#4d9fc4; --hit:#8ee06a; --done:#37c26a; --danger:#e2564a; --warn:#e0a33c;
+  --canvas:#090b0e; --input:#0b0e12; --sunk:#0f141a;
+  --hover:color-mix(in srgb, var(--txt) 7%, transparent);
+  --sel:color-mix(in srgb, var(--accent) 18%, transparent);
+  --hitbg:color-mix(in srgb, var(--hit) 16%, transparent);
+  --flyt:color-mix(in srgb, var(--panel) 92%, transparent);
   --mono:ui-monospace,"JetBrains Mono","SF Mono",Menlo,Consolas,monospace;
   --sans:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
 }
@@ -20,14 +26,14 @@ html,body{height:100%;margin:0}
 body{background:var(--bg);color:var(--txt);font:13px/1.45 var(--sans);overflow:hidden;-webkit-font-smoothing:antialiased}
 button,input,select,textarea{font:inherit;color:inherit}
 button{background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:5px 9px;cursor:pointer;display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
-button:hover{background:#222c37;border-color:var(--line2)}
+button:hover{background:var(--hover);border-color:var(--line2)}
 button:active{transform:translateY(1px)}
-button.on{background:var(--accent);border-color:var(--accent);color:#06201d;font-weight:600}
+button.on{background:var(--accent);border-color:var(--accent);color:var(--accent-txt);font-weight:600}
 button.ghost{background:transparent;border-color:transparent;color:var(--txt3);padding:3px 4px}
-button.ghost:hover{background:#232d38;color:var(--txt)}
+button.ghost:hover{background:var(--hover);color:var(--txt)}
 button.ghost.act{color:var(--accent)}
 button.ghost.ok{color:var(--done)}
-input[type=text],input[type=number],select,textarea{background:#0b0e12;border:1px solid var(--line);border-radius:5px;padding:5px 8px;width:100%}
+input[type=text],input[type=number],select,textarea{background:var(--input);border:1px solid var(--line);border-radius:5px;padding:5px 8px;width:100%}
 input:focus,select:focus,button:focus-visible,textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
 input[type=range]{accent-color:var(--accent)}
 input[type=checkbox]{accent-color:var(--accent);width:auto}
@@ -51,7 +57,7 @@ h3.sec{font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;color:var(
 aside{background:var(--panel);display:flex;flex-direction:column;min-height:0}
 #left{width:304px;border-right:1px solid var(--line);flex:0 0 auto}
 #right{width:280px;border-left:1px solid var(--line);flex:0 0 auto}
-main{flex:1;position:relative;min-width:0;background:#090b0e}
+main{flex:1;position:relative;min-width:0;background:var(--canvas)}
 .phead{display:flex;align-items:center;gap:6px;padding:7px 10px;font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--txt3);border-bottom:1px solid var(--line);flex:0 0 auto}
 .pbody{overflow:auto;flex:1;min-height:0}
 .split{border-top:1px solid var(--line)}
@@ -60,8 +66,8 @@ main{flex:1;position:relative;min-width:0;background:#090b0e}
 
 #tree{padding:4px 0 14px}
 .node{display:flex;align-items:center;gap:5px;padding:3px 7px 3px 3px;cursor:pointer;border-left:2px solid transparent;user-select:none}
-.node:hover{background:#1b232d}
-.node.sel{background:#1d3330;border-left-color:var(--accent)}
+.node:hover{background:var(--hover)}
+.node.sel{background:var(--sel);border-left-color:var(--accent)}
 .node.hit{box-shadow:inset 0 0 0 1px var(--hit)}
 .node.done .lbl{color:var(--done)}
 .node.off .lbl,.node.off .sub,.node.off .gi{opacity:.35}
@@ -71,8 +77,8 @@ main{flex:1;position:relative;min-width:0;background:#090b0e}
 .node .sub{color:var(--txt3);font-size:11px;white-space:nowrap}
 .node .acts{display:none;gap:0}
 .node:hover .acts,.node.eyeoff .acts{display:flex}
-.node.dragover{background:#26382c;box-shadow:inset 0 0 0 1px var(--hit)}
-.kids{margin-left:13px;border-left:1px solid #1f2833}
+.node.dragover{background:var(--hitbg);box-shadow:inset 0 0 0 1px var(--hit)}
+.kids{margin-left:13px;border-left:1px solid var(--line)}
 .tag{font-family:var(--mono);font-size:11.5px}
 .src{font-family:var(--mono);font-size:9px;border:1px solid var(--line2);border-radius:3px;padding:0 3px;color:var(--txt3)}
 .src.imp{border-color:#3a5a7a;color:#7fb3d5}
@@ -80,7 +86,7 @@ main{flex:1;position:relative;min-width:0;background:#090b0e}
 
 #palette{display:grid;grid-template-columns:1fr 1fr;gap:5px;padding:8px}
 .pal{display:flex;align-items:center;gap:6px;padding:5px 6px;background:var(--panel2);border:1px solid var(--line);border-radius:5px;cursor:grab}
-.pal:hover{border-color:var(--accent);background:#212b36}
+.pal:hover{border-color:var(--accent);background:var(--hover)}
 .pal.off{opacity:.4}
 .pal .sw{width:15px;height:15px;flex:0 0 15px;color:var(--txt)}
 .pal b{font-family:var(--mono);font-size:11.5px;font-weight:600}
@@ -89,35 +95,35 @@ main{flex:1;position:relative;min-width:0;background:#090b0e}
 .hint{padding:0 10px 12px;color:var(--txt3);font-size:11px}
 
 .poolbar{padding:8px 10px;border-bottom:1px solid var(--line)}
-.bar{height:5px;background:#0b0e12;border-radius:3px;overflow:hidden;margin-top:6px}
+.bar{height:5px;background:var(--input);border-radius:3px;overflow:hidden;margin-top:6px}
 .bar i{display:block;height:100%;background:var(--accent)}
-.pgrp{border-bottom:1px solid #1b232d}
-.pgrp h5{margin:0;padding:5px 9px;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--txt3);display:flex;gap:6px;align-items:center;background:#111721}
+.pgrp{border-bottom:1px solid var(--line)}
+.pgrp h5{margin:0;padding:5px 9px;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--txt3);display:flex;gap:6px;align-items:center;background:var(--sunk)}
 .pgrp h5 b{margin-left:auto;font-family:var(--mono);color:var(--txt2)}
 .pitem{display:flex;align-items:center;gap:6px;padding:4px 9px;cursor:grab;border-left:2px solid transparent}
-.pitem:hover{background:#1b232d;border-left-color:var(--accent)}
+.pitem:hover{background:var(--hover);border-left-color:var(--accent)}
 .pitem .gi{color:var(--txt3);display:flex}
 .pitem .t{font-family:var(--mono);font-size:11.5px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pitem .want{font-size:10px;color:var(--accent2);white-space:nowrap}
 .pdone{padding:26px 14px;text-align:center;color:var(--done);font-size:12px}
 
 #planWrap{position:absolute;inset:0;overflow:hidden}
-.crosshair-h,.crosshair-v{position:absolute;pointer-events:none;background:rgba(46,196,182,.55);display:none;z-index:5}
+.crosshair-h,.crosshair-v{position:absolute;pointer-events:none;background:color-mix(in srgb, var(--accent) 55%, transparent);display:none;z-index:5}
 .crosshair-h{left:0;right:0;height:1px}
 .crosshair-v{top:0;bottom:0;width:1px}
 #planWrap.drawing .crosshair-h,#planWrap.drawing .crosshair-v{display:block}
 #pdfCanvas{position:absolute;inset:0;width:100%;height:100%;display:block}
 #overlay{position:absolute;inset:0;width:100%;height:100%}
 #overlay text{font-family:var(--mono);paint-order:stroke;stroke:var(--ol);stroke-width:3px;stroke-linejoin:round;fill:var(--cc);font-weight:600}
-.roomShape{fill:rgba(77,159,196,.06);stroke:#4d9fc4;stroke-width:1.4px;vector-effect:non-scaling-stroke}
+.roomShape{fill:color-mix(in srgb, var(--accent2) 6%, transparent);stroke:var(--accent2);stroke-width:1.4px;vector-effect:non-scaling-stroke}
 .cableLine{fill:none;stroke-width:2.4px;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke;cursor:pointer;opacity:.92}
 .cableLine.sel{stroke-width:4px;opacity:1;filter:drop-shadow(0 0 2px #fff)}
-.junctionPt{fill:#8b939d;stroke:#0b0e12;stroke-width:1.4px;vector-effect:non-scaling-stroke;cursor:pointer}
-.junctionPt.sel{fill:#fff;stroke:#2ec4b6;stroke-width:2.2px}
-.roomShape.sel{stroke:var(--accent);fill:rgba(46,196,182,.13)}
-.roomShape.hit{stroke:var(--hit);fill:rgba(142,224,106,.14)}
-.roomShape.done{stroke:var(--done);fill:rgba(55,194,106,.12);stroke-width:2px}
-.roomLbl{fill:#9fd2ea!important;stroke:#05090d!important}
+.junctionPt{fill:#8b939d;stroke:var(--input);stroke-width:1.4px;vector-effect:non-scaling-stroke;cursor:pointer}
+.junctionPt.sel{fill:#fff;stroke:var(--accent);stroke-width:2.2px}
+.roomShape.sel{stroke:var(--accent);fill:color-mix(in srgb, var(--accent) 13%, transparent)}
+.roomShape.hit{stroke:var(--hit);fill:color-mix(in srgb, var(--hit) 14%, transparent)}
+.roomShape.done{stroke:var(--done);fill:color-mix(in srgb, var(--done) 12%, transparent);stroke-width:2px}
+.roomLbl{fill:var(--accent2)!important;stroke:var(--canvas)!important}
 .roomLbl.done{fill:var(--done)!important}
 .comp{cursor:pointer}
 .comp .sym{fill:var(--cc);stroke:var(--ol);stroke-width:1.3}
@@ -128,16 +134,16 @@ main{flex:1;position:relative;min-width:0;background:#090b0e}
 .comp .ring{fill:none;stroke:none}
 .comp.sel .ring{stroke:var(--accent);stroke-width:2}
 .comp.hit .ring{stroke:var(--hit);stroke-width:2}
-.vtx{fill:var(--accent);stroke:#05090d;stroke-width:1;cursor:move}
+.vtx{fill:var(--accent);stroke:var(--canvas);stroke-width:1;cursor:move}
 .vmid{fill:none;stroke:var(--accent);stroke-width:1.4;cursor:copy}
-.tmp{fill:rgba(46,196,182,.1);stroke:var(--accent);stroke-width:1.4px;vector-effect:non-scaling-stroke;stroke-dasharray:6 4;pointer-events:none}
+.tmp{fill:color-mix(in srgb, var(--accent) 10%, transparent);stroke:var(--accent);stroke-width:1.4px;vector-effect:non-scaling-stroke;stroke-dasharray:6 4;pointer-events:none}
 .tmpLine{fill:none;stroke:var(--accent);stroke-width:2px;vector-effect:non-scaling-stroke;stroke-dasharray:6 4;stroke-linecap:round;pointer-events:none}
-.pvtx{fill:#0d1014;stroke:var(--accent);pointer-events:none}
+.pvtx{fill:var(--panel);stroke:var(--accent);pointer-events:none}
 .pvtx.first{fill:var(--accent)}
 #planWrap.adjusting #overlay{pointer-events:none;opacity:.45}
-#planHud{position:absolute;left:10px;bottom:10px;display:flex;gap:7px;align-items:center;background:rgba(13,16,20,.85);border:1px solid var(--line);border-radius:6px;padding:5px 9px;font-size:11px;color:var(--txt2);backdrop-filter:blur(4px)}
+#planHud{position:absolute;left:10px;bottom:10px;display:flex;gap:7px;align-items:center;background:var(--flyt);border:1px solid var(--line);border-radius:6px;padding:5px 9px;font-size:11px;color:var(--txt2);backdrop-filter:blur(4px)}
 #planTools{position:absolute;right:10px;top:10px;display:flex;flex-direction:column;gap:6px;align-items:flex-end;max-height:calc(100% - 20px);overflow:auto}
-.toolgrp{display:flex;gap:4px;align-items:center;background:rgba(13,16,20,.88);border:1px solid var(--line);border-radius:6px;padding:4px;backdrop-filter:blur(4px)}
+.toolgrp{display:flex;gap:4px;align-items:center;background:var(--flyt);border:1px solid var(--line);border-radius:6px;padding:4px;backdrop-filter:blur(4px)}
 .toolgrp .lab{font-size:9.5px;color:var(--txt3);padding:0 4px;text-transform:uppercase;letter-spacing:.1em}
 .sw-btn{width:22px;height:22px;padding:0;border-radius:4px;border:1px solid var(--line2)}
 .sw-btn.on{outline:2px solid var(--accent);outline-offset:1px}
@@ -145,9 +151,9 @@ main{flex:1;position:relative;min-width:0;background:#090b0e}
 #instLayersPanel{flex-direction:column;align-items:stretch;width:284px;padding:0;max-height:220px;overflow-y:auto}
 .lhead{display:flex;align-items:center;gap:6px;padding:6px 8px;border-bottom:1px solid var(--line)}
 .lhead .lab{flex:1;padding:0}
-.lrow{padding:6px 8px;border-bottom:1px solid #1c242e}
+.lrow{padding:6px 8px;border-bottom:1px solid var(--line)}
 .lrow:last-child{border-bottom:none}
-.lrow.adj{background:#152b28;box-shadow:inset 2px 0 0 var(--accent)}
+.lrow.adj{background:var(--sel);box-shadow:inset 2px 0 0 var(--accent)}
 .lrow .l1{display:flex;align-items:center;gap:5px}
 .lrow .lname{flex:1;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:text}
 .lrow.hidden .lname{opacity:.4;text-decoration:line-through}
@@ -161,44 +167,44 @@ main{flex:1;position:relative;min-width:0;background:#090b0e}
 #empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--txt3);text-align:center;pointer-events:none}
 #empty button{pointer-events:auto}
 #planWrap.dropping{outline:2px dashed var(--accent);outline-offset:-6px}
-#busy{position:absolute;left:50%;top:12px;transform:translateX(-50%);background:rgba(13,16,20,.92);border:1px solid var(--line);border-radius:20px;padding:5px 14px;font-size:11px;color:var(--accent);display:none;z-index:5}
+#busy{position:absolute;left:50%;top:12px;transform:translateX(-50%);background:var(--flyt);border:1px solid var(--line);border-radius:20px;padding:5px 14px;font-size:11px;color:var(--accent);display:none;z-index:5}
 
 .viewpane{position:absolute;inset:0;overflow:auto;padding:20px 22px 40px;display:none}
 .secBld{margin-bottom:34px;max-width:1000px}
 .secBldHead{display:flex;align-items:baseline;gap:10px;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);margin-bottom:2px}
 .secBldHead span{letter-spacing:0;text-transform:none;color:var(--txt3);font-size:11px}
 .roofSvg{display:block;width:100%;height:46px}
-.roofSvg polygon{fill:#151d24;stroke:var(--accent-dim);stroke-width:2;vector-effect:non-scaling-stroke;stroke-linejoin:round}
-.stack{border-left:3px solid var(--line2);border-right:3px solid var(--line2);background:#0f141a}
+.roofSvg polygon{fill:var(--panel2);stroke:var(--accent-dim);stroke-width:2;vector-effect:non-scaling-stroke;stroke-linejoin:round}
+.stack{border-left:3px solid var(--line2);border-right:3px solid var(--line2);background:var(--sunk)}
 .secFloor{border-bottom:2px solid var(--line2)}
 .secFloor:last-child{border-bottom:none}
-.secFloorHead{display:flex;align-items:center;gap:9px;padding:7px 11px;background:#131a22;cursor:pointer;border-bottom:1px solid #1e2833}
-.secFloorHead:hover{background:#182029}
+.secFloorHead{display:flex;align-items:center;gap:9px;padding:7px 11px;background:var(--panel2);cursor:pointer;border-bottom:1px solid var(--line)}
+.secFloorHead:hover{background:var(--hover)}
 .secFloorHead b{font-size:13px}
-.lvl{font-family:var(--mono);font-size:10px;color:#06201d;background:var(--accent);border-radius:3px;padding:1px 6px;font-weight:700}
+.lvl{font-family:var(--mono);font-size:10px;color:var(--accent-txt);background:var(--accent);border-radius:3px;padding:1px 6px;font-weight:700}
 .counts{display:flex;gap:5px;flex-wrap:wrap;margin-left:auto}
 .cnt{font-family:var(--mono);font-size:10.5px;border:1px solid var(--line2);border-radius:10px;padding:1px 7px;color:var(--txt2);display:inline-flex;gap:4px;align-items:center}
 .cnt svg{width:9px;height:9px}
 .secRooms{display:flex;flex-wrap:wrap;gap:8px;padding:10px}
-.secRoom{border:1px solid #222c38;border-radius:6px;background:#0b1015;min-width:158px;max-width:250px;flex:1 1 158px}
+.secRoom{border:1px solid var(--line);border-radius:6px;background:var(--sunk);min-width:158px;max-width:250px;flex:1 1 158px}
 .secRoom.direct{border-style:dashed}
 .secRoom.off{opacity:.4}
 .secRoom.done{border-color:var(--done)}
-.secRoom h4{margin:0;padding:6px 9px;font-size:11.5px;border-bottom:1px solid #1c242e;color:#9fb0c2;display:flex;gap:6px}
+.secRoom h4{margin:0;padding:6px 9px;font-size:11.5px;border-bottom:1px solid var(--line);color:var(--txt2);display:flex;gap:6px}
 .secRoom h4 span{margin-left:auto;color:var(--txt3);font-size:10px}
 .chips{display:flex;flex-wrap:wrap;gap:4px;padding:8px}
-.chip{display:flex;align-items:center;gap:5px;font-family:var(--mono);font-size:11px;background:#171f27;border:1px solid #26303c;border-radius:4px;padding:2px 6px;cursor:pointer;color:var(--txt2)}
+.chip{display:flex;align-items:center;gap:5px;font-family:var(--mono);font-size:11px;background:var(--hover);border:1px solid var(--line);border-radius:4px;padding:2px 6px;cursor:pointer;color:var(--txt2)}
 .chip svg{width:9px;height:9px}
 .chip:hover{border-color:var(--accent2);color:var(--txt)}
-.chip.hit{border-color:var(--hit);background:#1a2a1a;color:var(--txt)}
-.chip.sel{border-color:var(--accent);background:#16302c;color:#fff}
+.chip.hit{border-color:var(--hit);background:var(--hitbg);color:var(--txt)}
+.chip.sel{border-color:var(--accent);background:var(--sel);color:#fff}
 .chip.done{border-color:var(--done);color:var(--done)}
 .chip.off{opacity:.4;text-decoration:line-through}
 .ground{height:3px;background:var(--line2)}
-.groundHatch{height:16px;background:repeating-linear-gradient(45deg,#1a222b 0 1px,transparent 1px 7px)}
+.groundHatch{height:16px;background:repeating-linear-gradient(45deg,var(--hover) 0 1px,transparent 1px 7px)}
 .secEmpty{padding:8px 9px;color:var(--txt3);font-size:11px}
 
-.field{padding:8px 11px;border-bottom:1px solid #1b232d}
+.field{padding:8px 11px;border-bottom:1px solid var(--line)}
 .field label{display:block;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--txt3);margin-bottom:4px}
 .row{display:flex;gap:6px}
 .kv{display:flex;justify-content:space-between;gap:8px;padding:3px 0;font-size:12px}
@@ -208,22 +214,22 @@ main{flex:1;position:relative;min-width:0;background:#090b0e}
 
 table{width:100%;border-collapse:collapse}
 th{text-align:left;font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--txt3);padding:6px;border-bottom:1px solid var(--line2);white-space:nowrap}
-td{padding:4px 6px;border-bottom:1px solid #1b232d;vertical-align:middle}
+td{padding:4px 6px;border-bottom:1px solid var(--line);vertical-align:middle}
 tr.off td{opacity:.42}
-tbody tr:hover td{background:#141c24}
+tbody tr:hover td{background:var(--hover)}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:14px 16px;margin-bottom:16px;max-width:1240px}
 .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px}
-.stat{background:#0f151b;border:1px solid var(--line);border-radius:7px;padding:10px 12px}
+.stat{background:var(--sunk);border:1px solid var(--line);border-radius:7px;padding:10px 12px}
 .stat b{display:block;font-size:22px;font-weight:600;font-family:var(--mono)}
 .stat span{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--txt3)}
 .stat.ok b{color:var(--done)}.stat.warn b{color:var(--warn)}
 .scrollx{overflow-x:auto}
 .setgrid{display:grid;grid-template-columns:250px 1fr;gap:16px;max-width:1240px}
 .tlist{border:1px solid var(--line);border-radius:8px;overflow:hidden;align-self:start}
-.trow{display:flex;align-items:center;gap:7px;padding:6px 9px;border-bottom:1px solid #1b232d;cursor:pointer}
+.trow{display:flex;align-items:center;gap:7px;padding:6px 9px;border-bottom:1px solid var(--line);cursor:pointer}
 .trow:last-child{border-bottom:none}
-.trow:hover{background:#1b232d}
-.trow.sel{background:#1d3330;box-shadow:inset 2px 0 0 var(--accent)}
+.trow:hover{background:var(--hover)}
+.trow.sel{background:var(--sel);box-shadow:inset 2px 0 0 var(--accent)}
 .trow b{font-family:var(--mono);font-size:11.5px}
 .trow em{font-style:normal;font-size:11px;color:var(--txt3);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .modal{position:fixed;inset:0;background:rgba(5,7,9,.74);display:none;align-items:center;justify-content:center;z-index:60}
@@ -232,12 +238,56 @@ tbody tr:hover td{background:#141c24}
 .modal header{display:flex;align-items:center;padding:11px 14px;border-bottom:1px solid var(--line);font-weight:600}
 .modal .content{padding:14px;overflow:auto}
 .modal footer{padding:10px 14px;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end}
-.kbd{font-family:var(--mono);font-size:10.5px;background:#0b0e12;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:1px 5px;color:var(--txt2);white-space:nowrap}
+.kbd{font-family:var(--mono);font-size:10.5px;background:var(--input);border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:1px 5px;color:var(--txt2);white-space:nowrap}
 .helpgrid{display:grid;grid-template-columns:auto 1fr;gap:8px 14px;align-items:center}
 ::-webkit-scrollbar{width:10px;height:10px}
-::-webkit-scrollbar-thumb{background:#2a3440;border-radius:6px;border:2px solid var(--panel)}
+::-webkit-scrollbar-thumb{background:var(--line2);border-radius:6px;border:2px solid var(--panel)}
 ::-webkit-scrollbar-track{background:transparent}
 
+/* ---- Projekteringsverktyg: verktygsrad, popup-paneler, fällbara sidopaneler ---- */
+body{font-family:var(--sans)}
+.topbar{gap:6px;padding:6px 8px;position:relative;z-index:30}
+.topbar .grp{display:flex;gap:4px;align-items:center;flex-wrap:wrap;padding-left:6px;border-left:1px solid var(--line)}
+.topbar .seg{display:flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.topbar .seg button{border:0;border-radius:0;background:transparent}
+.topbar .seg button+button{border-left:1px solid var(--line)}
+.topbar .seg button.on{background:var(--accent);color:var(--accent-txt)}
+button.ikon{width:30px;justify-content:center;padding:5px 0;font-size:14px}
+button.ikon.on{background:var(--sel);border-color:var(--accent);color:var(--txt);font-weight:400}
+.sparstatus{font-size:11px;min-width:60px;text-align:right}
+.kort{display:none}
+@media (max-width:1250px){ #btnImport .kort{display:inline} }
+.searchwrap{width:200px}
+.pop{position:relative}
+.popruta{display:none;position:absolute;top:calc(100% + 6px);left:0;z-index:40;background:var(--panel);border:1px solid var(--line2);border-radius:8px;box-shadow:0 14px 40px rgba(0,0,0,.35);padding:8px;min-width:240px;max-height:70vh;overflow:auto}
+.popruta.hoger{left:auto;right:0}
+.pop.open>.popruta{display:block}
+.pop.open>button{background:var(--sel);border-color:var(--accent)}
+.poprad{display:flex;align-items:center;gap:8px;padding:5px 2px}
+.poprad .lab{width:92px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--txt3)}
+.farger{display:flex;gap:4px;flex-wrap:wrap;max-width:230px}
+.panel-i-pop{display:flex;flex-direction:column;width:290px;margin:-8px}
+.meny{flex-direction:column;gap:2px;min-width:280px}
+.pop.open>.popruta.meny{display:flex}
+[hidden]{display:none!important}
+/* Smal yta: verktygsknapparna visar bara symbolen (namnet finns i tipsrutan). */
+@media (max-width:1250px){ .etikett{display:none} .topbar .grp button{padding:5px 8px} }
+.kortn{display:none}
+@media (max-width:900px){ .seg .lang{display:none} .seg .kortn{display:inline} }
+.meny button{justify-content:flex-start;background:transparent;border-color:transparent;width:100%}
+.meny button:hover{background:var(--hover)}
+.body{position:relative}
+body.vanster-dold #left{display:none}
+body.hoger-dold #right{display:none}
+@media (max-width:1100px){
+  #right{position:absolute;right:0;top:0;bottom:0;z-index:20;box-shadow:-10px 0 30px rgba(0,0,0,.3)}
+}
+@media (max-width:820px){
+  #left{position:absolute;left:0;top:0;bottom:0;z-index:20;box-shadow:10px 0 30px rgba(0,0,0,.3)}
+  .searchwrap{width:140px}
+}
+body.ljust .comp text, body.ljust #overlay text{font-weight:700}
+#empty.liten{inset:auto 0 auto 0;top:12px;flex-direction:row;font-size:12px}
 @media print{
   body{overflow:visible;background:#fff;color:#000}
   .topbar,#left,#right,#planWrap,#sectionView,#settingsView,.modal,#reportTools{display:none!important}
@@ -267,23 +317,47 @@ tbody tr:hover td{background:#141c24}
 <datalist id="pvcat-produkt"></datalist>
 <div id="app">
   <div class="topbar">
-    <div class="brand">Ritning<small id="brandName">Nytt projekt</small></div>
-    <button id="btnPlan" class="on">Planvy</button>
-    <button id="btnSection">Sektionsvy</button>
-    <button id="btnReport">Sammanställning</button>
-    <button id="btnSettings">Inställningar</button>
-    <div class="sep"></div>
-    <button id="btnNew" style="display:none">Nytt</button>
-    <button id="btnOpen" title="Läs in en ritning (.sro.json) från dagens program. Ersätter ritningen i projektet.">Importera…</button>
-    <button id="btnSave" title="Ladda ner ritningen som fil (utan PDF-bakgrunder)">Ladda ner</button>
-    <span id="pvSparstatus" class="muted" style="font-size:11px;min-width:90px"></span>
-    <button id="btnCsv">Importera CSV</button>
-    <button id="btnHelp">?</button>
+    <span id="brandName" hidden></span>
+    <button id="btnLeft" class="ikon" title="Visa eller dölj struktur och komponenter att placera">☰</button>
+    <div class="seg" role="tablist">
+      <button id="btnPlan" class="on">Plan</button><button id="btnSection">Sektion</button><button id="btnReport" title="Sammanställning"><span class="lang">Sammanställning</span><span class="kortn">Lista</span></button><button id="btnSettings" title="Inställningar">⚙<span class="lang"> Inställningar</span></button>
+    </div>
+    <div class="grp planbara">
+      <button id="btnImport" title="Lägg till en PDF som bakgrund på planet">+<span class="etikett"> PDF</span><span class="kort">PDF</span></button>
+      <button id="btnRect" title="Rita rektangulärt rum (R)">▭<span class="etikett"> Rum</span></button>
+      <button id="btnPoly" title="Rita polygonrum (P)">⬠<span class="etikett"> Polygon</span></button>
+      <button id="btnCable" title="Rita kabel (K)">╱<span class="etikett"> Kabel</span></button>
+      <button id="btnJunction" title="Lägg till kopplingspunkt (J) – hör bara till ritningen, läggs aldrig till i Komponenter">◆<span class="etikett"> Kopplingspunkt</span></button>
+      <button id="btnFit" title="Anpassa planen till fönstret (F)">⤢<span class="etikett"> Anpassa</span></button>
+    </div>
+    <div class="grp planbara">
+      <div class="pop"><button data-pop title="Färger på bakgrund, linjer och komponenter">◑<span class="etikett"> Färger</span> ▾</button>
+        <div class="popruta">
+          <div class="poprad"><span class="lab">Bakgrund</span><span id="bgBtns" class="farger"></span></div>
+          <div class="poprad"><span class="lab">Linjer</span><span id="inkBtns" class="farger"></span></div>
+          <div class="poprad"><span class="lab">Komponenter</span><span id="compBtns" class="farger"></span></div>
+        </div></div>
+      <div class="pop"><button data-pop title="PDF-bakgrunder på planet: synlighet, ordning och läge">▤<span class="etikett"> Bakgrunder</span> ▾</button>
+        <div class="popruta"><div id="layersPanel" class="panel-i-pop"></div></div></div>
+      <div class="pop"><button data-pop title="Installationslager för kablar">≋<span class="etikett"> Kabellager</span> ▾</button>
+        <div class="popruta"><div id="instLayersPanel" class="panel-i-pop"></div></div></div>
+    </div>
     <div class="grow"></div>
+    <span id="pvSparstatus" class="muted sparstatus"></span>
     <div class="searchwrap">
       <input type="text" id="search" placeholder="Sök beteckning, typ, rum…" autocomplete="off">
       <span class="cnt" id="searchCnt"></span>
     </div>
+    <div class="pop"><button data-pop>Mer ▾</button>
+      <div class="popruta hoger meny">
+        <button id="btnPlanPdf">Exportera planen som PDF</button>
+        <button id="btnCsv">Importera komponenter från CSV…</button>
+        <button id="btnOpen" title="Läs in en ritning (.sro.json) från dagens program. Ersätter ritningen i projektet.">Importera ritning från dagens program…</button>
+        <button id="btnSave" title="Ladda ner ritningen som fil (utan PDF-bakgrunder)">Ladda ner ritningen som fil</button>
+        <button id="btnHelp">Kortkommandon</button>
+        <button id="btnNew" hidden>Nytt</button>
+      </div></div>
+    <button id="btnRight" class="ikon" title="Visa eller dölj egenskaper">◧</button>
   </div>
 
   <div class="body">
@@ -309,22 +383,6 @@ tbody tr:hover td{background:#141c24}
         <div id="chV" class="crosshair-v"></div>
         <div id="busy">Renderar…</div>
         <div id="empty"></div>
-        <div id="planTools">
-          <div class="toolgrp">
-            <button id="btnImport">Lägg till PDF</button>
-            <button id="btnRect" title="Rita rektangulärt rum (R)">▭ Rum</button>
-            <button id="btnPoly" title="Rita polygonrum (P)">⬠ Polygon</button>
-            <button id="btnCable" title="Rita kabel (K)">╱ Kabel</button>
-            <button id="btnJunction" title="Lägg till kopplingspunkt (J) – hör bara till ritningen, läggs ALDRIG till i Komponenter">◆ Kopplingspunkt</button>
-            <button id="btnFit" title="Anpassa (F)">Anpassa</button>
-            <button id="btnPlanPdf" title="Exportera denna planvy till PDF">PDF</button>
-          </div>
-          <div class="toolgrp"><span class="lab">Bakgrund</span><span id="bgBtns" style="display:flex;gap:4px"></span></div>
-          <div class="toolgrp"><span class="lab">Linjer</span><span id="inkBtns" style="display:flex;gap:4px"></span></div>
-          <div class="toolgrp"><span class="lab">Komponenter</span><span id="compBtns" style="display:flex;gap:4px"></span></div>
-          <div class="toolgrp" id="layersPanel"></div>
-          <div class="toolgrp" id="instLayersPanel"></div>
-        </div>
         <div id="planHud"></div>
       </div>
       <div class="viewpane" id="sectionView"></div>
@@ -751,7 +809,7 @@ function resize(){
 }
 function draw(){
   ctx.setTransform(dpr,0,0,dpr,0,0);
-  ctx.fillStyle='#090b0e';ctx.fillRect(0,0,cw,ch);
+  ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--canvas').trim()||'#090b0e';ctx.fillRect(0,0,cw,ch);
   ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
   stack.forEach(({layer:l,entry:e})=>{
     if(!l.visible||l.opacity<=0.01||!e.bitmap)return;
@@ -881,10 +939,14 @@ $('#layersPanel').addEventListener('click',async e=>{
     f.layers.splice(i,1);f.layers.splice(j,0,l);
     await loadStack(f);renderLayers();draw();
   }else if(act==='del'){
-    if(!confirm('Ta bort bakgrunden "'+l.name+'"?'))return;
+    const placerade=f.components.filter(c=>c.x!=null);
+    if(!confirm('Ta bort bakgrunden "'+l.name+'"?'+(placerade.length&&f.layers.length===1?'\n\n'+placerade.length+' komponenter är placerade på planet. De ligger kvar på sina platser och passar en ny bakgrund med samma skala.':'')))return;
+    if(placerade.length&&f.layers.length===1&&confirm('Vill du också flytta tillbaka de '+placerade.length+' komponenterna till "Att placera"?\n\nOK = ja, Avbryt = låt dem ligga kvar på planet.')){
+      placerade.forEach(c=>{c.x=null;c.y=null;c.roomId=null;});
+    }
     f.layers.splice(i,1);cache.delete(id);
     if(ui.adjust===id){ui.adjust=null;$('#planWrap').classList.remove('adjusting');}
-    await loadStack(f);renderLayers();drawEmpty();draw();refresh();
+    await loadStack(f);renderLayers();buildOverlay();drawEmpty();draw();refresh();
   }else if(act==='reset'){l.ox=0;l.oy=0;l.k=1;renderLayers();scheduleDetail();draw();}
 });
 $('#layersPanel').addEventListener('input',e=>{
@@ -1517,7 +1579,9 @@ function cableFinish(){
 }
 
 
-wrap.addEventListener('dragover',e=>{if(!ref)return;e.preventDefault();e.dataTransfer.dropEffect='copy';wrap.classList.add('dropping');});
+wrap.addEventListener('dragover',e=>{if(!ref)return;e.preventDefault();
+  // dropEffect måste matcha det som dragstart tillåter (kön och strukturen drar med 'move', paletten med 'copy'), annars blir det inget drop.
+  const ea=e.dataTransfer.effectAllowed;e.dataTransfer.dropEffect=(ea==='move'||ea==='linkMove')?'move':'copy';wrap.classList.add('dropping');});
 wrap.addEventListener('dragleave',()=>wrap.classList.remove('dropping'));
 wrap.addEventListener('drop',e=>{
   e.preventDefault();wrap.classList.remove('dropping');if(!ref)return;
@@ -1855,7 +1919,8 @@ function renderInspector(){
     box.innerHTML=`
       <div class="field"><label class="chk"><input type="checkbox" id="iDone" ${c.done?'checked':''}> Klarmarkerad (egenkontroll)</label></div>
       <div class="field"><label>Beteckning</label><input type="text" id="iTag" class="mono" value="${esc(c.tag)}"></div>
-      <div class="field"><label class="lab-s" style="margin-top:6px">ProjektVerktyg – komponentlistans fält</label></div>
+      ${c.pvId&&pvVard()?`<div class="field"><button id="iInfo" style="width:100%;justify-content:center">Komponentinformation – var finns den?</button></div>`:''}
+      <div class="field"><label class="lab-s" style="margin-top:6px">Komponentens uppgifter (samma som i Komponenter)</label></div>
       <div class="field"><label>Komponenttyp</label><input type="text" id="iKomponenttyp" list="pvcat-komponenttyp" value="${esc(c.pvKomponenttyp||'')}"></div>
       <div class="field"><label>System</label><input type="text" id="iSystem" list="pvcat-system" value="${esc(c.pvSystem||'')}"></div>
       <div class="field"><label>Signaltyp</label><input type="text" id="iSignaltyp" list="pvcat-signaltyp" value="${esc(c.pvSignaltyp||'')}"></div>
@@ -1879,6 +1944,7 @@ function renderInspector(){
       ${t.attrs&&t.attrs.length?`<div class="field"><label>Attribut</label>${t.attrs.map(a=>attrInput(t,c,a)).join('')}</div>`:''}
       <div class="field row"><button id="iCopy">Kopiera</button>${c.x!=null?'<button id="iUnplace">Av ritning</button>':''}<button id="iDel" style="color:var(--danger)">Ta bort</button></div>`;
     $('#iDone').onchange=e=>{c.done=e.target.checked;refresh();pvNotify(c.pvId,{kontrollerad:c.done});};
+    if($('#iInfo'))$('#iInfo').onclick=()=>{const v=pvVard();if(v&&v.visaKomponent)v.visaKomponent(c.pvId);};
     $('#iTag').onchange=e=>{c.tag=e.target.value.trim()||c.tag;refresh();pvNotify(c.pvId,{beteckning:c.tag});};
     $('#iKomponenttyp').onchange=e=>{c.pvKomponenttyp=e.target.value;pvNotify(c.pvId,{komponenttyp:c.pvKomponenttyp});};
     $('#iSystem').onchange=e=>{c.pvSystem=e.target.value;pvNotify(c.pvId,{system:c.pvSystem});};
@@ -2962,11 +3028,14 @@ function setView(v){
   else resize();
 }
 async function loadStack(f){
-  stack=[];
+  const ny=[];
   for(const l of f.layers){
     const e=await ensureDoc(l);
-    if(e)stack.push({layer:l,entry:e});
+    if(e)ny.push({layer:l,entry:e});
   }
+  // Ett annat plan hann öppnas under tiden: rör inte det som visas nu.
+  if(f!==curFloor())return false;
+  stack=ny;
   // Ger planet en giltig referensyta ÄVEN OM ingen PDF laddats upp –
   // annars blockerades drag-och-släpp (och all koordinatmatte som
   // bygger på ref.w/ref.h) helt på ett tomt plan. Storleken (2000×1500
@@ -2975,28 +3044,39 @@ async function loadStack(f){
   // eventuellt laddas upp senare.
   if(!f.ref) f.ref = stack.length ? {w:stack[0].entry.pageW,h:stack[0].entry.pageH} : {w:2000,h:1500};
   ref=f.ref;
+  return true;
 }
+let oppnaTur=0;
 async function openFloor(id){
   const r=findFloor(id);if(!r)return;
+  const tur=++oppnaTur;
   ui.floorId=id;ui.bldId=r.bld.id;
   ui.adjust=null;ui.poly=null;ui.addingInstLayer=false;$('#planWrap').classList.remove('adjusting');
   setView('plan');renderTree();renderPool();
   const f=r.floor;
   await loadStack(f);
+  if(tur!==oppnaTur)return;
   renderLayers();
   renderInstLayers();
-  if(!stack.length){svg.innerHTML='';drawEmpty();draw();return;}
+  // Utan bakgrund visas ändå komponenter och rum som redan placerats på planet.
+  if(!stack.length){fitView();buildOverlay();drawEmpty();draw();return;}
   $('#empty').innerHTML='';
   fitView();
   for(const s of stack){
+    if(tur!==oppnaTur)return;
     if(!s.layer.visible||s.entry.bitmap)continue;
     await renderBase(s.entry,view.scale*s.layer.k*dpr*2);
   }
-  fitView();buildOverlay();draw();
+  if(tur!==oppnaTur)return;
+  drawEmpty();fitView();buildOverlay();draw();
 }
 function drawEmpty(){
-  const f=curFloor();
-  $('#empty').innerHTML=f&&!f.layers.length
+  const f=curFloor(), el=$('#empty');
+  // Visas bara när planet verkligen saknar bakgrund (inte medan en PDF håller på att laddas).
+  const utanBakgrund=f&&!f.layers.length&&!stack.length;
+  const harPlacerade=f&&f.components.some(c=>c.x!=null);
+  el.classList.toggle('liten',!!harPlacerade);
+  el.innerHTML=utanBakgrund
     ? `<div>Ingen planritning på <b>${esc(f.name)}</b>.</div><button onclick="document.getElementById('btnImport').click()">Lägg till PDF</button>`
     : (!f?`<div>Välj ett plan i strukturen till vänster.</div>`:'');
 }
@@ -3045,7 +3125,7 @@ function renderColorBtns(){
   $('#inkBtns').innerHTML=INK_PRESETS.map(p=>`<button class="sw-btn${P.settings.ink===p.k?' on':''}" data-ink="${p.k}" title="${p.n}" style="background:${p.c}"></button>`).join('');
   $('#compBtns').innerHTML=COMP_PRESETS.map(p=>`<button class="sw-btn${P.settings.comp===p.k?' on':''}" data-comp="${p.k}" title="${p.n}" style="background:${p.c}"></button>`).join('');
 }
-$('#planTools').addEventListener('click',e=>{
+document.addEventListener('click',e=>{
   const b=e.target.closest('[data-bg]'),i=e.target.closest('[data-ink]'),c=e.target.closest('[data-comp]');
   if(b)P.settings.bg=b.dataset.bg;else if(i)P.settings.ink=i.dataset.ink;else if(c)P.settings.comp=c.dataset.comp;else return;
   renderColorBtns();applyAllColors();buildOverlay();
@@ -3068,7 +3148,7 @@ $('#filePdf').onchange=async e=>{
     await loadStack(f);renderLayers();
     for(const s of stack){if(s.layer.visible&&!s.entry.bitmap)await renderBase(s.entry,view.scale*s.layer.k*dpr*2);}
     if(stack.length===files.length)fitView();
-    buildOverlay();draw();refresh();
+    drawEmpty();buildOverlay();draw();refresh();
     flash(files.length===1?'Bakgrund tillagd':files.length+' bakgrunder tillagda');
   }catch(err){alert('Import misslyckades: '+err.message);}
   finally{busy(false);}
@@ -3396,6 +3476,7 @@ async function pvLaddaRitning(json, namn, behallVy){
       P.types=(P.types||deep(DEFAULT_TYPES)).map(t=>Object.assign({attrs:[],models:[],hidden:false,shape:'circle'},t));
     }else{
       P=newProject();
+      if(document.body.classList.contains('ljust'))P.settings=Object.assign(P.settings,{bg:'white',ink:'black',comp:'blue'});
     }
     if(namn)P.name=namn;
     cache.clear();stack=[];ref=null;ui.adjust=null;ui.typeSel=null;
@@ -3470,6 +3551,95 @@ function pvKopplaImport(){
 }
 function host_requestSync(){const h=pvHost();if(h)try{h.postMessage(JSON.stringify({type:'requestSync'}));}catch(e){}}
 window.pvKopplaImport=pvKopplaImport;
+
+/** Webbappens färgtema. t = {bg, yta, yta2, linje, text, dampad, accent, accentText, fara, varning, klar, sans, mono, ljust}. */
+function pvTema(t){
+  const st=document.documentElement.style, sat=(k,v)=>{if(v)st.setProperty(k,v);};
+  sat('--bg',t.bg);sat('--panel',t.yta);sat('--panel2',t.yta2);sat('--line',t.linje);
+  sat('--line2',t.linje?`color-mix(in srgb, ${t.linje} 70%, ${t.text})`:'');
+  sat('--txt',t.text);sat('--txt2',t.dampad);sat('--txt3',t.dampad?`color-mix(in srgb, ${t.dampad} 75%, ${t.yta})`:'');
+  sat('--accent',t.accent);sat('--accent-txt',t.accentText);sat('--accent-dim',t.accent?`color-mix(in srgb, ${t.accent} 60%, ${t.yta})`:'');
+  sat('--accent2',t.accent);sat('--danger',t.fara);sat('--warn',t.varning);if(t.klar)sat('--done',t.klar);
+  sat('--canvas',t.ljust?`color-mix(in srgb, ${t.bg} 85%, #000)`:`color-mix(in srgb, ${t.bg} 70%, #000)`);
+  sat('--input',t.ljust?t.yta:`color-mix(in srgb, ${t.bg} 80%, #000)`);
+  sat('--sunk',t.ljust?t.yta2:`color-mix(in srgb, ${t.bg} 85%, #000)`);
+  sat('--hit',t.ljust?'#2f9e44':'#8ee06a');
+  sat('--sans',t.sans);sat('--mono',t.mono);
+  document.body.classList.toggle('ljust',!!t.ljust);
+  draw();
+}
+window.pvTema=pvTema;
+
+/** Öppnar planet där komponenten ligger, markerar den och centrerar vyn på den. */
+async function pvVisaKomponent(pvId){
+  let hit=null;eachFloor((f,b)=>f.components.forEach(c=>{if(c.pvId===pvId)hit={c,f,b};}));
+  if(!hit)return false;
+  setView('plan');
+  if(ui.floorId!==hit.f.id)await openFloor(hit.f.id);
+  select({kind:'comp',id:hit.c.id});
+  if(hit.c.x!=null&&ref){
+    view.tx=cw/2-hit.c.x*ref.w*view.scale;view.ty=ch/2-hit.c.y*ref.h*view.scale;
+    buildOverlay();draw();scheduleDetail();
+  }
+  if(document.body.classList.contains('hoger-dold'))vaxlaSida('hoger',true);
+  return true;
+}
+window.pvVisaKomponent=pvVisaKomponent;
+
+/** Var en komponent ligger på ritningen: [{byggnad, plan, rum, placerad}]. */
+function pvKomponentPlats(pvId){
+  const ut=[];
+  eachFloor((f,b)=>f.components.forEach(c=>{
+    if(c.pvId!==pvId)return;
+    const rum=c.roomId?f.rooms.find(x=>x.id===c.roomId):null;
+    ut.push({byggnad:b.name,plan:f.name,rum:rum?rum.name:'',placerad:c.x!=null});
+  }));
+  return ut;
+}
+window.pvKomponentPlats=pvKomponentPlats;
+
+// ---- Popup-paneler i verktygsraden ----
+document.addEventListener('click',e=>{
+  const knapp=e.target.closest('[data-pop]');
+  if(!knapp)return;
+  const pop=knapp.parentElement, oppen=pop.classList.contains('open');
+  $$('.pop.open').forEach(x=>x.classList.remove('open'));
+  if(!oppen)pop.classList.add('open');
+});
+document.addEventListener('pointerdown',e=>{
+  // composedPath gäller även om panelen ritas om av klicket.
+  const inne=e.composedPath().some(n=>n.classList&&n.classList.contains('pop'));
+  if(!inne)$$('.pop.open').forEach(x=>x.classList.remove('open'));
+});
+$$('.meny button').forEach(b=>b.addEventListener('click',()=>$$('.pop.open').forEach(x=>x.classList.remove('open'))));
+
+// ---- Fällbara sidopaneler (små skärmar) ----
+let sidorValdaAvAnvandaren=false;
+function vaxlaSida(sida,auto){
+  if(!auto)sidorValdaAvAnvandaren=true;
+  document.body.classList.toggle(sida+'-dold');
+  $('#btnLeft').classList.toggle('on',!document.body.classList.contains('vanster-dold'));
+  $('#btnRight').classList.toggle('on',!document.body.classList.contains('hoger-dold'));
+  if(ui.view==='plan')resize();
+}
+$('#btnLeft').onclick=()=>vaxlaSida('vanster');
+$('#btnRight').onclick=()=>vaxlaSida('hoger');
+window.addEventListener('resize',()=>{
+  if(sidorValdaAvAnvandaren)return;
+  const b=document.body.classList, w=window.innerWidth;
+  if((w<1100)!==b.contains('hoger-dold'))vaxlaSida('hoger',true);
+  if((w<820)!==b.contains('vanster-dold'))vaxlaSida('vanster',true);
+});
+(function startlage(){
+  if(window.innerWidth<1100)document.body.classList.add('hoger-dold');
+  if(window.innerWidth<820)document.body.classList.add('vanster-dold');
+  $('#btnLeft').classList.toggle('on',!document.body.classList.contains('vanster-dold'));
+  $('#btnRight').classList.toggle('on',!document.body.classList.contains('hoger-dold'));
+  resize();
+})();
+// Ritverktygen visas bara i planvyn.
+const _setView=setView;
+setView=function(v){_setView(v);$$('.planbara').forEach(g=>g.style.display=v==='plan'?'':'none');};
 
 // Säg till webbappen att verktyget är redo att ta emot ritningen.
 try{const v=pvVard();if(v&&v.redo)v.redo();}catch(e){}

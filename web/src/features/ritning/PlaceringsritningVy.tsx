@@ -12,6 +12,7 @@ type Vard = {
   laddaUppPdf: (namn: string, b64: string) => Promise<string>;
   hamtaPdf: (fileId: string) => Promise<ArrayBuffer>;
   komponenter: () => { id: string; beteckning: string }[];
+  visaKomponent: (id: string) => void;
 };
 
 /** Funktioner som ritverktyget lägger ut och som webbappen anropar. */
@@ -21,7 +22,20 @@ type Verktyg = Window & {
   pvAssignId?: (localId: string, realId: string) => void;
   pvLaddaRitning?: (json: string | null, namn: string, behallVy: boolean) => Promise<void>;
   pvSparaNu?: () => Promise<void>;
+  pvTema?: (t: Record<string, string | boolean>) => void;
+  pvVisaKomponent?: (id: string) => Promise<boolean>;
 };
+
+/** Webbappens aktuella färger, så att ritverktyget får samma tema. */
+function tema(): Record<string, string | boolean> {
+  const st = getComputedStyle(document.documentElement);
+  const v = (n: string) => st.getPropertyValue(n).trim();
+  return {
+    bg: v("--bg"), yta: v("--yta"), yta2: v("--yta-2"), linje: v("--linje"), text: v("--text"), dampad: v("--dampad"),
+    accent: v("--accent"), accentText: v("--accent-text"), fara: v("--fara"), varning: v("--varning"), klar: v("--ok"),
+    sans: v("--font"), mono: v("--font-mono"), ljust: st.colorScheme !== "dark",
+  };
+}
 
 type Props = {
   projektId: string;
@@ -37,6 +51,11 @@ type Props = {
   taBortKomponentLokalt: (id: string) => void;
   andraLista: (lista: "egenkontroll" | "installationslista", komponentId: string, falt: string, varde: string) => Promise<void>;
   visaMeddelande: (text: string) => void;
+  /** Komponent som ska visas på ritningen (från Komponentinformation). */
+  fokusKomponent: string | null;
+  onFokusVisad: () => void;
+  /** Öppna Komponentinformation för en komponent som markerats i ritningen. */
+  onVisaKomponent: (id: string) => void;
 };
 
 const KOMPONENTFALT = new Set([
@@ -81,12 +100,27 @@ export function PlaceringsritningVy(p: Props) {
     try {
       const r = await api<Ritning>(`/api/projekt/${p.projektId}/ritning`);
       version.current = r.version;
+      v.pvTema?.(tema());
       await v.pvLaddaRitning(r.data, props.current.projekt?.namn ?? "Projekt", behallVy);
       v.pvSyncCatalogs?.(JSON.stringify(props.current.kataloger));
       synkaKomponenter();
+      visaFokus();
     } catch (e) {
       props.current.visaMeddelande(`Ritningen kunde inte hämtas: ${(e as Error).message}`);
     }
+  };
+
+  /** Markerar och centrerar komponenten som Komponentinformation bad om. */
+  const visaFokus = () => {
+    const id = props.current.fokusKomponent;
+    const v = verktyg();
+    if (!id || !v?.pvVisaKomponent || !redo.current) return;
+    // pvSync lägger till nya komponenter en kort stund efter laddningen.
+    window.setTimeout(async () => {
+      const hittad = await verktyg()?.pvVisaKomponent?.(id);
+      if (!hittad) props.current.visaMeddelande("Komponenten finns inte på ritningen än. Den ligger under Att placera.");
+      props.current.onFokusVisad();
+    }, 400);
   };
 
   /** Ändrar fält på en komponent ett i taget, med senaste versionen varje gång. */
@@ -187,6 +221,7 @@ export function PlaceringsritningVy(p: Props) {
       },
       hamtaPdf: (fileId) => hamtaBinar(`/api/projekt/${p.projektId}/filer/${fileId}/innehall`),
       komponenter: () => props.current.komponenter.map((k) => ({ id: k.id, beteckning: k.beteckning })),
+      visaKomponent: (id) => props.current.onVisaKomponent(id),
     };
     (window as unknown as { pvRitningsVard?: Vard }).pvRitningsVard = vard;
     return () => {
@@ -208,6 +243,18 @@ export function PlaceringsritningVy(p: Props) {
     if (redo.current) verktyg()?.pvSyncCatalogs?.(JSON.stringify(p.kataloger));
   }, [p.kataloger]);
 
+  useEffect(() => { if (p.fokusKomponent) visaFokus(); }, [p.fokusKomponent]);
+
+  // Ritverktyget följer webbappens färgtema, även när temat byts.
+  useEffect(() => {
+    const skicka = () => { if (redo.current) verktyg()?.pvTema?.(tema()); };
+    const obs = new MutationObserver(skicka);
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["data-tema"] });
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    mq.addEventListener("change", skicka);
+    return () => { obs.disconnect(); mq.removeEventListener("change", skicka); };
+  }, []);
+
   // Någon annan har sparat: hämta deras version.
   useEffect(() => {
     if (p.uppdaterad > 0 && redo.current) void hamtaOchLadda(true);
@@ -217,15 +264,13 @@ export function PlaceringsritningVy(p: Props) {
   return (
     <div className={`ritningsyta ${helskarm ? "helskarm" : ""}`}>
       <div className="ritningshuvud">
-        <div>
-          <div className="brodsmula">Projektering</div>
-          <h1>Placeringsritningar</h1>
-        </div>
-        <p className="dampad">
-          Komponenterna här är projektets komponenter. Ändringar sparas automatiskt och syns i Komponenter, Egenkontroll
-          och Installationslista. PDF-bakgrunder sparas under Projektfiler → Handlingar/Ritningar.
-          {p.lasläge && " Du har bara läsbehörighet."}
-        </p>
+        <h1>Placeringsritningar</h1>
+        <span
+          className="hjalp" tabIndex={0}
+          title={"Komponenterna på ritningen är projektets komponenter. Ändringar sparas automatiskt och syns i Komponenter, Egenkontroll och Installationslista. PDF-bakgrunder sparas under Projektfiler → Handlingar/Ritningar. Dra komponenter från Att placera till planen."}
+        >?</span>
+        {p.lasläge && <span className="dampad">Endast läsning</span>}
+        <span className="grow" />
         <button className="knapp" onClick={() => setHelskarm((h) => !h)}>{helskarm ? "Avsluta helskärm" : "Helskärm"}</button>
       </div>
       <iframe

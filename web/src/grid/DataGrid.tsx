@@ -40,13 +40,18 @@ type Props<T extends Rad> = {
   cellVarning?: (rad: T, nyckel: string) => string | undefined;
   /** Extra CSS-klass för en cell, t.ex. färg efter riskvärde. */
   cellKlass?: (rad: T, nyckel: string) => string | undefined;
+  /** Visar en informationsknapp först på varje rad. */
+  onInfo?: (rad: T) => void;
+  /** Rad som ska visas och markeras en stund (t.ex. efter länk från Komponentinformation). */
+  fokusId?: string | null;
   /** Knappar som gäller markerade rader (visas i verktygsraden). */
   markeradeVerktyg?: (ids: string[]) => ReactNode;
 };
 
 export function DataGrid<T extends Rad>({
-  rader, kolumner, sokPlatshallare, onAndra, onNy: nyIn, onTaBort: taBortIn, blinkar = [], verktyg, lasläge = false, tomText, cellVarning, cellKlass, markeradeVerktyg,
+  rader, kolumner, sokPlatshallare, onAndra, onNy: nyIn, onTaBort: taBortIn, blinkar = [], verktyg, lasläge = false, tomText, cellVarning, cellKlass, markeradeVerktyg, onInfo, fokusId,
 }: Props<T>) {
+  const ram = useRef<HTMLDivElement>(null);
   const onNy = lasläge ? undefined : nyIn;
   const onTaBort = lasläge ? undefined : taBortIn;
   const [sok, setSok] = useState("");
@@ -70,6 +75,17 @@ export function DataGrid<T extends Rad>({
     }
     return lista;
   }, [rader, kolumner, sok, sortering]);
+
+  // Rad i fokus: rensa sökningen om den döljer raden och scrolla fram den.
+  useEffect(() => {
+    if (!fokusId) return;
+    if (!synliga.some((r) => r.id === fokusId) && rader.some((r) => r.id === fokusId)) setSok("");
+    const t = window.setTimeout(() => {
+      ram.current?.querySelector(`tr[data-rad="${CSS.escape(fokusId)}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" });
+    }, 80);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fokusId, rader.length]);
 
   // Markerade rader som inte längre finns (t.ex. borttagna av någon annan) släpps.
   useEffect(() => {
@@ -118,11 +134,12 @@ export function DataGrid<T extends Rad>({
           {k.forslag!.map((v) => <option key={v} value={v} />)}
         </datalist>
       ))}
-      <div className="grid-ram">
+      <div className="grid-ram" ref={ram}>
         <table className="grid">
           <thead>
             <tr>
               {onTaBort && <th className="smal" aria-label="Markera" />}
+              {onInfo && <th className="smal" aria-label="Information" />}
               {kolumner.map((k) => (
                 <th key={k.nyckel} onClick={() => sortera(k.nyckel)} style={kolumnStil(k)}>
                   {k.rubrik}
@@ -133,15 +150,20 @@ export function DataGrid<T extends Rad>({
           </thead>
           <tbody>
             {synliga.length === 0 && (
-              <tr><td colSpan={kolumner.length + 1} className="tom">
+              <tr><td colSpan={kolumner.length + 2} className="tom">
                 {rader.length === 0 ? (tomText ?? "Inga rader än. Klicka på Ny rad för att börja.") : "Inga rader matchar sökningen."}
               </td></tr>
             )}
             {synliga.map((r) => (
-              <tr key={r.id} className={markerade.has(r.id) ? "markerad" : undefined}>
+              <tr key={r.id} data-rad={r.id} className={[markerade.has(r.id) ? "markerad" : "", fokusId === r.id ? "fokus" : ""].join(" ").trim() || undefined}>
                 {onTaBort && (
                   <td className="smal">
                     <input type="checkbox" aria-label="Markera rad" checked={markerade.has(r.id)} onChange={() => vaxla(r.id)} />
+                  </td>
+                )}
+                {onInfo && (
+                  <td className="smal">
+                    <button className="infoknapp" title="Komponentinformation: var finns komponenten?" aria-label="Komponentinformation" onClick={() => onInfo(r)}>i</button>
                   </td>
                 )}
                 {kolumner.map((k) => {
