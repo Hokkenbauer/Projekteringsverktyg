@@ -22,7 +22,7 @@ public static class FilEndpoints
 
     public static readonly string[] Mappar =
     [
-        "Handlingar/Ritningar", "Handlingar/Beskrivningar", "Leveranser", "Foton", "Signerade dokument", "Övrigt",
+        "Handlingar/Ritningar", "Handlingar/Beskrivningar", "Driftkort", "Leveranser", "Foton", "Signerade dokument", "Övrigt",
     ];
 
     private static readonly FileExtensionContentTypeProvider Typer = new();
@@ -126,6 +126,28 @@ public static class FilEndpoints
         });
 
         return app;
+    }
+
+    /// <summary>Sparar en fil som en ny version i mappen (ändringslogg ingår, men inte SaveChanges eller livesynk).</summary>
+    public static async Task<FilDto> SparaVersionAsync(PvDbContext db, IFilLagring lagring, Guid projektId, string mapp, string filnamn,
+        byte[] data, Anvandare av, CancellationToken ct)
+    {
+        var namn = RentNamn(filnamn);
+        var tidigare = await db.Filer.Where(x => x.ProjektId == projektId && x.Mapp == mapp && x.Namn == namn)
+            .MaxAsync(x => (int?)x.Version, ct) ?? 0;
+        var typ = Typer.TryGetContentType(namn, out var t) ? t : "application/octet-stream";
+        var post = new ProjektFil
+        {
+            ProjektId = projektId, Mapp = mapp, Namn = namn, Version = tidigare + 1,
+            Storlek = data.LongLength, Typ = typ, UppladdadAv = av.Namn,
+        };
+        post.BlobNamn = $"{projektId}/{post.Id}";
+        using (var s = new MemoryStream(data, writable: false))
+            await lagring.SparaAsync(post.BlobNamn, s, typ, ct);
+        db.Filer.Add(post);
+        Andringslogg.Logga(db, projektId, av, "Fil", post.Id,
+            tidigare == 0 ? $"skapade {namn} i {mapp}" : $"skapade version {post.Version} av {namn} i {mapp}");
+        return Dto(post, post.Version);
     }
 
     private static FilDto Dto(ProjektFil f, int antal) => new(f.Id, f.Mapp, f.Namn, f.Version, antal, f.Storlek, f.Typ, f.Uppladdad, f.UppladdadAv);

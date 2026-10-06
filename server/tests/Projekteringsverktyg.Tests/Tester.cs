@@ -1,5 +1,6 @@
 using Projekteringsverktyg.Server.Auth;
 using Projekteringsverktyg.Server.Data;
+using Projekteringsverktyg.Server.DriftkortApi;
 using Projekteringsverktyg.Server.KomponentApi;
 using Projekteringsverktyg.Server.Synk;
 
@@ -258,5 +259,61 @@ public class SkapTester
         Assert.Equal("CX9020", m.Cpu1);
         Assert.Equal(2, m.Kort![0].Kanaler!.Count);
         Assert.Empty(Projekteringsverktyg.Server.SkapApi.SkapEndpoints.LasModuler("inte json").Kort!);
+    }
+}
+
+public class DriftkortTester
+{
+    private const string Wns = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+
+    private static byte[] MinstaDocx()
+    {
+        using var m = new MemoryStream();
+        using (var zip = new System.IO.Compression.ZipArchive(m, System.IO.Compression.ZipArchiveMode.Create, true))
+        {
+            void Skriv(string namn, string xml)
+            {
+                using var w = new StreamWriter(zip.CreateEntry(namn).Open());
+                w.Write(xml);
+            }
+            Skriv("[Content_Types].xml", """<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>""");
+            Skriv("word/_rels/document.xml.rels", """<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/></Relationships>""");
+            Skriv("word/document.xml", $$"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="{{Wns}}" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><w:body><w:p><w:r><w:br w:type="page"/></w:r></w:p><w:p><w:r><w:t>Allmänt</w:t></w:r></w:p><w:sectPr><w:footerReference w:type="default" r:id="rId1"/><w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/><w:pgNumType w:start="2"/><w:cols w:num="2" w:sep="1" w:space="159"/><w:docGrid w:linePitch="326"/></w:sectPr></w:body></w:document>""");
+        }
+        return m.ToArray();
+    }
+
+    [Fact]
+    public void Flodesbilden_blir_sida_1_i_eget_avsnitt()
+    {
+        var ut = DriftkortWord.Bygg(MinstaDocx(), [1, 2, 3], [4, 5]);
+        using var zip = new System.IO.Compression.ZipArchive(new MemoryStream(ut));
+        Assert.NotNull(zip.GetEntry("word/media/driftkort1.png"));
+        Assert.NotNull(zip.GetEntry("word/media/driftkort1.svg"));
+        System.Xml.Linq.XNamespace w = Wns;
+        var doc = System.Xml.Linq.XDocument.Load(zip.GetEntry("word/document.xml")!.Open());
+        var body = doc.Root!.Element(w + "body")!;
+        var forsta = body.Elements().First();
+        // Sida 1: bilden och ett eget avsnitt med en spalt och sidnummer 1.
+        Assert.Contains(forsta.Descendants(), e => e.Name.LocalName == "anchor");
+        var sida1 = forsta.Element(w + "pPr")!.Element(w + "sectPr")!;
+        Assert.Equal("1", (string?)sida1.Element(w + "pgNumType")!.Attribute(w + "start"));
+        Assert.Null(sida1.Element(w + "cols")!.Attribute(w + "num"));
+        Assert.NotNull(sida1.Element(w + "footerReference"));
+        // Den tomma sidan i mallen är borta, funktionstexten kommer direkt efter och börjar på sida 2.
+        Assert.Equal("Allmänt", body.Elements().Skip(1).First().Value);
+        Assert.Equal("2", (string?)body.Element(w + "sectPr")!.Element(w + "pgNumType")!.Attribute(w + "start"));
+        // Bildens relation finns.
+        var rels = System.Xml.Linq.XDocument.Load(zip.GetEntry("word/_rels/document.xml.rels")!.Open());
+        Assert.Contains(rels.Root!.Elements(), r => (string?)r.Attribute("Target") == "media/driftkort1.png");
+        var typer = System.Xml.Linq.XDocument.Load(zip.GetEntry("[Content_Types].xml")!.Open());
+        Assert.Contains(typer.Root!.Elements(), t => (string?)t.Attribute("Extension") == "png");
+    }
+
+    [Fact]
+    public void Inte_docx_ger_begripligt_fel()
+    {
+        var fel = Assert.Throws<InvalidDataException>(() => DriftkortWord.Bygg([1, 2, 3], [1], null));
+        Assert.Contains(".docx", fel.Message);
     }
 }

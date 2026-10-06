@@ -228,6 +228,7 @@
     .cats,.setside{width:132px}
     .editgrid{grid-template-columns:1fr}
   }
+  #board{-webkit-user-select:none;user-select:none}
   @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -772,6 +773,9 @@ function paintLayers(){
     row.append(eye, nm, up, dn, lk, rm);
     wrap.appendChild(row);
   });
+  const ioKnapp = document.querySelector('.tool[data-tool="io"]');
+  if (ioKnapp) ioKnapp.style.display = arDriftkort() ? '' : 'none';
+  if (tool === 'io' && !arDriftkort()) setTool('select');
   const sel = $('moveTo'); sel.innerHTML = '';
   layers().forEach(l => {
     const o = document.createElement('option');
@@ -1283,6 +1287,7 @@ board.addEventListener('pointerdown', e => {
     dragNodes = selection.slice(); dragOrigs = dragNodes.map(T);
     return;
   }
+  if (tool === 'io'){ ioStart(x, y); return; }
   const lay = activeLayer();
   const blocked = tool !== 'select' && lay && (lay.dataset.llock || lay.dataset.hidden);
   if (blocked){ setMsg('Lagret "' + lay.dataset.lname + '" är låst eller dolt'); return; }
@@ -1358,6 +1363,7 @@ board.addEventListener('pointermove', e => {
     marquee.setAttribute('height', Math.abs(p.y-dragStart.y));
     return;
   }
+  if (dragMode === 'io'){ ioMove(p.y); return; }
   if (dragMode === 'draw' && draft){
     const dx = x - dragStart.x, dy = y - dragStart.y;
     if (draft.tagName === 'line'){
@@ -1440,6 +1446,7 @@ board.addEventListener('pointerup', () => {
     if (b.width < 1 && b.height < 1) draft.remove(); else stamp(draft);
     draft = null;
   }
+  if (dragMode === 'io') ioSlut();
   if (dragMode === 'endpoint' && only()) rebase(only());
   if (dragMode === 'submove' && selection[0]) rebase(selection[0]);
   if (dragMode === 'rotate') $('rdLen').textContent = '';
@@ -1757,7 +1764,8 @@ new ResizeObserver(() => {
 }).observe(board.parentElement);
 
 function setDoc(w,h){
-  doc.w = Math.max(100,w|0); doc.h = Math.max(100,h|0);
+  // Två decimaler räcker och gör att A4 i pt (driftkort) blir exakt.
+  doc.w = Math.max(100, Math.round(w*100)/100); doc.h = Math.max(100, Math.round(h*100)/100);
   $('paper').setAttribute('width',doc.w);  $('paper').setAttribute('height',doc.h);
   $('gridbg').setAttribute('width',doc.w); $('gridbg').setAttribute('height',doc.h);
   $('docW').value = doc.w; $('docH').value = doc.h;
@@ -1779,6 +1787,7 @@ const TOOLS = [
   ['rect','Fyrkant','<rect x="3.5" y="5.5" width="15" height="11" rx="1"/>'],
   ['circle','Cirkel','<circle cx="11" cy="11" r="7"/>'],
   ['text','Text','<path d="M4 6V4h14v2M11 4v14M8 18h6"/>'],
+  ['io','I/O-streck','<path d="M11 3v12" stroke-dasharray="3 2"/><path d="M3 15h16M3 19h16"/><circle cx="11" cy="15" r="1.8" fill="currentColor"/>'],
 ];
 TOOLS.forEach(([id,lbl,icon]) => {
   const b = el('button','tool');
@@ -1794,6 +1803,7 @@ function setTool(t){
   if (t !== 'line'){ drawCap = null; if (activePreset !== null){ activePreset = null; paintPresets(); } }
   document.querySelectorAll('.tool').forEach(b => b.setAttribute('aria-pressed', b.dataset.tool === t));
   board.classList.toggle('selecting', t === 'select');
+  if (t === 'io') setMsg('I/O-streck: tryck på objektet och dra ner till raden (Di, Ai, Du, Au, M-bus eller Modbus)');
   if (t !== 'select') select([]);
   updatePanels();
 }
@@ -2581,10 +2591,11 @@ function fileName(ext){
 const updateFn = () => $('fnPrev').textContent = fileName('svg');
 $('baseName').addEventListener('input', updateFn);
 
-function cleanCopy(){
+function cleanCopy(opt = {}){
   const c = board.cloneNode(true);
   c.querySelector('#gridbg').remove();
   c.querySelector('#overlay').remove();
+  const kors = c.querySelector('#cross'); if (kors) kors.remove();
   c.setAttribute('viewBox', `0 0 ${doc.w} ${doc.h}`);
   c.setAttribute('width', doc.w); c.setAttribute('height', doc.h);
   c.setAttribute('xmlns', NS);
@@ -2593,12 +2604,14 @@ function cleanCopy(){
   paper.setAttribute('fill','#ffffff');
   paper.removeAttribute('stroke'); paper.removeAttribute('vector-effect');
   c.querySelectorAll('[data-hidden],[data-noexp]').forEach(n => n.remove());
+  if (opt.utanIo) c.querySelectorAll('[data-io]').forEach(n => n.remove());
+  if (opt.genomskinlig) paper.setAttribute('fill', 'none');
   c.querySelectorAll('[data-lid]').forEach(g => {
     g.setAttribute('id', 'lager_' + (g.dataset.lname||'').replace(/\W+/g,'_').toLowerCase());
   });
   c.querySelectorAll('*').forEach(n => {
     ['bx','by','bw','bh','tx','ty','sx','sy','item','lock','name','bm','lid','lname','llock',
-     'hidden','anchor','op','noexp']
+     'hidden','anchor','op','noexp','io','mall']
       .forEach(d => n.removeAttribute('data-' + d));
   });
   if ((ui().css || '').trim()){
@@ -2616,7 +2629,7 @@ $('btnSvg').onclick = () => {
 /* PDF görs i tre steg: vektor via svg2pdf, annars som bild, annars
    webbläsarens egen utskrift. Biblioteken ligger på ett CDN och kan
    vara blockerade på ett företagsnät, därför reservvägarna.          */
-function svgToPng(svgEl, w, h, scale = 2){
+function svgToPng(svgEl, w, h, scale = 2, bg = '#ffffff'){
   return new Promise((res, rej) => {
     const str = new XMLSerializer().serializeToString(svgEl);
     const im = new Image();
@@ -2624,7 +2637,7 @@ function svgToPng(svgEl, w, h, scale = 2){
       const cv = document.createElement('canvas');
       cv.width = Math.round(w*scale); cv.height = Math.round(h*scale);
       const cx = cv.getContext('2d');
-      cx.fillStyle = '#ffffff'; cx.fillRect(0, 0, cv.width, cv.height);
+      if (bg){ cx.fillStyle = bg; cx.fillRect(0, 0, cv.width, cv.height); }
       cx.drawImage(im, 0, 0, cv.width, cv.height);
       try { res(cv.toDataURL('image/png')); } catch(e){ rej(e); }
     };
@@ -2724,6 +2737,145 @@ function download(blob, name){
   a.href = URL.createObjectURL(blob); a.download = name; a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
+
+/* ================================================================
+   DRIFTKORT — flödesbild med I/O-rader på exakt samma plats som i
+   AutoCAD-mallen, så att sidan passar sidfoten i Word-mallen.
+   Måtten är i punkter (pt) från VS01VV01.pdf (A4 liggande, 842 × 595)
+   och räknas om till ritbordets enhet (px, 96 dpi): 1 pt = 4/3 px.
+   ================================================================ */
+const PT = 96 / 72;
+const DK = {
+  w: 841.89 * PT, h: 595.28 * PT,
+  as: { y: 379.80, x1: 45.77, x2: 795.11, text: 375.74 },
+  // namn, y, x från, x till
+  rader: [
+    ['Di',     421.86, 45.77, 795.11],
+    ['Ai',     432.24, 45.98, 794.81],
+    ['Du',     442.59, 45.98, 794.81],
+    ['Au',     452.94, 45.98, 794.81],
+    ['M-bus',  463.29, 63.20, 777.62],
+    ['Modbus', 473.67, 70.01, 770.81],
+  ],
+  textV: 29.2, textH: 811.55, textSize: 8.9, textNed: 3.2,
+  linje: 0.72, gra: '#808080',
+  sidfot: 506,
+};
+function arDriftkort(){ return !!stage.querySelector('[data-mall="driftkort"]'); }
+function ioLager(){
+  let l = stage.querySelector('[data-io="streck"]');
+  if (!l){ l = newLayer('I/O', false); l.dataset.io = 'streck'; paintLayers(); }
+  return l;
+}
+function dkText(x, y, t, anchor, fill = '#000000'){
+  const n = mk('text', { x: x * PT, y: y * PT, fill, 'font-size': DK.textSize * PT,
+                         'font-family': 'Arial, Helvetica, sans-serif', 'text-anchor': anchor });
+  n.textContent = t;
+  return n;
+}
+/** Gör om den öppna bilden till ett tomt driftkort med I/O-raderna på plats. */
+function rbDriftkortMall(asNamn){
+  const as = String(asNamn || '').trim() || 'AS01';
+  push();
+  stage.innerHTML = '';
+  const flode = newLayer('Flödesbild', false);
+  const mall = newLayer('I/O-rader (mall)', false);
+  mall.dataset.mall = 'driftkort'; mall.dataset.io = 'mall';
+  const io = newLayer('I/O', false); io.dataset.io = 'streck';
+  const fot = newLayer('Sidfot (följer inte med)', false); fot.dataset.noexp = '1';
+  activeLayerId = flode.dataset.lid;
+  setDoc(DK.w, DK.h);
+
+  const g = mk('g', {});
+  const asLinje = mk('line', { x1: DK.as.x1 * PT, y1: DK.as.y * PT, x2: DK.as.x2 * PT, y2: DK.as.y * PT,
+    stroke: '#ff0000', 'stroke-width': DK.linje * PT, 'stroke-linecap': 'round',
+    'stroke-dasharray': `${20.7 * PT} ${10.35 * PT}`, 'stroke-dashoffset': 8.55 * PT, fill: 'none' });
+  g.appendChild(asLinje);
+  g.appendChild(dkText(30.05, DK.as.text, as, 'start'));
+  g.appendChild(dkText(812.47, DK.as.text, as, 'end'));
+  DK.rader.forEach(([namn, y, x1, x2]) => {
+    g.appendChild(mk('line', { x1: x1 * PT, y1: y * PT, x2: x2 * PT, y2: y * PT,
+      stroke: DK.gra, 'stroke-width': DK.linje * PT, 'stroke-linecap': 'round', fill: 'none' }));
+    g.appendChild(dkText(DK.textV, y + DK.textNed, namn, 'start'));
+    g.appendChild(dkText(DK.textH, y + DK.textNed, namn, 'end'));
+  });
+  g.id = 'driftkort_rader';
+  initItem(g, { parent: mall, lock: true, name: 'I/O-rader ' + as });
+
+  const f = mk('g', {});
+  f.appendChild(mk('rect', { x: 0, y: DK.sidfot * PT, width: DK.w, height: DK.h - DK.sidfot * PT,
+    fill: DK.gra, 'fill-opacity': 0.12, stroke: 'none' }));
+  const ft = dkText(841.89 / 2, DK.sidfot + 30, 'Här hamnar sidfoten från Word-mallen', 'middle', '#808080');
+  f.appendChild(ft);
+  initItem(f, { parent: fot, lock: true, name: 'Sidfot' });
+  mall.dataset.llock = '1'; fot.dataset.llock = '1';
+
+  $('fontSize').value = 9;
+  select([]); paintLayers(); refresh();
+  setMsg('Driftkort skapat. Rita flödesbilden i lagret Flödesbild och dra I/O-streck med verktyget I/O-streck.');
+}
+window.rbDriftkortMall = rbDriftkortMall;
+window.rbArDriftkort = arDriftkort;
+
+/* I/O-streck: lodrätt streckat streck från objektet ner till en I/O-rad.
+   Änden hamnar alltid exakt på raden, med en punkt. Korsar strecket
+   AS-linjen får den också en punkt. Strecken ligger i lagret I/O. */
+let ioDraft = null;
+function ioStart(x, y){
+  if (!arDriftkort()){ setMsg('I/O-streck finns bara i driftkort'); return; }
+  push();
+  const g = mk('g', {});
+  const ln = mk('line', { x1: x, y1: y, x2: x, y2: y, stroke: DK.gra, 'stroke-width': DK.linje * PT,
+    'stroke-dasharray': `${8.28 * PT} ${4.14 * PT}`, fill: 'none' });
+  g.appendChild(ln);
+  ioLager().appendChild(g);
+  ioDraft = { g, ln, x, y, rad: null };
+  dragMode = 'io';
+}
+function ioMove(py){
+  if (!ioDraft) return;
+  const r = DK.rader.reduce((b, r) => Math.abs(r[1] * PT - py) < Math.abs(b[1] * PT - py) ? r : b);
+  ioDraft.rad = r;
+  ioDraft.ln.setAttribute('y2', r[1] * PT);
+  $('rdLen').textContent = 'I/O → ' + r[0];
+}
+function ioSlut(){
+  const d = ioDraft; ioDraft = null;
+  if (!d) return;
+  if (!d.rad || Math.abs(d.rad[1] * PT - d.y) < 2){ d.g.remove(); undoStack.pop(); return; }
+  const yR = d.rad[1] * PT, yAs = DK.as.y * PT;
+  const punkt = cy => mk('circle', { cx: d.x, cy, r: 1.56 * PT, fill: '#000000', stroke: 'none' });
+  d.g.appendChild(punkt(yR));
+  if ((d.y - yAs) * (yR - yAs) < 0) d.g.appendChild(punkt(yAs));
+  d.g.id = 'io_' + (++idCounter);
+  stamp(d.g);
+  d.g.dataset.name = 'I/O ' + d.rad[0];
+  if (d.x < d.rad[2] * PT || d.x > d.rad[3] * PT) setMsg('Obs: strecket hamnar utanför raden ' + d.rad[0]);
+  else setMsg('I/O-streck till ' + d.rad[0]);
+  refresh();
+}
+
+const basnamn = () => ($('baseName').value || 'bild').trim().replace(/[\\/:*?"<>|]+/g, '_');
+/** SVG till SCADA: samma bild utan I/O-rader och I/O-streck. */
+function rbScadaSvg(){
+  const s = new XMLSerializer().serializeToString(cleanCopy({ utanIo: true }));
+  return '<?xml version="1.0" encoding="UTF-8"?>\n' + s;
+}
+function rbExportScada(){
+  download(new Blob([rbScadaSvg()], { type: 'image/svg+xml' }), basnamn() + '_SCADA.svg');
+  setMsg('Sparade ' + basnamn() + '_SCADA.svg');
+}
+window.rbExportScada = rbExportScada;
+window.rbScadaSvg = rbScadaSvg;
+/** Hela sidan (med I/O) som genomskinlig PNG i 300 dpi och som SVG, för sida 1 i Word. */
+async function rbDriftkortBild(){
+  const svgEl = cleanCopy({ genomskinlig: true });
+  const svg = '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(svgEl);
+  const skala = 3508 / doc.w;   // A4 i 300 dpi
+  const png = await svgToPng(cleanCopy({ genomskinlig: true }), doc.w, doc.h, skala, null);
+  return { png, svg, namn: basnamn() };
+}
+window.rbDriftkortBild = rbDriftkortBild;
 
 /* ================================================================
    START
