@@ -7,6 +7,8 @@ const server = "http://localhost:5080";
 
 export default defineConfig({
   plugins: [react()],
+  // Byggets tidpunkt, används för att webbläsaren ska hämta ny version av ritverktyget.
+  define: { __BYGGE__: JSON.stringify(Date.now().toString(36)) },
   build: {
     outDir: "../server/src/Projekteringsverktyg.Server/wwwroot",
     emptyOutDir: true,

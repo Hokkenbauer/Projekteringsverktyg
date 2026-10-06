@@ -109,8 +109,24 @@ if (!app.Environment.IsDevelopment())
 
 // HTTPS sköts av Azure App Service (httpsOnly). Ingen omdirigering här, så att
 // Azures interna hälsokontroll över http inte stoppas.
+// Webbläsaren ska alltid fråga efter ny version av sidorna (.html), annars kan en gammal
+// version ligga kvar efter en uppdatering. Filerna i assets/ har versionsnummer i namnet
+// och kan sparas länge.
+var statiska = new StaticFileOptions
+{
+    OnPrepareResponse = ctx =>
+    {
+        var h = ctx.Context.Response.Headers;
+        if (ctx.File.Name.EndsWith(".html", StringComparison.OrdinalIgnoreCase))
+            h.CacheControl = "no-cache, no-store, must-revalidate";
+        else if (ctx.Context.Request.Path.StartsWithSegments("/assets"))
+            h.CacheControl = "public, max-age=31536000, immutable";
+        else
+            h.CacheControl = "no-cache";
+    },
+};
 app.UseDefaultFiles();
-app.UseStaticFiles();
+app.UseStaticFiles(statiska);
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -143,6 +159,6 @@ app.MapKontrollEndpoints();
 app.MapHub<ProjektHub>("/hubs/projekt");
 
 // Alla andra adresser hör till webbappen (React sköter sin egen navigering).
-app.MapFallbackToFile("index.html").AllowAnonymous();
+app.MapFallbackToFile("index.html", statiska).AllowAnonymous();
 
 app.Run();

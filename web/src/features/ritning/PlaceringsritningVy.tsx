@@ -274,7 +274,7 @@ export function PlaceringsritningVy(p: Props) {
         <button className="knapp" onClick={() => setHelskarm((h) => !h)}>{helskarm ? "Avsluta helskärm" : "Helskärm"}</button>
       </div>
       <iframe
-        ref={ram} className="ritningsram" src="/ritning/placeringsritning.html" title="Placeringsritning"
+        ref={ram} className="ritningsram" src={`/ritning/placeringsritning.html?v=${__BYGGE__}`} title="Placeringsritning"
         onLoad={() => { if (!redo.current) (window as unknown as { pvRitningsVard?: Vard }).pvRitningsVard?.redo(); }}
       />
     </div>
