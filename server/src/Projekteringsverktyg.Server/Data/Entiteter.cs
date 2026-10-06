@@ -245,3 +245,35 @@ public class RitbordInstallning
     public DateTimeOffset Andrad { get; set; } = DateTimeOffset.UtcNow;
     public string AndradAv { get; set; } = "";
 }
+
+/// <summary>Ett apparatskåp. Delas av Apparatskåp, Kraftberäkning och Modulbeläggning.</summary>
+public class Skap
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid ProjektId { get; set; }
+    public string Namn { get; set; } = "";
+    public string Beteckning { get; set; } = "";
+    public string Placering { get; set; } = "";
+    public string Beskrivning { get; set; } = "";
+    /// <summary>Apparatskåp-formuläret som JSON.</summary>
+    public string Data { get; set; } = "";
+    /// <summary>Modulbeläggningen som JSON.</summary>
+    public string Moduler { get; set; } = "";
+    public int Ordning { get; set; }
+    public int Version { get; set; } = 1;
+    public DateTimeOffset Andrad { get; set; } = DateTimeOffset.UtcNow;
+    public string AndradAv { get; set; } = "";
+}
+
+/// <summary>Korttyp (I/O-kort) för Modulbeläggning.</summary>
+public class Korttyp
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public string Namn { get; set; } = "";
+    public string Beskrivning { get; set; } = "";
+    public int AntalKanaler { get; set; }
+    public string Farg { get; set; } = "#FFFFFF";
+    public double BreddMm { get; set; }
+    public double StromMa { get; set; }
+    public int Ordning { get; set; }
+}

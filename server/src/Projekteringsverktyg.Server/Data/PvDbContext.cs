@@ -22,6 +22,8 @@ public class PvDbContext(DbContextOptions<PvDbContext> options) : DbContext(opti
     public DbSet<Kontroll> Kontroller => Set<Kontroll>();
     public DbSet<RitbordBild> RitbordBilder => Set<RitbordBild>();
     public DbSet<RitbordInstallning> RitbordInstallningar => Set<RitbordInstallning>();
+    public DbSet<Skap> Skap => Set<Skap>();
+    public DbSet<Korttyp> Korttyper => Set<Korttyp>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -102,6 +104,15 @@ public class PvDbContext(DbContextOptions<PvDbContext> options) : DbContext(opti
         b.Entity<KomponentMall>(e => { e.ToTable("komponentmall"); e.HasKey(m => m.Id); });
         b.Entity<KontrollMall>(e => { e.ToTable("kontrollmall"); e.HasKey(m => m.Id); });
         b.Entity<Kontroll>(e => { e.ToTable("kontroll"); e.HasKey(k => k.Id); e.HasIndex(k => new { k.ProjektId, k.Typ }); });
+
+        b.Entity<Skap>(e =>
+        {
+            e.ToTable("skap");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.ProjektId);
+            e.Property(x => x.Version).IsConcurrencyToken();
+        });
+        b.Entity<Korttyp>(e => { e.ToTable("korttyp"); e.HasKey(x => x.Id); });
 
         b.Entity<RitbordBild>(e =>
         {

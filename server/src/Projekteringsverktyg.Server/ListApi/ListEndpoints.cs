@@ -65,7 +65,7 @@ public static class ListEndpoints
 
     public static IEndpointRouteBuilder MapListEndpoints(this IEndpointRouteBuilder app)
     {
-        app.MapGet("/api/listdefinitioner", () => Listdefinitioner.Alla.Append(Listdefinitioner.Kontroll).Select(d => new
+        app.MapGet("/api/listdefinitioner", () => Listdefinitioner.Alla.Append(Listdefinitioner.Kontroll).Append(Listdefinitioner.Kraft).Select(d => new
         {
             d.Id, d.Namn, d.Grupp, d.Ingress, d.Kopplad, d.KomponenttypInnehaller, d.Bindestreck,
             kolumner = d.Kolumner.Select(k => new { k.Nyckel, k.Rubrik, k.Typ, k.Val, k.KomponentFalt, k.Standard, k.Mono, k.Bredd, k.Redigerbar, k.Fyll, k.Faktorer }),
@@ -229,6 +229,8 @@ public static class ListEndpoints
             var namn = def.Namn;
             if (lista.StartsWith(Listdefinitioner.KontrollPrefix) && Guid.TryParse(lista[Listdefinitioner.KontrollPrefix.Length..], out var kid))
                 namn = await db.Kontroller.Where(k => k.Id == kid && k.ProjektId == projektId).Select(k => k.Namn).FirstOrDefaultAsync() ?? namn;
+            if (lista.StartsWith(Listdefinitioner.KraftPrefix) && Guid.TryParse(lista[Listdefinitioner.KraftPrefix.Length..], out var sid))
+                namn = "Kraftberäkning " + (await db.Skap.Where(k => k.Id == sid && k.ProjektId == projektId).Select(k => k.Namn).FirstOrDefaultAsync() ?? "");
             var fil = Excel.Tabell(namn, $"{namn} – {projekt.Namn} {projekt.Nummer}".Trim(), kolumner.Select(c => c.Rubrik).ToList(), rader);
             return Results.File(fil, Excel.MimeTyp, Excel.Filnamn($"{namn} {projekt.Nummer}".Trim()));
         });

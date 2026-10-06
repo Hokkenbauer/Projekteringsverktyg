@@ -314,10 +314,30 @@ public static class Listdefinitioner
 
     public const string KontrollPrefix = "kontroll-";
 
-    public static ListDef? Hitta(string id) =>
-        id.StartsWith(KontrollPrefix, StringComparison.Ordinal) && Guid.TryParse(id[KontrollPrefix.Length..], out _)
-            ? Kontroll with { Id = id }
-            : Alla.FirstOrDefault(d => d.Id == id);
+    /// <summary>Kraftberäkning per apparatskåp (lista "kraft-{skåpets Id}").</summary>
+    public static readonly ListDef Kraft = new("kraft", "Kraftberäkning", "Konstruktion",
+        "Strömmen per fas för det som matas från skåpet. Summan per fas räknas ut längst ned.",
+        Kopplad: false,
+        Kolumner:
+        [
+            new("beteckning", "Beteckning", Mono: true, Bredd: 140),
+            new("komponent", "Komponent", Bredd: 180),
+            new("l1", "L1 (A)", Mono: true, Bredd: 80),
+            new("l2", "L2 (A)", Mono: true, Bredd: 80),
+            new("l3", "L3 (A)", Mono: true, Bredd: 80),
+            new("information", "Information", Bredd: 260, Fyll: true),
+        ]);
+
+    public const string KraftPrefix = "kraft-";
+
+    public static ListDef? Hitta(string id)
+    {
+        if (id.StartsWith(KontrollPrefix, StringComparison.Ordinal) && Guid.TryParse(id[KontrollPrefix.Length..], out _))
+            return Kontroll with { Id = id };
+        if (id.StartsWith(KraftPrefix, StringComparison.Ordinal) && Guid.TryParse(id[KraftPrefix.Length..], out _))
+            return Kraft with { Id = id };
+        return Alla.FirstOrDefault(d => d.Id == id);
+    }
 
     /// <summary>Om en komponent hör till listan (för listor som bara visar vissa komponenttyper).</summary>
     public static bool Omfattar(ListDef def, string komponenttyp) =>

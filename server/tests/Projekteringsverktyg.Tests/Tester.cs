@@ -238,3 +238,25 @@ public class RiskTester
         Assert.Equal(forvantat, kol.Berakna(new Dictionary<string, string> { ["sannolikhet"] = s, ["konsekvens"] = k }));
     }
 }
+
+public class SkapTester
+{
+    [Fact]
+    public void Kraftlista_hittas_per_skap()
+    {
+        var id = Guid.NewGuid();
+        var def = Projekteringsverktyg.Server.ListApi.Listdefinitioner.Hitta("kraft-" + id);
+        Assert.NotNull(def);
+        Assert.NotNull(def!.Kolumn("l1"));
+    }
+
+    [Fact]
+    public void Modulbelaggning_las_och_tal_trasig_json()
+    {
+        var m = Projekteringsverktyg.Server.SkapApi.SkapEndpoints.LasModuler(
+            "{\"cpu1\":\"CX9020\",\"kort\":[{\"id\":\"a\",\"beskrivning\":\"KL1408\",\"antalKanaler\":2,\"farg\":\"#FFC000\",\"breddMm\":12,\"stromMa\":5,\"kanaler\":[{\"komponentId\":\"x\",\"information\":\"\"},{}]}]}");
+        Assert.Equal("CX9020", m.Cpu1);
+        Assert.Equal(2, m.Kort![0].Kanaler!.Count);
+        Assert.Empty(Projekteringsverktyg.Server.SkapApi.SkapEndpoints.LasModuler("inte json").Kort!);
+    }
+}

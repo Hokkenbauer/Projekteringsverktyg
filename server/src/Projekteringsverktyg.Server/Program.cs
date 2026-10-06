@@ -12,6 +12,7 @@ using Projekteringsverktyg.Server.ListApi;
 using Projekteringsverktyg.Server.KomponentApi;
 using Projekteringsverktyg.Server.KontrollApi;
 using Projekteringsverktyg.Server.ProjektApi;
+using Projekteringsverktyg.Server.SkapApi;
 using Projekteringsverktyg.Server.StatusApi;
 using Projekteringsverktyg.Server.Synk;
 
@@ -154,6 +155,7 @@ app.MapTextEndpoints();
 app.MapFilEndpoints();
 app.MapRitningEndpoints();
 app.MapRitbordEndpoints();
+app.MapSkapEndpoints();
 app.MapKatalogEndpoints();
 app.MapKomponentMallEndpoints();
 app.MapKontrollEndpoints();
