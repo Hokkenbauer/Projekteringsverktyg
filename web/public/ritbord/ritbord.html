@@ -1287,7 +1287,7 @@ board.addEventListener('pointerdown', e => {
     dragNodes = selection.slice(); dragOrigs = dragNodes.map(T);
     return;
   }
-  if (tool === 'io'){ ioStart(x, y); return; }
+  if (tool === 'io'){ if (ioDraft) ioKlick(x, y, e.shiftKey); else ioStart(x, y); return; }
   const lay = activeLayer();
   const blocked = tool !== 'select' && lay && (lay.dataset.llock || lay.dataset.hidden);
   if (blocked){ setMsg('Lagret "' + lay.dataset.lname + '" är låst eller dolt'); return; }
@@ -1363,7 +1363,7 @@ board.addEventListener('pointermove', e => {
     marquee.setAttribute('height', Math.abs(p.y-dragStart.y));
     return;
   }
-  if (dragMode === 'io'){ ioMove(p.y); return; }
+  if (ioDraft){ ioMove(x, y, e.shiftKey); return; }
   if (dragMode === 'draw' && draft){
     const dx = x - dragStart.x, dy = y - dragStart.y;
     if (draft.tagName === 'line'){
@@ -1430,7 +1430,7 @@ board.addEventListener('pointermove', e => {
   }
 });
 
-board.addEventListener('pointerup', () => {
+board.addEventListener('pointerup', e => {
   board.classList.remove('panning');
   $('rdLen').textContent = '';
   if (dragMode === 'marquee' && marquee){
@@ -1446,7 +1446,7 @@ board.addEventListener('pointerup', () => {
     if (b.width < 1 && b.height < 1) draft.remove(); else stamp(draft);
     draft = null;
   }
-  if (dragMode === 'io') ioSlut();
+  if (ioDraft){ const q = pt(e); ioSlapp(snap(q.x), snap(q.y), e.shiftKey); if (ioDraft){ $('rdLen').textContent = ''; drawHandles(); return; } }
   if (dragMode === 'endpoint' && only()) rebase(only());
   if (dragMode === 'submove' && selection[0]) rebase(selection[0]);
   if (dragMode === 'rotate') $('rdLen').textContent = '';
@@ -1683,6 +1683,8 @@ document.addEventListener('keydown', e => {
   const inField = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
   if (e.code === 'Space' && !inField){ spaceDown = true; e.preventDefault(); }
   if (inField) return;
+  if (e.key === 'Escape' && ioAvbryt()) return;
+  if (e.key === 'Backspace' && ioBakat()){ e.preventDefault(); return; }
   if (e.key === 'Escape'){
     if (subSel){ subSel = null; paintSelInfo(); return; }
     setTool('select'); select([]); closeLib(); return;
@@ -1803,7 +1805,8 @@ function setTool(t){
   if (t !== 'line'){ drawCap = null; if (activePreset !== null){ activePreset = null; paintPresets(); } }
   document.querySelectorAll('.tool').forEach(b => b.setAttribute('aria-pressed', b.dataset.tool === t));
   board.classList.toggle('selecting', t === 'select');
-  if (t === 'io') setMsg('I/O-streck: tryck på objektet och dra ner till raden (Di, Ai, Du, Au, M-bus eller Modbus)');
+  if (t !== 'io' && ioDraft) ioAvbryt();
+  if (t === 'io') setMsg('I/O-streck: dra ner till raden, eller klicka för knäckar och klicka till sist nere vid raderna. Shift = fri vinkel.');
   if (t !== 'select') select([]);
   updatePanels();
 }
@@ -2817,42 +2820,106 @@ function rbDriftkortMall(asNamn){
 window.rbDriftkortMall = rbDriftkortMall;
 window.rbArDriftkort = arDriftkort;
 
-/* I/O-streck: lodrätt streckat streck från objektet ner till en I/O-rad.
-   Änden hamnar alltid exakt på raden, med en punkt. Korsar strecket
-   AS-linjen får den också en punkt. Strecken ligger i lagret I/O. */
+/* I/O-streck: streckat streck från objektet ner till en I/O-rad, rakt eller med knäckar.
+   - Dra rakt ner till raderna och släpp: klart.
+   - Släpp ovanför raderna (eller klicka utan att dra): strecket får en knäck där, fortsätt
+     klicka för fler knäckar och klicka till sist nere vid raderna. Sista biten går alltid
+     lodrätt ner och fäster exakt på raden, med en punkt.
+   - Bitarna blir vågräta eller lodräta. Håll Shift för fri vinkel.
+   - Backsteg tar bort senaste knäcken, Esc avbryter.
+   Där strecket korsar AS-linjen blir det en punkt. Strecken ligger i lagret I/O. */
 let ioDraft = null;
+const ioZon = () => (DK.rader[0][1] - 5) * PT;   // pekaren nere vid raderna
 function ioStart(x, y){
   if (!arDriftkort()){ setMsg('I/O-streck finns bara i driftkort'); return; }
+  if (ioDraft){ ioKlick(x, y, false); return; }
   push();
   const g = mk('g', {});
-  const ln = mk('line', { x1: x, y1: y, x2: x, y2: y, stroke: DK.gra, 'stroke-width': DK.linje * PT,
-    'stroke-dasharray': `${8.28 * PT} ${4.14 * PT}`, fill: 'none' });
+  const ln = mk('polyline', { points: `${x},${y} ${x},${y}`, stroke: DK.gra, 'stroke-width': DK.linje * PT,
+    'stroke-dasharray': `${8.28 * PT} ${4.14 * PT}`, 'stroke-linejoin': 'miter', fill: 'none' });
   g.appendChild(ln);
   ioLager().appendChild(g);
-  ioDraft = { g, ln, x, y, rad: null };
+  ioDraft = { g, ln, pkt: [{ x, y }], rad: null, ner: { x, y }, flyttad: false, fri: false };
   dragMode = 'io';
 }
-function ioMove(py){
-  if (!ioDraft) return;
-  const r = DK.rader.reduce((b, r) => Math.abs(r[1] * PT - py) < Math.abs(b[1] * PT - py) ? r : b);
-  ioDraft.rad = r;
-  ioDraft.ln.setAttribute('y2', r[1] * PT);
-  $('rdLen').textContent = 'I/O → ' + r[0];
+function ioOrto(fran, x, y, fri){
+  if (fri) return { x, y };
+  return Math.abs(x - fran.x) >= Math.abs(y - fran.y) ? { x, y: fran.y } : { x: fran.x, y };
 }
-function ioSlut(){
-  const d = ioDraft; ioDraft = null;
+/** Förhandsvisning: från senaste punkten till pekaren, eller lodrätt ner till närmaste rad. */
+function ioVisa(x, y, fri){
+  const d = ioDraft; if (!d) return;
+  const sista = d.pkt[d.pkt.length - 1];
+  let svans;
+  if (y >= ioZon()){
+    const r = DK.rader.reduce((b, r) => Math.abs(r[1] * PT - y) < Math.abs(b[1] * PT - y) ? r : b);
+    d.rad = r;
+    svans = [{ x: sista.x, y: r[1] * PT }];
+    $('rdLen').textContent = 'I/O → ' + r[0] + '  (klicka för att fästa)';
+  } else {
+    d.rad = null;
+    svans = [ioOrto(sista, x, y, fri)];
+    $('rdLen').textContent = 'Klicka för knäck · Backsteg ångrar knäck · Esc avbryter';
+  }
+  d.ln.setAttribute('points', d.pkt.concat(svans).map(p => `${p.x},${p.y}`).join(' '));
+}
+function ioMove(x, y, fri){
+  if (!ioDraft) return;
+  if (Math.hypot(x - ioDraft.ner.x, y - ioDraft.ner.y) > 3) ioDraft.flyttad = true;
+  ioVisa(x, y, fri);
+}
+/** Klick (eller släpp efter drag): fäst på raden om pekaren är nere vid raderna, annars ny knäck. */
+function ioKlick(x, y, fri){
+  const d = ioDraft; if (!d) return;
+  if (y >= ioZon()){ ioVisa(x, y, fri); ioFast(); return; }
+  const sista = d.pkt[d.pkt.length - 1];
+  const p = ioOrto(sista, x, y, fri);
+  if (Math.hypot(p.x - sista.x, p.y - sista.y) > 0.5) d.pkt.push(p);
+  d.ner = { x, y };
+  ioVisa(x, y, fri);
+}
+function ioSlapp(x, y, fri){
+  const d = ioDraft; if (!d) return;
+  // Bara första tryckningen kan vara ett drag. Ett klick utan drag startar knäck-läget.
+  if (d.pkt.length === 1 && !d.flyttad){ setMsg('Klicka för knäckar, klicka nere vid raderna för att fästa. Esc avbryter.'); return; }
+  if (d.pkt.length === 1) ioKlick(x, y, fri);
+}
+function ioFast(){
+  const d = ioDraft; ioDraft = null; dragMode = null;
   if (!d) return;
-  if (!d.rad || Math.abs(d.rad[1] * PT - d.y) < 2){ d.g.remove(); undoStack.pop(); return; }
-  const yR = d.rad[1] * PT, yAs = DK.as.y * PT;
-  const punkt = cy => mk('circle', { cx: d.x, cy, r: 1.56 * PT, fill: '#000000', stroke: 'none' });
-  d.g.appendChild(punkt(yR));
-  if ((d.y - yAs) * (yR - yAs) < 0) d.g.appendChild(punkt(yAs));
+  if (!d.rad){ d.g.remove(); undoStack.pop(); return; }
+  const sista = d.pkt[d.pkt.length - 1];
+  const yR = d.rad[1] * PT;
+  if (Math.abs(yR - sista.y) < 2 && d.pkt.length === 1){ d.g.remove(); undoStack.pop(); return; }
+  const pkt = d.pkt.concat([{ x: sista.x, y: yR }]);
+  d.ln.setAttribute('points', pkt.map(p => `${p.x},${p.y}`).join(' '));
+  const punkt = (cx, cy) => mk('circle', { cx, cy, r: 1.56 * PT, fill: '#000000', stroke: 'none' });
+  d.g.appendChild(punkt(sista.x, yR));
+  const yAs = DK.as.y * PT;
+  for (let i = 1; i < pkt.length; i++){
+    const a = pkt[i - 1], b = pkt[i];
+    if ((a.y - yAs) * (b.y - yAs) < 0) d.g.appendChild(punkt(a.x + (b.x - a.x) * (yAs - a.y) / (b.y - a.y), yAs));
+  }
   d.g.id = 'io_' + (++idCounter);
   stamp(d.g);
   d.g.dataset.name = 'I/O ' + d.rad[0];
-  if (d.x < d.rad[2] * PT || d.x > d.rad[3] * PT) setMsg('Obs: strecket hamnar utanför raden ' + d.rad[0]);
+  if (sista.x < d.rad[2] * PT || sista.x > d.rad[3] * PT) setMsg('Obs: strecket hamnar utanför raden ' + d.rad[0]);
   else setMsg('I/O-streck till ' + d.rad[0]);
+  $('rdLen').textContent = '';
   refresh();
+}
+function ioAvbryt(){
+  const d = ioDraft; ioDraft = null; dragMode = null;
+  if (!d) return false;
+  d.g.remove(); undoStack.pop(); $('rdLen').textContent = ''; setMsg('I/O-strecket avbröts');
+  return true;
+}
+function ioBakat(){
+  const d = ioDraft;
+  if (!d) return false;
+  if (d.pkt.length > 1){ d.pkt.pop(); const s = d.pkt[d.pkt.length - 1]; ioVisa(s.x, s.y, true); }
+  else ioAvbryt();
+  return true;
 }
 
 const basnamn = () => ($('baseName').value || 'bild').trim().replace(/[\\/:*?"<>|]+/g, '_');
