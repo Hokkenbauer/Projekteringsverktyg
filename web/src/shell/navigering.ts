@@ -52,9 +52,9 @@ export const NAVIGERING: Grupp[] = [
   {
     namn: "Konstruktion",
     flikar: [
-      { id: "apparatskap", namn: "Apparatskåp", fas: 4 },
-      { id: "modulbelaggning", namn: "Modulbeläggning", fas: 4 },
-      { id: "kraftberakning", namn: "Kraftberäkning", fas: 4 },
+      { id: "apparatskap", namn: "Apparatskåp", fas: 4, klar: true },
+      { id: "modulbelaggning", namn: "Modulbeläggning", fas: 4, klar: true },
+      { id: "kraftberakning", namn: "Kraftberäkning", fas: 4, klar: true },
       { id: "modbus", namn: "Modbus", fas: 4, klar: true, lista: "modbus" },
       { id: "modbus-rtu", namn: "Modbus RTU", fas: 4 },
       { id: "bestallningslista", namn: "Beställningslista", fas: 4 },

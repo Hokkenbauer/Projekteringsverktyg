@@ -159,3 +159,13 @@ export type ProjektFil = {
 
 /** Förslagslistor per komponentfält, byggda av allt som använts i något projekt. */
 export type Kataloger = Partial<Record<"system" | "komponenttyp" | "signaltyp" | "kabeltyp" | "produkttyp" | "produkt" | "placering", string[]>>;
+
+/** Apparatskåp, delas av Apparatskåp, Kraftberäkning och Modulbeläggning. Data och Moduler är JSON. */
+export type Skap = {
+  id: string; namn: string; beteckning: string; placering: string; beskrivning: string;
+  data: string; moduler: string; ordning: number; version: number; andrad: string; andradAv: string;
+};
+export type Korttyp = { id: string; namn: string; beskrivning: string; antalKanaler: number; farg: string; breddMm: number; stromMa: number; ordning: number };
+export type ModulKanal = { komponentId?: string; information?: string };
+export type ModulKort = { id: string; beskrivning: string; antalKanaler: number; farg: string; breddMm: number; stromMa: number; kanaler: ModulKanal[] };
+export type Modulbelaggning = { cpu1: string; kort: ModulKort[] };

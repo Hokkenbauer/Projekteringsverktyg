@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Blink } from "../../grid/DataGrid";
 import { api, ApiFel, laddaNer, skicka } from "../../lib/api";
 import { anslutTillProjekt } from "../../lib/synk";
-import type { Anteckningar, AttGora, Kataloger, Komponent, KomponentHandelse, ListaHandelse, ListDef, ListRad, Logg, Mig, Narvarande, Projekt } from "../../lib/typer";
+import type { Anteckningar, AttGora, Kataloger, Skap, Komponent, KomponentHandelse, ListaHandelse, ListDef, ListRad, Logg, Mig, Narvarande, Projekt } from "../../lib/typer";
 import { skrivUt } from "../../lib/utskrift";
 import { NAVIGERING, hittaFlik } from "../../shell/navigering";
 import { AnteckningarVy } from "../att-gora/AnteckningarVy";
@@ -11,6 +11,10 @@ import { ProjektfilerVy } from "../filer/ProjektfilerVy";
 import { ListVy, type VisadRad } from "../listor/ListVy";
 import { PlaceringsritningVy } from "../ritning/PlaceringsritningVy";
 import { RitbordVy } from "../ritning/RitbordVy";
+import { ApparatskapVy } from "../konstruktion/ApparatskapVy";
+import { KraftSumma } from "../konstruktion/KraftSumma";
+import { ModulbelaggningVy } from "../konstruktion/ModulbelaggningVy";
+import { SkapValjare } from "../konstruktion/SkapValjare";
 import { KomponenterVy } from "../komponenter/KomponenterVy";
 import { KomponentInfo } from "../komponenter/KomponentInfo";
 import { KontrollerVy, type Kontroll } from "../kontroller/KontrollerVy";
@@ -50,6 +54,8 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
   const [ritningVersion, setRitningVersion] = useState(0);
   const [kontrollVersion, setKontrollVersion] = useState(0);
   const [ritbordVersion, setRitbordVersion] = useState(0);
+  const [skapLista, setSkapLista] = useState<Skap[] | null>(null);
+  const [valtSkap, setValtSkap] = useState<string | null>(null);
   const [infoId, setInfoId] = useState<string | null>(null);
   const [fokus, setFokus] = useState<{ flik: string; id: string } | null>(null);
   const [ritningFokus, setRitningFokus] = useState<string | null>(null);
@@ -176,6 +182,8 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
       if (h.avId !== mig.id) setTexter((t) => ({ ...t, [nyckel]: h.rad as Anteckningar }));
     } else if (h.lista === "kontroller") {
       if (h.avId !== mig.id) setKontrollVersion((v) => v + 1);
+    } else if (h.lista === "skap") {
+      void hamtaSkapRef.current();
     } else if (h.lista === "ritbord") {
       if (h.avId !== mig.id) setRitbordVersion((v) => v + 1);
     } else if (h.lista === "ritning") {
@@ -252,8 +260,29 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
   const vald = hittaFlik(flik);
   const kontrollTyp = vald?.flik.kontroll;
   const aktivKontroll = kontrollTyp ? valdKontroll[kontrollTyp] ?? null : null;
+  // ---- Apparatskåp (delas av Apparatskåp, Kraftberäkning och Modulbeläggning) ----
+  const arSkapFlik = flik === "apparatskap" || flik === "kraftberakning" || flik === "modulbelaggning";
+  const hamtaSkap = async (): Promise<Skap[]> => {
+    try {
+      const lista = await api<Skap[]>(`/api/projekt/${projektId}/skap`);
+      setSkapLista(lista);
+      setValtSkap((v) => (v && lista.some((x) => x.id === v) ? v : lista[0]?.id ?? null));
+      return lista;
+    } catch (e) {
+      visaMeddelande(`Skåpen kunde inte hämtas: ${(e as Error).message}`);
+      return [];
+    }
+  };
+  const hamtaSkapRef = useRef(hamtaSkap);
+  hamtaSkapRef.current = hamtaSkap;
+  useEffect(() => { if (arSkapFlik && skapLista === null) void hamtaSkap(); }, [arSkapFlik]);
+  const aktivtSkap = skapLista?.find((x) => x.id === valtSkap) ?? null;
+  const uppdateraSkap = (s: Skap) => setSkapLista((l) => l?.map((x) => (x.id === s.id ? s : x)) ?? l);
+
   const riskVariant = vald?.flik.risk;
-  const listId = vald?.flik.lista ?? (riskVariant ? `risk-${riskVariant}` : aktivKontroll ? `kontroll-${aktivKontroll.id}` : undefined);
+  const listId = vald?.flik.lista ?? (riskVariant ? `risk-${riskVariant}`
+    : aktivKontroll ? `kontroll-${aktivKontroll.id}`
+    : flik === "kraftberakning" && valtSkap ? `kraft-${valtSkap}` : undefined);
   const textNyckel = vald?.flik.text ?? (vald?.flik.risk ? `risk-${vald.flik.risk}` : undefined);
 
   // Listor som fliken behöver hämtas första gången de används. Ritningen visar egenkontroll och kabellängd.
@@ -366,10 +395,13 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
   };
 
   const kontrollDef = listdefinitioner.find((d) => d.id === "kontroll");
+  const kraftDef = listdefinitioner.find((d) => d.id === "kraft");
   const listDef = !listId ? undefined
     : aktivKontroll && kontrollDef
       ? { ...kontrollDef, id: listId, namn: aktivKontroll.namn, ingress: aktivKontroll.beskrivning || kontrollDef.ingress }
-      : listdefinitioner.find((d) => d.id === listId);
+      : flik === "kraftberakning" && kraftDef && aktivtSkap
+        ? { ...kraftDef, id: listId, namn: `Kraftberäkning ${aktivtSkap.namn}` }
+        : listdefinitioner.find((d) => d.id === listId);
   /** Från Komponentinformation: gå till fliken och visa komponentens rad. */
   const gaTill = (malFlik: string, komponentId: string) => {
     const grupp = hittaFlik(malFlik)?.grupp.namn;
@@ -542,6 +574,41 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
             }}
             visaMeddelande={visaMeddelande}
           />
+        )}
+        {arSkapFlik && vald && (
+          <>
+            <div className="brodsmula">{vald.grupp.namn}</div>
+            <h1>{vald.flik.namn}</h1>
+            <p className="ingress">
+              {flik === "apparatskap" && "Grundinformation, ledningsfärger, komponenter i skåpet och specifikation per skåp. Sparas automatiskt."}
+              {flik === "kraftberakning" && "Strömmen per fas för det som matas från skåpet. Summan per fas visas längst ned."}
+              {flik === "modulbelaggning" && "CPU1 och I/O-kort per skåp. Dra signaler från listan till vänster till en kanal. Grön = kopplad, röd = samma komponent kopplad på flera ställen. Markera en kanal och tryck Delete för att koppla loss."}
+              {" "}Skåpen är desamma i Apparatskåp, Kraftberäkning och Modulbeläggning.
+            </p>
+            <SkapValjare
+              projektId={projektId} skap={skapLista} valtId={valtSkap} onVal={setValtSkap}
+              onUppdatera={hamtaSkap} lasläge={!skrivbar} visaMeddelande={visaMeddelande}
+            />
+            {skapLista === null ? <p className="dampad">Hämtar…</p> : !aktivtSkap ? (
+              <p className="tomruta">Inga apparatskåp i projektet än. {skrivbar && "Klicka på Nytt skåp för att börja."}</p>
+            ) : flik === "apparatskap" ? (
+              <ApparatskapVy
+                key={aktivtSkap.id} projektId={projektId} projekt={projekt} skap={aktivtSkap} komponenter={komponenter}
+                lasläge={!skrivbar} onSparat={uppdateraSkap} onKonflikt={() => void hamtaSkap()} visaMeddelande={visaMeddelande}
+              />
+            ) : flik === "modulbelaggning" ? (
+              <ModulbelaggningVy
+                key={aktivtSkap.id} projektId={projektId} projekt={projekt} skap={aktivtSkap} allaSkap={skapLista}
+                komponenter={komponenter} lasläge={!skrivbar} onSparat={uppdateraSkap} onKonflikt={() => void hamtaSkap()}
+                visaMeddelande={visaMeddelande}
+              />
+            ) : (
+              <>
+                {listVy(true)}
+                <KraftSumma rader={listId ? listor[listId] : undefined} />
+              </>
+            )}
+          </>
         )}
         {flik === "ritbord" && (
           <RitbordVy

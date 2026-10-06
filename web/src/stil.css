@@ -304,3 +304,67 @@ table.enkel.tat td, table.enkel.tat th { padding: 5px 8px; font-size: 12.5px; }
 .infopanel .minilista li { display: grid; grid-template-columns: 96px 1fr; gap: 8px; font-size: 12.5px; }
 .ritningshuvud select { background: var(--yta); border: 1px solid var(--linje); border-radius: var(--r); padding: 5px 8px; min-width: 180px; }
 .ritningshuvud .liten { font-size: 12px; }
+.skapvaljare { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 14px; padding: 10px 12px; background: var(--yta); border: 1px solid var(--linje); border-radius: var(--r); }
+.skapvaljare label { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--dampad); margin-right: 6px; }
+.skapvaljare select { background: var(--yta-2); border: 1px solid var(--linje); border-radius: var(--r); padding: 6px 8px; min-width: 200px; color: var(--text); font-weight: 500; }
+.modulyta { display: grid; grid-template-columns: 260px 1fr; gap: 16px; align-items: start; }
+@media (max-width: 900px) { .modulyta { grid-template-columns: 1fr; } }
+.signalpanel { position: sticky; top: 8px; background: var(--yta); border: 1px solid var(--linje); border-radius: var(--r); padding: 10px; display: flex; flex-direction: column; gap: 8px; max-height: calc(100vh - 140px); }
+.signalpanel h3 { margin: 0; font-size: 14px; }
+.signalpanel .sok { width: 100%; }
+.kryssrad { display: flex; gap: 6px; align-items: center; font-size: 13px; }
+.liten { font-size: 12px; }
+.signallista { list-style: none; margin: 0; padding: 0; overflow: auto; flex: 1; border-top: 1px solid var(--linje); }
+.signallista li { display: flex; gap: 8px; align-items: center; padding: 5px 6px; border-bottom: 1px solid var(--linje); cursor: grab; font-size: 13px; }
+.signallista li .mono { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.signallista li:hover { background: var(--yta-2); }
+.signallista li.anvand { color: var(--dampad); }
+.signallista li.anvand span:first-child { color: var(--ok); }
+.modulinnehall .verktygsrad { margin-bottom: 10px; }
+.cpurad { display: flex; align-items: stretch; gap: 0; margin-bottom: 12px; border: 1px solid var(--linje); border-radius: var(--r); overflow: hidden; }
+.cpurad .cpu { background: var(--yta-2); padding: 8px 18px; font-weight: 600; }
+.cpurad input { flex: 1; border: 0; background: var(--yta); padding: 8px 10px; color: var(--text); font: inherit; }
+.modulkort { margin-bottom: 10px; border: 1px solid var(--linje); border-radius: var(--r); overflow: hidden; background: var(--yta); }
+.kortrubrik { display: flex; align-items: center; gap: 10px; padding: 5px 8px; }
+.kortrubrik b { width: 36px; }
+.kortrubrik .spec { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.kortrubrik button { background: transparent; border: 0; width: 26px; height: 24px; border-radius: 4px; }
+.kortrubrik button:hover:not(:disabled) { background: rgba(0,0,0,.12); }
+.kortrubrik button:disabled { opacity: .35; }
+table.kanaler { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.kanaler th { text-align: left; font-size: 11.5px; color: var(--dampad); font-weight: 600; padding: 4px 8px; border-bottom: 1px solid var(--linje); background: var(--yta-2); }
+table.kanaler td { padding: 0 8px; height: 30px; border-bottom: 1px solid var(--linje); }
+table.kanaler tr:last-child td { border-bottom: 0; }
+table.kanaler td.info { padding: 0; width: 34%; }
+table.kanaler td.info input { width: 100%; border: 0; background: transparent; padding: 6px 8px; color: inherit; font: inherit; }
+table.kanaler tr.kopplad td { background: #C8F2C8; color: #0b1a0b; }
+table.kanaler tr.dubbel td { background: #FFC7C7; color: #2a0b0b; }
+table.kanaler tr.markerad td { box-shadow: inset 0 0 0 9999px color-mix(in srgb, var(--accent) 12%, transparent); }
+table.kanaler tr.over td { outline: 2px dashed var(--accent); outline-offset: -2px; }
+table.kanaler td[draggable="true"] { cursor: grab; }
+.lossknapp { border: 0; background: transparent; font-size: 16px; color: inherit; opacity: .6; }
+.lossknapp:hover { opacity: 1; }
+.modulsumma { position: sticky; bottom: 0; margin-top: 12px; padding: 10px; text-align: center; font-weight: 600; background: var(--yta); border: 1px solid var(--linje); border-radius: var(--r); }
+.modulsumma.over { color: var(--fara); border-color: var(--fara); }
+.kortformular { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; }
+.kortformular label { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--dampad); }
+.kortformular label:first-child, .kortformular label:nth-child(2), .kortformular p { grid-column: 1 / -1; }
+.kortformular input, .kortformular select { background: var(--yta-2); border: 1px solid var(--linje); border-radius: var(--r); padding: 6px 8px; color: var(--text); font: inherit; }
+.fargval { display: flex; gap: 6px; } .fargval input[type="color"] { width: 44px; padding: 2px; }
+.kraftsumma { display: flex; gap: 22px; flex-wrap: wrap; align-items: center; margin-top: 12px; padding: 10px 14px; background: var(--yta); border: 1px solid var(--linje); border-radius: var(--r); }
+.kraftsumma .varnar { color: var(--varning); font-weight: 600; }
+.skapformular .panel { margin-bottom: 14px; }
+.skapformular h2 { font-size: 15px; margin: 0 0 10px; }
+.skapgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px 14px; }
+.skapgrid.tre { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.skapfalt { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--dampad); }
+.skapfalt.lang { grid-column: 1 / -1; }
+.skapfalt input, .skapfalt select, .skapfalt textarea, .skaptext, .skapkomp input[type="text"] { background: var(--yta-2); border: 1px solid var(--linje); border-radius: var(--r); padding: 6px 8px; color: var(--text); font: inherit; font-size: 13.5px; }
+.skaptext { width: 100%; resize: vertical; }
+.skapkomponenter { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 4px 16px; }
+.skapkomp { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: center; padding: 3px 4px; border-radius: var(--r); }
+.skapkomp label { display: flex; gap: 6px; align-items: center; font-size: 13px; }
+.skapkomp.vald { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.skapkomp input[type="text"] { padding: 4px 6px; font-size: 12.5px; }
+.signalpanel .sok { flex: none; height: auto; min-height: 0; }
+.modulsumma { box-shadow: 0 -6px 18px rgba(0,0,0,.08); }
