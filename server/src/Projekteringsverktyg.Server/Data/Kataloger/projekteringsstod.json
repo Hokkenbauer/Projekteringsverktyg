@@ -1,0 +1,40 @@
+{
+ "rubriker": [
+  {
+   "namn": "Golvvärme",
+   "mallar": [
+    {
+     "namn": "Att tänka på vid golvvärme",
+     "text": "1,  Nätverk / Datauttag - Skall detta installeras av EE? Är det modbus TCP eller RTU?\n2,  Modbus RTU - Glöm ej modbusomvandlare\n3, 230V/24VAC, hur matas utrustninge?\n4, Arbetsbrytare (vridströmställare) i fördelarskåp\n5, Minst 1 st 50mm flexslang ned till fördelarskåp, ibland kan 2x50mm flexrör behövas\n6, Skall det sitta separata termostater? \n7, Glöm ej om det sitter en cirkulationpump samt ventilställdon för att shunta värme i fördelarskåpet\n\n\nGLÖM INTE KANALISATIONEN NED TILL FÖRDELARSKÅPEN"
+    }
+   ]
+  },
+  {
+   "namn": "Kanalisation",
+   "mallar": [
+    {
+     "namn": "Att tänka på vid projektering av kanalisation",
+     "text": "KANALISATION\n\n\nBetongplatta\nSpecialtak/vägg\nUtegivare\nLuxgivare\nFrånluftsfläktar på tak/utomhus\nKylmaskiner på tak/utomhus\nBetongväggar (prefabelement)\nFördelarskåp golvvärme\nFörberedelser i schakt\nMarkslang till komponenter utanför fastighet\nMarkslang till komponenter i andra fastigheter\nPumpgropar kan behöva markslang i platta/mark\nFettavskiljare kan behöva markslang i platta/mark\nFlygljus/hinderljus behöver kanalisation på fasad\nVäderstation behöver kanalisation på fasad/tak"
+    }
+   ]
+  },
+  {
+   "namn": "Pumpgrop",
+   "mallar": [
+    {
+     "namn": "Att tänka på vid pumpgropar",
+     "text": "Glöm ej eventuell kanalisation (markrör) till gropar i betongplatta eller brunnar utanför fastigheten"
+    }
+   ]
+  },
+  {
+   "namn": "Frånluftsfläktar",
+   "mallar": [
+    {
+     "namn": "Att tänka på vid frånluftsfläktar",
+     "text": "Om en frånluftsfläkt betjänar teknikrum där ett luftbehandlingsaggregat finns (eller utrustning som mäter tryck) så behöver referenstryck på dessa givare hämtas utanför teknikrummet."
+    }
+   ]
+  }
+ ]
+}

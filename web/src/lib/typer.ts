@@ -113,7 +113,7 @@ export type ListaHandelse = {
 export type ListKolumn = {
   nyckel: string;
   rubrik: string;
-  typ: "text" | "val" | "kryss" | "datum" | "komponent" | "lopnr" | "produkt";
+  typ: "text" | "val" | "kryss" | "datum" | "komponent" | "lopnr" | "produkt" | "antal" | "differens";
   val: string[] | null;
   komponentFalt: keyof Komponent | null;
   standard: string | null;
@@ -122,6 +122,8 @@ export type ListKolumn = {
   redigerbar: boolean;
   fyll: boolean;
   faktorer?: string[] | null;
+  /** Förslag från komponenternas värden i detta fält (t.ex. produkttyp). */
+  forslag?: keyof Kataloger | null;
 };
 
 export type ListDef = {
@@ -169,3 +171,9 @@ export type Korttyp = { id: string; namn: string; beskrivning: string; antalKana
 export type ModulKanal = { komponentId?: string; information?: string };
 export type ModulKort = { id: string; beskrivning: string; antalKanaler: number; farg: string; breddMm: number; stromMa: number; kanaler: ModulKanal[] };
 export type Modulbelaggning = { cpu1: string; kort: ModulKort[] };
+
+/** Namngivet dokument i ett projekt (funktionstext, servicerapport). Data = text eller JSON. */
+export type ProjektDokument = {
+  id: string; typ: string; namn: string; data: string; ordning: number; version: number;
+  skapad: string; andrad: string; andradAv: string;
+};

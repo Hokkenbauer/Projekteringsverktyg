@@ -1,6 +1,6 @@
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { DataGrid, type Blink, type Kolumn } from "../../grid/DataGrid";
-import type { Komponent, ListDef, ListRad, Projekt } from "../../lib/typer";
+import type { Kataloger, Komponent, ListDef, ListRad, Projekt } from "../../lib/typer";
 import { skrivUt } from "../../lib/utskrift";
 
 /** En rad som tabellen visar: id + ett textvärde per kolumn. */
@@ -9,6 +9,12 @@ export type VisadRad = Record<string, string> & { id: string };
 /** Om en komponent hör till listan (samma regel som serverns Listdefinitioner.Omfattar). */
 export const omfattar = (def: ListDef, komponenttyp: string) =>
   !def.komponenttypInnehaller || def.komponenttypInnehaller.every((o) => komponenttyp.toLowerCase().includes(o.toLowerCase()));
+
+/** Första talet i en fri text ("12 st" = 12), eller null. Samma regel som servern. */
+export function tal(text: string): number | null {
+  const m = /-?\d+(?:[.,]\d+)?/.exec(text ?? "");
+  return m ? Number(m[0].replace(",", ".")) : null;
+}
 
 /** Bygger tabellens rader. Kopplade listor får en rad per komponent; komponentens fält läses direkt från komponenten. */
 export function byggRader(def: ListDef, rader: ListRad[], komponenter: Komponent[]): VisadRad[] {
@@ -22,9 +28,19 @@ export function byggRader(def: ListDef, rader: ListRad[], komponenter: Komponent
       else if (kol.typ === "lopnr") ut[kol.nyckel] = String(nr);
       else if (kol.typ === "produkt") {
         const varden = (kol.faktorer ?? []).map((f) => (data[f] ?? "").trim());
-        const tal = varden.map((v) => Number(v.replace(",", ".")));
-        ut[kol.nyckel] = varden.length && varden.every((v) => v !== "") && tal.every((t) => !Number.isNaN(t))
-          ? String(tal.reduce((x, y) => x * y, 1)) : "";
+        const talen = varden.map((v) => Number(v.replace(",", ".")));
+        ut[kol.nyckel] = varden.length && varden.every((v) => v !== "") && talen.every((t) => !Number.isNaN(t))
+          ? String(talen.reduce((x, y) => x * y, 1)) : "";
+      }
+      else if (kol.typ === "antal" && kol.komponentFalt && kol.faktorer?.[0]) {
+        const v = (data[kol.faktorer[0]] ?? "").trim().toLowerCase();
+        const falt = kol.komponentFalt;
+        ut[kol.nyckel] = v ? String(komponenter.filter((x) => String(x[falt] ?? "").trim().toLowerCase() === v).length) : "";
+      }
+      else if (kol.typ === "differens" && kol.faktorer?.length === 2) {
+        const hamta = (n: string) => ut[n] ?? data[n] ?? "";
+        const a = tal(hamta(kol.faktorer[0]!)), b = tal(hamta(kol.faktorer[1]!));
+        ut[kol.nyckel] = a !== null && b !== null ? String(a - b) : "";
       }
       else ut[kol.nyckel] = data[kol.nyckel] ?? kol.standard ?? "";
     }
@@ -66,9 +82,13 @@ type Props = {
   /** Komponentinformation (bara listor som följer Komponenter). */
   onInfo?: (komponentId: string) => void;
   fokusId?: string | null;
+  /** Förslagslistor till textkolumner med forslag. */
+  kataloger?: Kataloger;
+  /** Extra knappar i rubrikraden (t.ex. Importera). */
+  extraKnappar?: ReactNode;
 };
 
-export function ListVy({ def, grupp, rader, komponenter, projekt, blinkar, lasläge, onAndra, onNy, onTaBort, onExcel, onFlik, inbaddad, utanUtskrift, onInfo, fokusId }: Props) {
+export function ListVy({ def, grupp, rader, komponenter, projekt, blinkar, lasläge, onAndra, onNy, onTaBort, onExcel, onFlik, inbaddad, utanUtskrift, onInfo, fokusId, kataloger, extraKnappar }: Props) {
   const visade = useMemo(() => byggRader(def, rader ?? [], komponenter), [def, rader, komponenter]);
 
   const kolumner: Kolumn<VisadRad>[] = useMemo(
@@ -80,8 +100,9 @@ export function ListVy({ def, grupp, rader, komponenter, projekt, blinkar, lasl�
       mono: k.mono || k.typ === "lopnr",
       bredd: k.bredd ?? undefined,
       fyll: k.fyll,
+      forslag: k.forslag ? kataloger?.[k.forslag] : undefined,
     })),
-    [def],
+    [def, kataloger],
   );
 
   // IP-listan: samma IP-adress på flera rader markeras.
@@ -125,6 +146,7 @@ export function ListVy({ def, grupp, rader, komponenter, projekt, blinkar, lasl�
       <div className="rubrikrad">
         {inbaddad ? <h2>{def.namn}</h2> : <h1>{def.namn}</h1>}
         <div className="knappar">
+          {extraKnappar}
           {def.kopplad && <button className="knapp" onClick={() => onFlik("komponenter")}>Till Komponenter</button>}
           <button className="knapp" onClick={onExcel}>Exportera till Excel</button>
           {!utanUtskrift && <button className="knapp" onClick={utskrift}>Skriv ut / PDF</button>}
@@ -152,6 +174,11 @@ export function ListVy({ def, grupp, rader, komponenter, projekt, blinkar, lasl�
           fokusId={fokusId}
           cellKlass={(r, nyckel) => {
             const kol = def.kolumner.find((k) => k.nyckel === nyckel);
+            if (kol?.typ === "differens") {
+              // Kalkylmängder: fler komponenter än kalkylerat är det man vill upptäcka.
+              const d = tal(r[nyckel] ?? "");
+              return d === null ? undefined : d > 0 ? "risk-hog" : d === 0 ? "risk-lag" : undefined;
+            }
             if (kol?.typ !== "produkt" || !def.id.startsWith("risk-")) return undefined;
             const v = Number(r[nyckel]);
             return !r[nyckel] ? undefined : v >= 6 ? "risk-hog" : v >= 3 ? "risk-medel" : "risk-lag";

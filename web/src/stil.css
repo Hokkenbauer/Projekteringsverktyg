@@ -368,3 +368,52 @@ table.kanaler td[draggable="true"] { cursor: grab; }
 .skapkomp input[type="text"] { padding: 4px 6px; font-size: 12.5px; }
 .signalpanel .sok { flex: none; height: auto; min-height: 0; }
 .modulsumma { box-shadow: 0 -6px 18px rgba(0,0,0,.08); }
+
+/* ---- Projektering: katalog + textyta (Funktionstexter, Projekteringsstöd, Teknisk beskrivning) ---- */
+.textkatalog { display: grid; grid-template-columns: minmax(240px, 320px) 1fr; gap: 14px; align-items: start; }
+@media (max-width: 900px) { .textkatalog { grid-template-columns: 1fr; } }
+.katalogpanel { display: flex; flex-direction: column; gap: 2px; max-height: calc(100vh - 230px); overflow: auto; position: sticky; top: 0; }
+.katalogpanel .sok { max-width: none; flex: none; margin-bottom: 8px; }
+.katalogpanel h3 { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--dampad); margin: 10px 0 4px; font-weight: 600; }
+.sparadelista { display: flex; flex-direction: column; gap: 2px; padding-bottom: 6px; border-bottom: 1px solid var(--linje); }
+.katalograd { text-align: left; background: none; border: 1px solid transparent; border-radius: var(--r); padding: 5px 8px; font-size: 13px; color: var(--text); width: 100%; }
+.katalograd:hover { background: var(--yta-2); }
+.katalograd.aktiv { background: color-mix(in srgb, var(--accent) 14%, transparent); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+.indrag { padding-left: 24px; display: block; }
+.katalogrubrikrad { display: flex; align-items: center; gap: 4px; }
+.rubrikknapp { flex: 1; text-align: left; background: none; border: none; padding: 5px 4px; font-size: 13px; font-weight: 600; color: var(--text); }
+.rubrikknapp .pil { display: inline-block; width: 12px; color: var(--dampad); }
+.radknappar { display: none; gap: 2px; }
+.katalogrubrikrad:hover .radknappar, .katalogrubrikrad:focus-within .radknappar { display: inline-flex; }
+.radknappar button { background: none; border: 1px solid var(--linje); border-radius: 4px; width: 22px; height: 22px; padding: 0; font-size: 12px; color: var(--dampad); }
+.radknappar button:hover { color: var(--text); border-color: var(--accent); }
+.textyta { display: flex; flex-direction: column; gap: 10px; min-height: 420px; }
+.textytahuvud { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.textytahuvud h2 { margin: 0; }
+.mallnamn { font-size: 15px; font-weight: 600; background: var(--yta-2); border: 1px solid var(--linje); border-radius: var(--r); padding: 5px 8px; color: var(--text); min-width: 240px; }
+.stortext { width: 100%; min-height: 520px; flex: 1; resize: vertical; background: var(--yta-2); border: 1px solid var(--linje); border-radius: var(--r); padding: 12px 14px; color: var(--text); font: inherit; font-size: 13.5px; line-height: 1.55; }
+.kategorirad { display: flex; align-items: center; gap: 6px; border-radius: var(--r); }
+.kategorirad input { flex: none; }
+.kategorirad.aktiv .katalograd { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.kategorirad .katalograd span { margin-left: 4px; font-size: 11.5px; }
+.fragetabell { width: 100%; border-collapse: collapse; font-size: 13px; }
+.fragetabell th { text-align: left; font-size: 12px; color: var(--dampad); font-weight: 600; padding: 6px 8px; border-bottom: 1px solid var(--linje); }
+.fragetabell td { padding: 6px 8px; border-bottom: 1px solid var(--linje); vertical-align: top; }
+.fragetabell td:first-child { width: 42%; line-height: 1.45; padding-top: 10px; }
+.fragetabell textarea, .formtabell input { width: 100%; background: var(--yta-2); border: 1px solid var(--linje); border-radius: var(--r); padding: 6px 8px; color: var(--text); font: inherit; font-size: 13px; resize: vertical; }
+.formtabell { width: 100%; border-collapse: collapse; font-size: 13px; }
+.formtabell th { text-align: left; font-size: 12px; color: var(--dampad); font-weight: 600; padding: 4px 6px; }
+.formtabell td { padding: 3px 4px; }
+.formtabell td:last-child:has(> .knapp.liten) { width: 34px; }
+.knapp.liten { padding: 3px 7px; font-size: 12px; }
+.intyg { display: flex; flex-direction: column; gap: 14px; max-width: 1100px; }
+.intyg .panel h2 { margin-bottom: 8px; }
+.intyg .riskhuvud { margin-bottom: 0; }
+.kryssrad { display: flex; gap: 10px; align-items: flex-start; margin: 8px 0; font-size: 13.5px; line-height: 1.45; max-width: 90ch; }
+.kryssrad input { margin-top: 3px; flex: none; }
+.helrad { grid-column: 1 / -1; margin: 0; }
+table.valbar tbody tr { cursor: pointer; }
+table.valbar tbody tr:hover { background: var(--yta-2); }
+.chip.liten { font-size: 10.5px; padding: 1px 6px; margin-left: 6px; }
+.grow { flex: 1; }
+.chip { display: inline-block; background: var(--yta-2); border: 1px solid var(--linje); border-radius: 999px; padding: 2px 8px; font-size: 12px; }

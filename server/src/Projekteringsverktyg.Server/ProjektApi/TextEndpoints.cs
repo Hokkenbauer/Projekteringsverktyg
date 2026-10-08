@@ -18,6 +18,9 @@ public static class TextEndpoints
         // Riskanalysernas rubrikfält och standardtexter, sparade som JSON.
         ["risk-projektering"] = "Riskanalys projektering",
         ["risk-produktion"] = "Riskanalys produktion",
+        // Formulär sparade som JSON.
+        ["projekteringsintyg"] = "Projekteringsintyg",
+        ["teknisk-beskrivning"] = "Teknisk beskrivning",
     };
 
     public static IEndpointRouteBuilder MapTextEndpoints(this IEndpointRouteBuilder app)

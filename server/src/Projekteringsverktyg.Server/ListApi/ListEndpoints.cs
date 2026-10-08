@@ -68,7 +68,7 @@ public static class ListEndpoints
         app.MapGet("/api/listdefinitioner", () => Listdefinitioner.Alla.Append(Listdefinitioner.Kontroll).Append(Listdefinitioner.Kraft).Select(d => new
         {
             d.Id, d.Namn, d.Grupp, d.Ingress, d.Kopplad, d.KomponenttypInnehaller, d.Bindestreck,
-            kolumner = d.Kolumner.Select(k => new { k.Nyckel, k.Rubrik, k.Typ, k.Val, k.KomponentFalt, k.Standard, k.Mono, k.Bredd, k.Redigerbar, k.Fyll, k.Faktorer }),
+            kolumner = d.Kolumner.Select(k => new { k.Nyckel, k.Rubrik, k.Typ, k.Val, k.KomponentFalt, k.Standard, k.Mono, k.Bredd, k.Redigerbar, k.Fyll, k.Faktorer, k.Forslag }),
         }));
 
         var g = app.MapGroup("/api/projekt/{projektId:guid}/listor/{lista}").AddEndpointFilter<ProjektAtkomst>();
@@ -218,10 +218,13 @@ public static class ListEndpoints
             else
             {
                 var nr = 0;
+                List<Komponent>? allaKomponenter = def.Kolumner.Any(k => k.Typ == "antal")
+                    ? await db.Komponenter.AsNoTracking().Where(k => k.ProjektId == projektId).ToListAsync() : null;
                 foreach (var r in sparade)
                 {
                     nr++;
                     var data = LasData(r.Data);
+                    KolumnDef.BeraknaAlla(def.Kolumner, data, allaKomponenter);
                     rader.Add(kolumner.Select(c => (object?)Cell(c, data, null, nr, false)).ToArray());
                 }
             }
@@ -244,6 +247,7 @@ public static class ListEndpoints
             bindestreck ? KomponentFalt.Hamta(k, c.KomponentFalt).Replace('_', '-') : KomponentFalt.Hamta(k, c.KomponentFalt),
         "lopnr" => nr.ToString(),
         "produkt" => c.Berakna(data),
+        "antal" or "differens" => data.GetValueOrDefault(c.Nyckel, ""),
         "kryss" => data.GetValueOrDefault(c.Nyckel) == "true" ? "Ja" : "",
         _ => data.GetValueOrDefault(c.Nyckel, c.Standard ?? ""),
     };

@@ -7,6 +7,7 @@ using Projekteringsverktyg.Server.AnvandarApi;
 using Projekteringsverktyg.Server.AttGoraApi;
 using Projekteringsverktyg.Server.Auth;
 using Projekteringsverktyg.Server.Data;
+using Projekteringsverktyg.Server.DokumentApi;
 using Projekteringsverktyg.Server.DriftkortApi;
 using Projekteringsverktyg.Server.FilApi;
 using Projekteringsverktyg.Server.ListApi;
@@ -161,6 +162,8 @@ app.MapKatalogEndpoints();
 app.MapKomponentMallEndpoints();
 app.MapKontrollEndpoints();
 app.MapDriftkortEndpoints();
+app.MapGemensamKatalogEndpoints();
+app.MapDokumentEndpoints();
 app.MapHub<ProjektHub>("/hubs/projekt");
 
 // Alla andra adresser hör till webbappen (React sköter sin egen navigering).

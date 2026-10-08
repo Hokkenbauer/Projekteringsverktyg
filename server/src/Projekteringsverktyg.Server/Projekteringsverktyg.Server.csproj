@@ -26,6 +26,8 @@
     <EmbeddedResource Include="Data/Migreringar/*.sql" />
     <!-- Valbara värden från dagens program -->
     <EmbeddedResource Include="Data/Grundkataloger.json" />
+    <!-- Grundkataloger som redigeras i appen (funktionstexter, projekteringsstöd m.m.) -->
+    <EmbeddedResource Include="Data/Kataloger/*.json" />
   </ItemGroup>
 
   <ItemGroup>

@@ -317,3 +317,27 @@ public class DriftkortTester
         Assert.Contains(".docx", fel.Message);
     }
 }
+
+public class KalkylTester
+{
+    [Fact]
+    public void Antal_och_differens_raknas_fran_komponenterna()
+    {
+        var def = Projekteringsverktyg.Server.ListApi.Listdefinitioner.Hitta("kalkylmangder")!;
+        var komponenter = new List<Komponent>
+        {
+            new() { Produkttyp = "Temperaturgivare" }, new() { Produkttyp = "temperaturgivare " }, new() { Produkttyp = "Ventil" },
+        };
+        var data = new Dictionary<string, string> { ["produkt"] = "Temperaturgivare", ["mangd"] = "1 st" };
+        Projekteringsverktyg.Server.ListApi.KolumnDef.BeraknaAlla(def.Kolumner, data, komponenter);
+        Assert.Equal("2", data["antal"]);
+        Assert.Equal("1", data["differens"]);
+    }
+
+    [Fact]
+    public void Nya_kataloger_finns_inbaddade()
+    {
+        foreach (var namn in Projekteringsverktyg.Server.DokumentApi.GemensamKatalogEndpoints.Namn.Keys)
+            Assert.False(string.IsNullOrEmpty(Projekteringsverktyg.Server.DokumentApi.GemensamKatalogEndpoints.Grund(namn)), namn);
+    }
+}

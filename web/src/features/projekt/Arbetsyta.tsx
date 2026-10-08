@@ -18,6 +18,10 @@ import { SkapValjare } from "../konstruktion/SkapValjare";
 import { KomponenterVy } from "../komponenter/KomponenterVy";
 import { KomponentInfo } from "../komponenter/KomponentInfo";
 import { KontrollerVy, type Kontroll } from "../kontroller/KontrollerVy";
+import { ByggvaruKnappar } from "../projektering/Byggvaror";
+import { ProjekteringsintygVy } from "../projektering/ProjekteringsintygVy";
+import { TekniskBeskrivningVy } from "../projektering/TekniskBeskrivningVy";
+import { TextKatalogVy } from "../projektering/TextKatalogVy";
 import { RiskVy } from "../risk/RiskVy";
 import { ProjektStatusVy } from "../status/ProjektStatusVy";
 import { MedlemmarVy } from "./MedlemmarVy";
@@ -54,6 +58,7 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
   const [ritningVersion, setRitningVersion] = useState(0);
   const [kontrollVersion, setKontrollVersion] = useState(0);
   const [ritbordVersion, setRitbordVersion] = useState(0);
+  const [dokumentVersion, setDokumentVersion] = useState<Record<string, number>>({});
   const [skapLista, setSkapLista] = useState<Skap[] | null>(null);
   const [valtSkap, setValtSkap] = useState<string | null>(null);
   const [infoId, setInfoId] = useState<string | null>(null);
@@ -180,6 +185,9 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
     } else if (h.lista.startsWith("text:")) {
       const nyckel = h.lista.slice(5);
       if (h.avId !== mig.id) setTexter((t) => ({ ...t, [nyckel]: h.rad as Anteckningar }));
+    } else if (h.lista.startsWith("dokument:")) {
+      const typ = h.lista.slice(9);
+      if (h.avId !== mig.id) setDokumentVersion((v) => ({ ...v, [typ]: (v[typ] ?? 0) + 1 }));
     } else if (h.lista === "kontroller") {
       if (h.avId !== mig.id) setKontrollVersion((v) => v + 1);
     } else if (h.lista === "skap") {
@@ -283,7 +291,8 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
   const listId = vald?.flik.lista ?? (riskVariant ? `risk-${riskVariant}`
     : aktivKontroll ? `kontroll-${aktivKontroll.id}`
     : flik === "kraftberakning" && valtSkap ? `kraft-${valtSkap}` : undefined);
-  const textNyckel = vald?.flik.text ?? (vald?.flik.risk ? `risk-${vald.flik.risk}` : undefined);
+  const textNyckel = vald?.flik.text ?? (vald?.flik.risk ? `risk-${vald.flik.risk}`
+    : flik === "teknisk-beskrivning" || flik === "projekteringsintyg" ? flik : undefined);
 
   // Listor som fliken behöver hämtas första gången de används. Ritningen visar egenkontroll och kabellängd.
   const behovdaListor = listId ? listId : flik === "placeringsritningar" ? "egenkontroll,installationslista" : "";
@@ -430,6 +439,13 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
       onFlik={onFlik}
       inbaddad={inbaddad}
       utanUtskrift={!!riskVariant}
+      kataloger={kataloger}
+      extraKnappar={listDef.id === "byggvarubedomning" || listDef.id === "sundahus" ? (
+        <ByggvaruKnappar
+          lista={listDef.id} projektId={projektId} rader={listor[listDef.id]} lasläge={!skrivbar}
+          kanRedigeraKatalog={!!mig.rattigheter.hanteraMallar} visaMeddelande={visaMeddelande}
+        />
+      ) : undefined}
       onInfo={setInfoId}
       fokusId={fokusHar}
     />
@@ -617,6 +633,28 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
             uppdaterad={ritbordVersion} visaMeddelande={visaMeddelande}
           />
         )}
+        {(flik === "funktionstexter" || flik === "projekteringsstod") && vald && (
+          <TextKatalogVy
+            key={flik} lage={flik === "funktionstexter" ? "funktionstexter" : "projekteringsstod"}
+            projektId={projektId} projekt={projekt} grupp={vald.grupp.namn} rubrik={vald.flik.namn}
+            lasläge={!skrivbar} kanRedigeraKatalog={!!mig.rattigheter.hanteraMallar}
+            uppdaterad={dokumentVersion.funktionstext ?? 0} visaMeddelande={visaMeddelande}
+          />
+        )}
+        {flik === "teknisk-beskrivning" && vald && (texter["teknisk-beskrivning"] ? (
+          <TekniskBeskrivningVy
+            projekt={projekt} grupp={vald.grupp.namn} rubrik={vald.flik.namn}
+            text={texter["teknisk-beskrivning"]} onSparaText={(t) => sparaText("teknisk-beskrivning", t)}
+            lasläge={!skrivbar} kanRedigeraKatalog={!!mig.rattigheter.hanteraMallar} visaMeddelande={visaMeddelande}
+          />
+        ) : <p className="dampad">Hämtar…</p>)}
+        {flik === "projekteringsintyg" && vald && (texter.projekteringsintyg && projekt ? (
+          <ProjekteringsintygVy
+            key={projektId} projekt={projekt} grupp={vald.grupp.namn} rubrik={vald.flik.namn}
+            text={texter.projekteringsintyg} onSparaText={(t) => sparaText("projekteringsintyg", t)}
+            lasläge={!skrivbar} visaMeddelande={visaMeddelande}
+          />
+        ) : <p className="dampad">Hämtar…</p>)}
         {flik === "projektfiler" && <ProjektfilerVy projektId={projektId} lasläge={!skrivbar} uppdaterad={filVersion} visaMeddelande={visaMeddelande} />}
         {vald && !vald.flik.klar && (
           <>

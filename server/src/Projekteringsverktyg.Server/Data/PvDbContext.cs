@@ -23,6 +23,8 @@ public class PvDbContext(DbContextOptions<PvDbContext> options) : DbContext(opti
     public DbSet<RitbordBild> RitbordBilder => Set<RitbordBild>();
     public DbSet<RitbordInstallning> RitbordInstallningar => Set<RitbordInstallning>();
     public DbSet<Skap> Skap => Set<Skap>();
+    public DbSet<Katalog> Kataloger => Set<Katalog>();
+    public DbSet<ProjektDokument> Dokument => Set<ProjektDokument>();
     public DbSet<Korttyp> Korttyper => Set<Korttyp>();
 
     protected override void OnModelCreating(ModelBuilder b)
@@ -113,6 +115,14 @@ public class PvDbContext(DbContextOptions<PvDbContext> options) : DbContext(opti
             e.Property(x => x.Version).IsConcurrencyToken();
         });
         b.Entity<Korttyp>(e => { e.ToTable("korttyp"); e.HasKey(x => x.Id); });
+        b.Entity<Katalog>(e => { e.ToTable("katalog"); e.HasKey(x => x.Namn); e.Property(x => x.Version).IsConcurrencyToken(); });
+        b.Entity<ProjektDokument>(e =>
+        {
+            e.ToTable("projektdokument");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.ProjektId, x.Typ });
+            e.Property(x => x.Version).IsConcurrencyToken();
+        });
 
         b.Entity<RitbordBild>(e =>
         {

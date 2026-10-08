@@ -23,9 +23,43 @@ public sealed record KolumnDef(
     /// <summary>Kolumnen tar allt utrymme som blir över (t.ex. Anmärkning).</summary>
     bool Fyll = false,
     /// <summary>För typ produkt: kolumnerna som multipliceras (t.ex. sannolikhet × konsekvens).</summary>
-    string[]? Faktorer = null)
+    string[]? Faktorer = null,
+    /// <summary>Förslag i textkolumnen från komponenternas värden i detta fält (t.ex. produkttyp).</summary>
+    string? Forslag = null)
 {
     public bool Redigerbar => Typ is "text" or "val" or "kryss" or "datum";
+
+    /// <summary>
+    /// Räknade kolumner i ordning: produkt (faktorerna multipliceras), antal (antal komponenter vars
+    /// KomponentFalt är lika med värdet i kolumnen Faktorer[0]) och differens (Faktorer[0] − Faktorer[1]).
+    /// Resultaten läggs i data så att en senare kolumn kan räkna vidare på dem.
+    /// </summary>
+    public static void BeraknaAlla(IEnumerable<KolumnDef> kolumner, Dictionary<string, string> data, IReadOnlyList<Komponent>? komponenter)
+    {
+        foreach (var k in kolumner)
+        {
+            if (k.Typ == "produkt") data[k.Nyckel] = k.Berakna(data);
+            else if (k.Typ == "antal" && k.KomponentFalt is not null && k.Faktorer is [var kalla, ..])
+            {
+                var varde = data.GetValueOrDefault(kalla, "").Trim();
+                data[k.Nyckel] = varde == "" || komponenter is null ? ""
+                    : komponenter.Count(x => string.Equals(KomponentApi.KomponentFalt.Hamta(x, k.KomponentFalt).Trim(), varde, StringComparison.OrdinalIgnoreCase)).ToString();
+            }
+            else if (k.Typ == "differens" && k.Faktorer is [var a, var b])
+            {
+                data[k.Nyckel] = Tal(data.GetValueOrDefault(a, "")) is { } x && Tal(data.GetValueOrDefault(b, "")) is { } y
+                    ? (x - y).ToString(System.Globalization.CultureInfo.InvariantCulture) : "";
+            }
+        }
+    }
+
+    /// <summary>Första talet i en fri text ("12 st" = 12), eller null.</summary>
+    public static decimal? Tal(string text)
+    {
+        var m = System.Text.RegularExpressions.Regex.Match(text ?? "", @"-?\d+(?:[.,]\d+)?");
+        return m.Success && decimal.TryParse(m.Value.Replace(',', '.'), System.Globalization.NumberStyles.Number,
+            System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : null;
+    }
 
     /// <summary>Räknat värde för typ produkt; tomt om någon faktor saknas eller inte är ett tal.</summary>
     public string Berakna(IReadOnlyDictionary<string, string> data)
@@ -250,6 +284,46 @@ public static class Listdefinitioner
                 new("hanterad", "Hanterad", "kryss", SatterDatum: "datum", SatterSign: "sign"),
                 new("datum", "Datum", "datum"),
                 new("sign", "Sign.", Mono: true, Bredd: 52),
+            ]),
+
+        new("kalkylmangder", "Kalkylmängder", "Projektering",
+            "Jämför kalkylerad mängd per produkttyp med hur många komponenter som finns i Komponenter. Röd differens = fler komponenter än kalkylerat, grön = stämmer.",
+            Kopplad: false,
+            Kolumner:
+            [
+                new("produkt", "Produkttyp", Bredd: 260, Forslag: "produkttyp"),
+                new("mangd", "Kalkylerad mängd", Mono: true, Bredd: 130),
+                new("antal", "Antal i komponentlistan", "antal", KomponentFalt: "produkttyp", Mono: true, Bredd: 170, Faktorer: ["produkt"]),
+                new("differens", "Differens", "differens", Mono: true, Bredd: 100, Faktorer: ["antal", "mangd"]),
+                new("ovrigt", "Övrigt", Fyll: true),
+            ]),
+
+        new("byggvarubedomning", "Byggvarubedömning", "Projektering",
+            "Byggvaror som används i projektet. Hämta dem från byggvarudatabasen eller skriv in dem direkt.",
+            Kopplad: false,
+            Kolumner:
+            [
+                new("beskrivning", "Beskrivning", Bredd: 200),
+                new("komponent", "Komponent", Bredd: 160),
+                new("artikelnamn", "Artikelnamn", Bredd: 200),
+                new("artikelnummer", "Artikelnr / E-nr", Mono: true),
+                new("fabrikat", "Fabrikat/Tillverkare"),
+                new("leverantor", "Leverantör"),
+                new("ovrigt", "Övrigt", Fyll: true),
+            ]),
+
+        new("sundahus", "Sunda Hus", "Projektering",
+            "Produkter och deras bedömning i Sunda Hus. Importera en export från Sunda Hus (Excel) eller hämta varor från byggvarudatabasen.",
+            Kopplad: false,
+            Kolumner:
+            [
+                new("artikelnamn", "Artikelnamn", Bredd: 220),
+                new("artikelnummer", "Artikelnr / E-nr", Mono: true),
+                new("fabrikat", "Fabrikat/Tillverkare"),
+                new("leverantor", "Leverantör"),
+                new("bedomning", "Bedömning", Bredd: 140),
+                new("anvandning", "Används till", Bredd: 180),
+                new("kommentar", "Kommentar", Fyll: true),
             ]),
 
         Risk("risk-projektering", "Riskanalys projektering",

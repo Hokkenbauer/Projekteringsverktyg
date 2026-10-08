@@ -277,3 +277,28 @@ public class Korttyp
     public double StromMa { get; set; }
     public int Ordning { get; set; }
 }
+
+/// <summary>Gemensam katalog som redigeras i appen. Data = JSON.</summary>
+public class Katalog
+{
+    public string Namn { get; set; } = "";
+    public string Data { get; set; } = "";
+    public int Version { get; set; } = 1;
+    public DateTimeOffset Andrad { get; set; } = DateTimeOffset.UtcNow;
+    public string AndradAv { get; set; } = "";
+}
+
+/// <summary>Namngivet dokument i ett projekt (funktionstext, servicerapport m.m.).</summary>
+public class ProjektDokument
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid ProjektId { get; set; }
+    public string Typ { get; set; } = "";
+    public string Namn { get; set; } = "";
+    public string Data { get; set; } = "";
+    public int Ordning { get; set; }
+    public int Version { get; set; } = 1;
+    public DateTimeOffset Skapad { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset Andrad { get; set; } = DateTimeOffset.UtcNow;
+    public string AndradAv { get; set; } = "";
+}
