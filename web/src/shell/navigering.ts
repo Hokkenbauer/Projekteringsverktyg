@@ -56,8 +56,8 @@ export const NAVIGERING: Grupp[] = [
       { id: "modulbelaggning", namn: "Modulbeläggning", fas: 4, klar: true },
       { id: "kraftberakning", namn: "Kraftberäkning", fas: 4, klar: true },
       { id: "modbus", namn: "Modbus", fas: 4, klar: true, lista: "modbus" },
-      { id: "modbus-rtu", namn: "Modbus RTU", fas: 4 },
-      { id: "bestallningslista", namn: "Beställningslista", fas: 4 },
+      { id: "modbus-rtu", namn: "Modbus RTU", fas: 4, klar: true, lista: "modbusrtu" },
+      { id: "bestallningslista", namn: "Beställningslista", fas: 4, klar: true },
     ],
   },
   {

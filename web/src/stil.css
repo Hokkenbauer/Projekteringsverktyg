@@ -417,3 +417,8 @@ table.valbar tbody tr:hover { background: var(--yta-2); }
 .chip.liten { font-size: 10.5px; padding: 1px 6px; margin-left: 6px; }
 .grow { flex: 1; }
 .chip { display: inline-block; background: var(--yta-2); border: 1px solid var(--linje); border-radius: 999px; padding: 2px 8px; font-size: 12px; }
+.modbussumma { margin-top: 16px; }
+.slingor { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; margin-top: 8px; }
+.slinga { display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; border: 1px solid var(--linje); border-radius: var(--r); background: var(--yta-2); font-size: 13px; }
+.slinga.varning { border-color: var(--fara); }
+.slinga .fel { color: var(--fara); }

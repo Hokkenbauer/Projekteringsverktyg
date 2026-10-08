@@ -13,6 +13,8 @@ import { PlaceringsritningVy } from "../ritning/PlaceringsritningVy";
 import { RitbordVy } from "../ritning/RitbordVy";
 import { ApparatskapVy } from "../konstruktion/ApparatskapVy";
 import { KraftSumma } from "../konstruktion/KraftSumma";
+import { BestallningslistaVy } from "../konstruktion/BestallningslistaVy";
+import { ModbusSumma } from "../konstruktion/ModbusSumma";
 import { ModulbelaggningVy } from "../konstruktion/ModulbelaggningVy";
 import { SkapValjare } from "../konstruktion/SkapValjare";
 import { KomponenterVy } from "../komponenter/KomponenterVy";
@@ -283,7 +285,8 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
   };
   const hamtaSkapRef = useRef(hamtaSkap);
   hamtaSkapRef.current = hamtaSkap;
-  useEffect(() => { if (arSkapFlik && skapLista === null) void hamtaSkap(); }, [arSkapFlik]);
+  const behoverSkap = arSkapFlik || flik === "bestallningslista";
+  useEffect(() => { if (behoverSkap && skapLista === null) void hamtaSkap(); }, [behoverSkap]);
   const aktivtSkap = skapLista?.find((x) => x.id === valtSkap) ?? null;
   const uppdateraSkap = (s: Skap) => setSkapLista((l) => l?.map((x) => (x.id === s.id ? s : x)) ?? l);
 
@@ -295,7 +298,10 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
     : flik === "teknisk-beskrivning" || flik === "projekteringsintyg" ? flik : undefined);
 
   // Listor som fliken behöver hämtas första gången de används. Ritningen visar egenkontroll och kabellängd.
-  const behovdaListor = listId ? listId : flik === "placeringsritningar" ? "egenkontroll,installationslista" : "";
+  const behovdaListor = listId === "modbus" || listId === "modbusrtu" ? "modbus,modbusrtu"
+    : listId ? listId
+    : flik === "placeringsritningar" ? "egenkontroll,installationslista"
+    : flik === "bestallningslista" ? "modbusrtu" : "";
   useEffect(() => {
     for (const id of behovdaListor.split(",").filter(Boolean)) {
       if (hamtadeListor.current.has(id)) continue;
@@ -351,6 +357,18 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
     const res = await Promise.allSettled(ids.map((id) => api(`/api/projekt/${projektId}/listor/${def.id}/${id}`, { method: "DELETE" })));
     setListor((alla) => ({ ...alla, [def.id]: (alla[def.id] ?? []).filter((x) => !ids.includes(x.id)) }));
     if (res.some((r) => r.status === "rejected")) { visaMeddelande("Några rader kunde inte tas bort."); void hamtaLista(def.id); }
+  };
+
+  /** Lägger till rader i Modbus för komponenter med signaltyp Modbus som inte redan finns där. */
+  const hamtaModbusKomponenter = async () => {
+    const finns = new Set((listor.modbus ?? []).map((r) => r.data.beteckning ?? ""));
+    const nya = komponenter.filter((k) => k.signaltyp.toLowerCase().includes("modbus") && !finns.has(k.id))
+      .sort((a, b) => a.beteckning.localeCompare(b.beteckning, "sv", { numeric: true }));
+    if (!nya.length) { visaMeddelande("Alla komponenter med signaltyp Modbus finns redan i listan."); return; }
+    try {
+      await api(`/api/projekt/${projektId}/listor/modbus/flera`, { method: "POST", body: skicka(nya.map((k) => ({ beteckning: k.id }))) });
+      visaMeddelande(`${nya.length} komponenter tillagda.`);
+    } catch (e) { visaMeddelande(`Komponenterna kunde inte läggas till: ${(e as Error).message}`); }
   };
 
   const sparaText = async (nyckel: string, text: string) => {
@@ -440,7 +458,10 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
       inbaddad={inbaddad}
       utanUtskrift={!!riskVariant}
       kataloger={kataloger}
-      extraKnappar={listDef.id === "byggvarubedomning" || listDef.id === "sundahus" ? (
+      forslagExtra={listDef.id === "modbus" ? { slinga: (listor.modbusrtu ?? []).map((g) => (g.data.namn ?? "").trim()).filter(Boolean) } : undefined}
+      extraKnappar={listDef.id === "modbus" && skrivbar ? (
+        <button className="knapp" onClick={() => void hamtaModbusKomponenter()}>Hämta Modbus-komponenter</button>
+      ) : listDef.id === "byggvarubedomning" || listDef.id === "sundahus" ? (
         <ByggvaruKnappar
           lista={listDef.id} projektId={projektId} rader={listor[listDef.id]} lasläge={!skrivbar}
           kanRedigeraKatalog={!!mig.rattigheter.hanteraMallar} visaMeddelande={visaMeddelande}
@@ -520,6 +541,15 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
         {flik === "medlemmar" && <MedlemmarVy projektId={projektId} rattigheter={mig.rattigheter} visaMeddelande={visaMeddelande} />}
         {flik === "anteckningar" && anteckningar && <AnteckningarVy key={projektId} anteckningar={anteckningar} onSpara={sparaAnteckningar} lasläge={!mig.rattigheter.skriva} />}
         {vald?.flik.lista && listVy(false)}
+        {flik === "modbus-rtu" && (
+          <ModbusSumma gateways={listor.modbusrtu} enheter={listor.modbus} komponenter={komponenter} onFlik={onFlik} />
+        )}
+        {flik === "bestallningslista" && vald && (
+          <BestallningslistaVy
+            grupp={vald.grupp.namn} rubrik={vald.flik.namn} projekt={projekt} komponenter={komponenter}
+            skap={skapLista} gateways={listor.modbusrtu} visaMeddelande={visaMeddelande}
+          />
+        )}
         {kontrollTyp && vald && (
           <KontrollerVy
             key={kontrollTyp}

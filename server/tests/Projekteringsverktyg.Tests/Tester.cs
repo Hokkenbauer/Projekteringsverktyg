@@ -341,3 +341,17 @@ public class KalkylTester
             Assert.False(string.IsNullOrEmpty(Projekteringsverktyg.Server.DokumentApi.GemensamKatalogEndpoints.Grund(namn)), namn);
     }
 }
+
+public class KopplingTester
+{
+    [Fact]
+    public void Koppling_visar_komponentens_falt()
+    {
+        var def = Projekteringsverktyg.Server.ListApi.Listdefinitioner.Hitta("modbus")!;
+        var k = new Komponent { Beteckning = "VS01-P1", Komponenttyp = "Pump" };
+        var data = new Dictionary<string, string> { ["beteckning"] = k.Id.ToString() };
+        Projekteringsverktyg.Server.ListApi.KolumnDef.BeraknaAlla(def.Kolumner, data, [k]);
+        Assert.Equal("Pump", data["komponenttyp"]);
+        Assert.True(def.Kolumn("beteckning")!.Redigerbar);
+    }
+}

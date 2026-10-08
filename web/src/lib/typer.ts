@@ -113,7 +113,7 @@ export type ListaHandelse = {
 export type ListKolumn = {
   nyckel: string;
   rubrik: string;
-  typ: "text" | "val" | "kryss" | "datum" | "komponent" | "lopnr" | "produkt" | "antal" | "differens";
+  typ: "text" | "val" | "kryss" | "datum" | "komponent" | "lopnr" | "produkt" | "antal" | "differens" | "koppling" | "fran";
   val: string[] | null;
   komponentFalt: keyof Komponent | null;
   standard: string | null;
@@ -124,6 +124,8 @@ export type ListKolumn = {
   faktorer?: string[] | null;
   /** Förslag från komponenternas värden i detta fält (t.ex. produkttyp). */
   forslag?: keyof Kataloger | null;
+  /** För typ koppling: förslagen är komponenter vars signaltyp innehåller detta. */
+  kopplingSignaltyp?: string | null;
 };
 
 export type ListDef = {

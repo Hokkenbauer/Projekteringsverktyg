@@ -25,9 +25,15 @@ public sealed record KolumnDef(
     /// <summary>För typ produkt: kolumnerna som multipliceras (t.ex. sannolikhet × konsekvens).</summary>
     string[]? Faktorer = null,
     /// <summary>Förslag i textkolumnen från komponenternas värden i detta fält (t.ex. produkttyp).</summary>
-    string? Forslag = null)
+    string? Forslag = null,
+    /// <summary>För typ koppling: förslagen är komponenter vars signaltyp innehåller detta (t.ex. "modbus").</summary>
+    string? KopplingSignaltyp = null)
 {
-    public bool Redigerbar => Typ is "text" or "val" or "kryss" or "datum";
+    /// <summary>
+    /// koppling = pekar på en komponent (värdet är komponentens Id; går ingen komponent att hitta sparas texten som den är).
+    /// fran = visar ett fält från komponenten som kolumnen Faktorer[0] pekar på.
+    /// </summary>
+    public bool Redigerbar => Typ is "text" or "val" or "kryss" or "datum" or "koppling";
 
     /// <summary>
     /// Räknade kolumner i ordning: produkt (faktorerna multipliceras), antal (antal komponenter vars
@@ -45,6 +51,11 @@ public sealed record KolumnDef(
                 data[k.Nyckel] = varde == "" || komponenter is null ? ""
                     : komponenter.Count(x => string.Equals(KomponentApi.KomponentFalt.Hamta(x, k.KomponentFalt).Trim(), varde, StringComparison.OrdinalIgnoreCase)).ToString();
             }
+            else if (k.Typ == "fran" && k.KomponentFalt is not null && k.Faktorer is [var kopplad, ..])
+            {
+                var kp = HittaKoppling(data.GetValueOrDefault(kopplad, ""), komponenter);
+                data[k.Nyckel] = kp is null ? "" : KomponentApi.KomponentFalt.Hamta(kp, k.KomponentFalt);
+            }
             else if (k.Typ == "differens" && k.Faktorer is [var a, var b])
             {
                 data[k.Nyckel] = Tal(data.GetValueOrDefault(a, "")) is { } x && Tal(data.GetValueOrDefault(b, "")) is { } y
@@ -52,6 +63,10 @@ public sealed record KolumnDef(
             }
         }
     }
+
+    /// <summary>Komponenten som ett kopplingsvärde pekar på, eller null.</summary>
+    public static Komponent? HittaKoppling(string varde, IReadOnlyList<Komponent>? komponenter) =>
+        komponenter is not null && Guid.TryParse(varde, out var id) ? komponenter.FirstOrDefault(x => x.Id == id) : null;
 
     /// <summary>Första talet i en fri text ("12 st" = 12), eller null.</summary>
     public static decimal? Tal(string text)
@@ -254,13 +269,14 @@ public static class Listdefinitioner
 
         // ---------------- Konstruktion ----------------
         new("modbus", "Modbus", "Konstruktion",
-            "Modbus-enheter och kommunikationsinställningar. Koppling till gateway per slinga kommer när Modbus och Modbus RTU slås ihop.",
+            "Modbus-enheter och kommunikationsinställningar. Välj komponenten i Beteckning (förslagen är komponenter med signaltyp Modbus) eller skriv fritt. Välj gateway/slinga från Modbus RTU. Samma ID två gånger på samma slinga och fler än 32 enheter per slinga markeras.",
             Kopplad: false,
             Kolumner:
             [
-                new("beteckning", "Beteckning", Mono: true),
-                new("id", "ID", Mono: true),
-                new("slinga", "Slinga"),
+                new("beteckning", "Beteckning", "koppling", Mono: true, Bredd: 160, KopplingSignaltyp: "modbus"),
+                new("komponenttyp", "Komponenttyp", "fran", KomponentFalt: "komponenttyp", Faktorer: ["beteckning"]),
+                new("id", "ID", Mono: true, Bredd: 70),
+                new("slinga", "Gateway / slinga", Bredd: 160),
                 new("port", "Port", "val", Kat("ModbusPort")),
                 new("ip", "IP-adress", Mono: true),
                 new("baudrate", "Baudrate", "val", Kat("ModbusBaudrate"), Standard: "9600"),
@@ -270,6 +286,23 @@ public static class Listdefinitioner
                 new("kontrollerad", "Kontrollerad", "kryss", SatterDatum: "datum", SatterSign: "sign"),
                 new("datum", "Datum", "datum"),
                 new("sign", "Sign.", Mono: true, Bredd: 52),
+            ]),
+
+        new("modbusrtu", "Modbus RTU", "Konstruktion",
+            "Gateways och slingor för Modbus RTU. Enheterna kopplas till en slinga i fliken Modbus (kolumnen Gateway / slinga). Max 32 enheter per slinga.",
+            Kopplad: false,
+            Kolumner:
+            [
+                new("namn", "Gateway / slinga", Mono: true, Bredd: 170),
+                new("fabrikat", "Fabrikat/typ", Bredd: 170, Forslag: "produkt"),
+                new("placering", "Placering", Forslag: "placering"),
+                new("betjanar", "Betjänar"),
+                new("ip", "IP-adress", Mono: true),
+                new("port", "Port", "val", Kat("ModbusPort")),
+                new("baudrate", "Baudrate", "val", Kat("ModbusBaudrate"), Standard: "9600"),
+                new("paritet", "Paritet", "val", Kat("ModbusParitet"), Standard: "Even"),
+                new("stopbit", "Stopbit", "val", Kat("ModbusStopbit"), Standard: "1"),
+                new("ovrigt", "Övrigt", Fyll: true),
             ]),
 
         // ---------------- Projektering ----------------
