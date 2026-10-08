@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Static-analytics TwinCAT 3 ST — IEC61131-3</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #ffffff;
+    --bg2: #f5f5f4;
+    --bg3: #eeede9;
+    --text: #1a1a18;
+    --text2: #5a5a56;
+    --text3: #9a9a96;
+    --border: rgba(0,0,0,0.10);
+    --border2: rgba(0,0,0,0.18);
+    --radius: 8px;
+    --radius-lg: 12px;
+    --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --mono: 'SF Mono', 'Consolas', 'Monaco', monospace;
+    --amber-bg: #FAEEDA; --amber-text: #633806;
+    --red-bg: #FCEBEB; --red-text: #501313;
+    --blue-bg: #E6F1FB; --blue-text: #042C53;
+    --green-bg: #EAF3DE; --green-text: #173404;
+    --accent: #1a1a18;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1c1a;
+      --bg2: #252523;
+      --bg3: #2e2e2b;
+      --text: #f0efe8;
+      --text2: #a8a8a0;
+      --text3: #68685e;
+      --border: rgba(255,255,255,0.10);
+      --border2: rgba(255,255,255,0.18);
+      --amber-bg: #2e2008; --amber-text: #FAC775;
+      --red-bg: #2a0808; --red-text: #F7C1C1;
+      --blue-bg: #04152a; --blue-text: #B5D4F4;
+      --green-bg: #0a1a04; --green-text: #C0DD97;
+      --accent: #f0efe8;
+    }
+  }
+
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font); font-size: 14px; line-height: 1.5; }
+
+  /* ── Layout ── */
+  #app { min-height: 100vh; display: flex; flex-direction: column; }
+
+  header {
+    background: var(--accent);
+    color: var(--bg);
+    padding: 0 24px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .header-left { display: flex; align-items: center; gap: 10px; }
+  .header-logo {
+    width: 28px; height: 28px; border-radius: 6px;
+    background: rgba(255,255,255,0.15);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700; letter-spacing: -0.5px;
+  }
+  .header-title { font-size: 13px; font-weight: 500; letter-spacing: 0.01em; }
+  .header-right { display: flex; gap: 8px; }
+
+  /* ── Buttons ── */
+  .btn {
+    font-size: 12px; font-family: var(--font);
+    padding: 6px 14px; border-radius: var(--radius);
+    border: 0.5px solid var(--border2);
+    background: var(--bg); color: var(--text);
+    cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+    transition: background 0.12s;
+  }
+  .btn:hover { background: var(--bg2); }
+  .btn-ghost {
+    background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.25); color: var(--bg);
+  }
+  .btn-ghost:hover { background: rgba(255,255,255,0.22); }
+  .btn-primary {
+    background: var(--accent); color: var(--bg);
+    border-color: var(--accent); font-weight: 500;
+  }
+  .btn-primary:hover { opacity: 0.85; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* ── Upload view ── */
+  #uploadView {
+    flex: 1; display: flex; align-items: center; justify-content: center; padding: 2rem;
+  }
+  .upload-card {
+    max-width: 480px; width: 100%;
+    background: var(--bg); border: 0.5px solid var(--border);
+    border-radius: var(--radius-lg); padding: 2.5rem 2rem; text-align: center;
+  }
+  .upload-icon {
+    width: 56px; height: 56px; border-radius: 14px;
+    background: var(--bg2); margin: 0 auto 1.25rem;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .upload-icon svg { width: 26px; height: 26px; stroke: var(--text2); fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+  .upload-h { font-size: 16px; font-weight: 500; margin-bottom: 6px; }
+  .upload-sub { font-size: 13px; color: var(--text2); margin-bottom: 1.5rem; }
+  .drop-zone {
+    border: 1.5px dashed var(--border2);
+    border-radius: var(--radius-lg); padding: 2rem;
+    cursor: pointer; transition: all 0.15s;
+    background: var(--bg2);
+  }
+  .drop-zone:hover, .drop-zone.drag-over { border-color: var(--text3); background: var(--bg3); }
+  .drop-zone-text { font-size: 13px; color: var(--text2); }
+  .drop-zone-sub { font-size: 11px; color: var(--text3); margin-top: 4px; }
+  .progress-wrap { margin-top: 1.25rem; display: none; }
+  .progress-track { height: 3px; background: var(--bg3); border-radius: 2px; overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.35s; width: 0%; }
+  .progress-label { font-size: 12px; color: var(--text2); margin-top: 6px; }
+  .error-msg { color: #A32D2D; font-size: 12px; margin-top: 8px; display: none; }
+
+  /* ── Main view ── */
+  #mainView { display: none; flex-direction: column; flex: 1; overflow: hidden; }
+
+  .analysis-bar {
+    padding: 10px 24px; border-bottom: 0.5px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--bg); flex-shrink: 0;
+  }
+  .analysis-file { font-size: 13px; font-weight: 500; }
+  .analysis-time { font-size: 11px; color: var(--text3); margin-top: 1px; }
+  .analysis-actions { display: flex; gap: 8px; }
+
+  /* ── Stat cards ── */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 1px; background: var(--border);
+    border-bottom: 0.5px solid var(--border);
+    flex-shrink: 0;
+  }
+  .stat-cell {
+    background: var(--bg); padding: 14px 20px;
+  }
+  .stat-num { font-size: 24px; font-weight: 500; line-height: 1; }
+  .stat-num.c-warn { color: #BA7517; }
+  .stat-num.c-danger { color: #A32D2D; }
+  .stat-label { font-size: 11px; color: var(--text2); margin-top: 4px; }
+
+  /* ── Tabs ── */
+  .tabs-bar {
+    display: flex; border-bottom: 0.5px solid var(--border);
+    padding: 0 24px; background: var(--bg); flex-shrink: 0;
+    overflow-x: auto;
+  }
+  .tab-btn {
+    font-size: 13px; font-family: var(--font);
+    padding: 10px 16px; border: none; background: none;
+    color: var(--text2); cursor: pointer;
+    border-bottom: 2px solid transparent; margin-bottom: -0.5px;
+    white-space: nowrap; display: flex; align-items: center; gap: 7px;
+    transition: color 0.12s;
+  }
+  .tab-btn:hover { color: var(--text); }
+  .tab-btn.active { color: var(--text); border-bottom-color: var(--accent); font-weight: 500; }
+  .tab-badge {
+    font-size: 10px; font-weight: 500; padding: 1px 7px;
+    border-radius: 10px; background: var(--bg2); color: var(--text2);
+  }
+  .tab-btn.active .tab-badge { background: var(--accent); color: var(--bg); }
+
+  /* ── Tab content ── */
+  .tab-pane { display: none; flex: 1; overflow-y: auto; padding: 20px 24px 32px; }
+  .tab-pane.active { display: block; }
+
+  .section-desc { font-size: 12px; color: var(--text2); margin-bottom: 14px; line-height: 1.6; }
+
+  /* ── Table ── */
+  .findings-table-wrap { overflow-x: auto; border: 0.5px solid var(--border); border-radius: var(--radius-lg); }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th {
+    text-align: left; font-weight: 500; font-size: 10px;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--text3); padding: 9px 14px;
+    border-bottom: 0.5px solid var(--border);
+    background: var(--bg2);
+  }
+  td { padding: 8px 14px; border-bottom: 0.5px solid var(--border); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tbody tr:hover td { background: var(--bg2); }
+  .mono { font-family: var(--mono); font-size: 11px; }
+  .cell-trunc { max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* ── Badges ── */
+  .badge {
+    display: inline-flex; align-items: center;
+    font-size: 10px; font-weight: 500;
+    padding: 2px 8px; border-radius: 10px; white-space: nowrap;
+  }
+  .badge-gvl { background: var(--blue-bg); color: var(--blue-text); }
+  .badge-pou { background: var(--green-bg); color: var(--green-text); }
+  .badge-warn { background: var(--amber-bg); color: var(--amber-text); }
+  .badge-danger { background: var(--red-bg); color: var(--red-text); }
+
+  /* ── Severity dot ── */
+  .sev { display: inline-flex; align-items: center; gap: 5px; }
+  .sev-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .sev-high .sev-dot { background: #E24B4A; }
+  .sev-med .sev-dot { background: #EF9F27; }
+  .sev-low .sev-dot { background: #378ADD; }
+  .sev-high { color: #A32D2D; }
+  .sev-med { color: #854F0B; }
+  .sev-low { color: #0C447C; }
+
+  /* ── Empty state ── */
+  .empty-state {
+    text-align: center; padding: 3rem 2rem;
+    color: var(--text3); font-size: 13px;
+    border: 0.5px solid var(--border); border-radius: var(--radius-lg);
+  }
+  .empty-icon { font-size: 28px; margin-bottom: 10px; }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: 3px; }
+
+  @media (max-width: 900px) {
+    .stats-row { grid-template-columns: repeat(3, 1fr); }
+  }
+  @media (max-width: 600px) {
+    .stats-row { grid-template-columns: repeat(2, 1fr); }
+    header { padding: 0 14px; }
+    .analysis-bar, .tabs-bar, .tab-pane { padding-left: 14px; padding-right: 14px; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header>
+    <div class="header-left">
+      <div class="header-logo">SA</div>
+      <div class="header-title">Static-analytics TwinCAT 3 ST &mdash; IEC61131-3</div>
+    </div>
+    <div class="header-right" id="headerActions" style="display:none">
+      <button class="btn btn-ghost" onclick="resetTool()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4"/></svg>
+        Ny fil
+      </button>
+      <button class="btn btn-ghost" id="pdfBtn" onclick="exportPDF()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Exportera PDF-rapport
+      </button>
+    </div>
+  </header>
+
+  <!-- Upload view -->
+  <div id="uploadView">
+    <div class="upload-card">
+      <div class="upload-icon">
+        <svg viewBox="0 0 24 24"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+      </div>
+      <div class="upload-h">Ladda upp .tnzip-fil</div>
+      <div class="upload-sub">Analyserar Structured Text mot IEC61131-3 regler</div>
+      <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+        <div class="drop-zone-text">Dra och släpp fil här, eller klicka för att välja</div>
+        <div class="drop-zone-sub">.tnzip &nbsp;·&nbsp; TwinCAT 3 projekt</div>
+      </div>
+      <div class="progress-wrap" id="progressWrap">
+        <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+        <div class="progress-label" id="progressLabel"></div>
+      </div>
+      <div class="error-msg" id="errorMsg"></div>
+      <input type="file" id="fileInput" accept=".tnzip,.zip" style="display:none">
+    </div>
+  </div>
+
+  <!-- Main view -->
+  <div id="mainView">
+    <div class="analysis-bar">
+      <div>
+        <div class="analysis-file" id="metaFile"></div>
+        <div class="analysis-time" id="metaTime"></div>
+      </div>
+      <div class="analysis-actions">
+        <button class="btn" onclick="resetTool()">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4"/></svg>
+          Ny fil
+        </button>
+        <button class="btn btn-primary" onclick="exportPDF()">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Exportera PDF-rapport
+        </button>
+      </div>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat-cell">
+        <div class="stat-num" id="statPOUs">—</div>
+        <div class="stat-label">POUs</div>
+      </div>
+      <div class="stat-cell">
+        <div class="stat-num" id="statLines">—</div>
+        <div class="stat-label">Kodrader</div>
+      </div>
+      <div class="stat-cell">
+        <div class="stat-num" id="statGVL">—</div>
+        <div class="stat-label">GVL-variabler</div>
+      </div>
+      <div class="stat-cell">
+        <div class="stat-num c-warn" id="statUnused">—</div>
+        <div class="stat-label">Oanvända variabler</div>
+      </div>
+      <div class="stat-cell">
+        <div class="stat-num c-warn" id="statDiv">—</div>
+        <div class="stat-label">Divisions-risker</div>
+      </div>
+      <div class="stat-cell">
+        <div class="stat-num c-danger" id="statComments">—</div>
+        <div class="stat-label">Saknade kommentarer</div>
+      </div>
+    </div>
+
+    <div class="tabs-bar">
+      <button class="tab-btn active" onclick="showTab('unused', this)">
+        Oanvända variabler <span class="tab-badge" id="badgeUnused">0</span>
+      </button>
+      <button class="tab-btn" onclick="showTab('division', this)">
+        Divisions-risker <span class="tab-badge" id="badgeDiv">0</span>
+      </button>
+      <button class="tab-btn" onclick="showTab('comments', this)">
+        Saknade kommentarer <span class="tab-badge" id="badgeComments">0</span>
+      </button>
+    </div>
+
+    <div id="tab-unused" class="tab-pane active"></div>
+    <div id="tab-division" class="tab-pane"></div>
+    <div id="tab-comments" class="tab-pane"></div>
+  </div>
+
+</div>
+
+<script>
+let analysisResult = null;
+let currentFileName = '';
+
+// Drag & drop
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (f) handleFile(f);
+});
+fileInput.addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+
+function setProgress(pct, label) {
+  document.getElementById('progressWrap').style.display = 'block';
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressLabel').textContent = label;
+}
+
+function showError(msg) {
+  const el = document.getElementById('errorMsg');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+async function handleFile(file) {
+  currentFileName = file.name;
+  document.getElementById('errorMsg').style.display = 'none';
+  setProgress(5, 'Läser fil...');
+  try {
+    const zip = await JSZip.loadAsync(file);
+    setProgress(20, 'Extraherar filer...');
+    const files = {};
+    const promises = [];
+    zip.forEach((path, entry) => {
+      if (!entry.dir) {
+        promises.push(entry.async('text').then(content => { files[path] = content; }));
+      }
+    });
+    await Promise.all(promises);
+    setProgress(45, 'Analyserar GVL-variabler...');
+    await tick();
+    setProgress(60, 'Analyserar POU-kod...');
+    await tick();
+    const result = analyzeFiles(files);
+    setProgress(85, 'Kontrollerar kommentarer...');
+    await tick();
+    setProgress(100, 'Analys klar!');
+    await tick();
+    analysisResult = result;
+    renderResults(result, file.name);
+  } catch (err) {
+    showError('Fel vid analys: ' + err.message);
+    setProgress(0, '');
+  }
+}
+
+function tick() { return new Promise(r => setTimeout(r, 30)); }
+
+// ── Core analysis ──────────────────────────────────────────────
+function analyzeFiles(files) {
+  const pouFiles = Object.entries(files).filter(([p]) => p.endsWith('.TcPOU'));
+  const gvlFiles = Object.entries(files).filter(([p]) => p.endsWith('.TcGVL'));
+
+  // Parse all GVL variables
+  const gvlVars = [];
+  for (const [path, content] of gvlFiles) {
+    const gvlName = path.split('/').pop().replace('.TcGVL', '');
+    const declMatch = content.match(/<Declaration><!\[CDATA\[([\s\S]*?)\]\]><\/Declaration>/);
+    if (!declMatch) continue;
+    const decl = declMatch[1];
+    const varSection = decl.match(/VAR_GLOBAL([\s\S]*?)END_VAR/i);
+    if (!varSection) continue;
+    for (const line of varSection[1].split('\n')) {
+      const t = line.trim();
+      if (!t || t.startsWith('{') || t.startsWith('//') || t.startsWith('(*') || t.startsWith('END_VAR')) continue;
+      const m = t.match(/^(\w+)\s*:/);
+      if (m) {
+        const typeMatch = t.match(/:\s*([^;\/\(]+)/);
+        const commentMatch = t.match(/\/\/\s*(.+)$/) || t.match(/\(\*\s*(.+?)\s*\*\)/);
+        gvlVars.push({
+          name: m[1],
+          gvl: gvlName,
+          type: typeMatch ? typeMatch[1].trim() : '',
+          declaration: t.replace(/\r/g, ''),
+          comment: commentMatch ? commentMatch[1].trim() : ''
+        });
+      }
+    }
+  }
+
+  // Parse POU files
+  let totalLines = 0;
+  let allCode = '';
+  const pouDetails = [];
+
+  for (const [path, content] of pouFiles) {
+    const name = path.split('/').pop().replace('.TcPOU', '');
+    const stMatch = content.match(/<ST><!\[CDATA\[([\s\S]*?)\]\]><\/ST>/g) || [];
+    const declMatch = content.match(/<Declaration><!\[CDATA\[([\s\S]*?)\]\]><\/Declaration>/);
+    const stCode = stMatch.map(m => m.replace(/<ST><!\[CDATA\[/, '').replace(/\]\]><\/ST>/, '')).join('\n');
+    const declCode = declMatch ? declMatch[1] : '';
+    allCode += stCode + '\n' + declCode + '\n';
+    totalLines += stCode.split('\n').filter(l => l.trim().length > 0).length;
+    pouDetails.push({ name, path, stCode, declCode });
+  }
+
+  // GVL lines
+  for (const [, content] of gvlFiles) {
+    const d = content.match(/<Declaration><!\[CDATA\[([\s\S]*?)\]\]><\/Declaration>/);
+    if (d) totalLines += d[1].split('\n').filter(l => l.trim()).length;
+  }
+
+  // 1. Unused GVL variables
+  const unusedVars = [];
+  for (const v of gvlVars) {
+    const qRef = new RegExp('\\b' + escRe(v.gvl) + '\\.' + escRe(v.name) + '\\b', 'i');
+    const sRef = new RegExp('\\b' + escRe(v.name) + '\\b', 'i');
+    if (!qRef.test(allCode) && !sRef.test(allCode)) {
+      unusedVars.push(v);
+    }
+  }
+
+  // 2. Division risks
+  const divisionRisks = [];
+  for (const pou of pouDetails) {
+    // First strip all block comments (* ... *) from the entire ST body,
+    // then process line by line stripping inline // comments before scanning.
+    const stNoBlock = pou.stCode.replace(/\(\*[\s\S]*?\*\)/g, ' ');
+    const lines = stNoBlock.split('\n');
+    lines.forEach((line, idx) => {
+      // 1. Blank out string literals FIRST so slashes inside 'text/text' or '//url'
+      //    don't interfere with comment detection or division scanning.
+      //    Handles both single-quoted ST strings and avoids greedy cross-line matches.
+      let work = line.replace(/'[^'\r\n]*'/g, "''");
+
+      // 2. Cut at first // that remains after string blanking — everything after is a comment
+      const slashIdx = work.indexOf('//');
+      if (slashIdx >= 0) work = work.substring(0, slashIdx);
+
+      // 3. Find division operators: single / preceded by a value (), identifier, digit, space)
+      const divRe = /(?<=[)\w\d\s])\s*\/\s*([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)/g;
+      let m;
+      while ((m = divRe.exec(work)) !== null) {
+        const divisor = m[1];
+
+        // Skip ST keywords that legitimately follow a slash
+        const skipWords = ['END', 'VAR', 'THEN', 'DO', 'OF', 'TO', 'BY', 'UNTIL'];
+        if (skipWords.includes(divisor.toUpperCase())) continue;
+
+        // LIMIT(minVal, expr, maxVal) as divisor — safe when minVal >= 1
+        // e.g. x / LIMIT(1, iHours, 48)  =>  divisor captured as "LIMIT"
+        if (divisor.toUpperCase() === 'LIMIT') continue;
+
+        // LIMIT(minVal>=1, ...) wrapping the divisor expression on this line
+        const limitMatch = work.match(/LIMIT\s*\(\s*(\d+(?:\.\d+)?)\s*,/i);
+        if (limitMatch && parseFloat(limitMatch[1]) >= 1) continue;
+
+        // Context window ±6 lines for guard pattern detection
+        const ctxLines = pou.stCode.split('\n').slice(Math.max(0, idx - 6), idx + 7);
+        const ctx = ctxLines.join('\n');
+        const divisorBase = divisor.split('.').pop();
+        const safe =
+          new RegExp('MAX\\s*\\(\\s*[1-9]').test(ctx) ||
+          new RegExp('MAX\\s*\\([^)]*' + escRe(divisorBase)).test(ctx) ||
+          new RegExp(escRe(divisorBase) + '\\s*<>\\s*0').test(ctx) ||
+          new RegExp('0\\s*<>\\s*' + escRe(divisorBase)).test(ctx) ||
+          new RegExp('IF[^;\\n]*\\b' + escRe(divisorBase) + '\\b[^;\\n]*THEN').test(ctx) ||
+          new RegExp(escRe(divisorBase) + '\\s*>\\s*0').test(ctx) ||
+          new RegExp(escRe(divisorBase) + '\\s*<\\s*0').test(ctx) ||
+          new RegExp(escRe(divisorBase) + '\\s*:=\\s*MAX').test(ctx) ||
+          new RegExp('ABS\\s*\\(\\s*' + escRe(divisorBase)).test(ctx);
+        if (!safe) {
+          divisionRisks.push({ pou: pou.name, line: idx + 1, code: line.trim(), divisor, severity: 'high' });
+        }
+      }
+    });
+  }
+
+  // 3. Missing comments (IEC61131-3 §2.1.2)
+  const missingComments = [];
+  for (const pou of pouDetails) {
+    const sectionRe = /(VAR(?:_INPUT|_OUTPUT|_IN_OUT|_TEMP)?)\b([\s\S]*?)END_VAR/gi;
+    let sm;
+    while ((sm = sectionRe.exec(pou.declCode)) !== null) {
+      const sectionType = sm[1].trim();
+      for (const line of sm[2].split('\n')) {
+        const t = line.trim();
+        if (!t || t.startsWith('{') || t.startsWith('//') || t.startsWith('(*') || t.startsWith('END_VAR')) continue;
+        const vm = t.match(/^(\w+)\s*:/);
+        if (vm) {
+          const hasComment = /\/\//.test(t) || /\(\*/.test(t);
+          if (!hasComment) {
+            const isIO = sectionType.includes('INPUT') || sectionType.includes('OUTPUT');
+            missingComments.push({
+              pou: pou.name,
+              variable: vm[1],
+              section: sectionType,
+              declaration: t.replace(/\r/g, ''),
+              severity: isIO ? 'high' : 'medium'
+            });
+          }
+        }
+      }
+    }
+  }
+
+  return {
+    pouCount: pouFiles.length,
+    lineCount: totalLines,
+    gvlVarCount: gvlVars.length,
+    unusedVars,
+    divisionRisks,
+    missingComments,
+    timestamp: new Date()
+  };
+}
+
+function escRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+// ── Render ─────────────────────────────────────────────────────
+function renderResults(r, fileName) {
+  document.getElementById('uploadView').style.display = 'none';
+  document.getElementById('mainView').style.display = 'flex';
+
+  const d = r.timestamp;
+  const ts = d.getFullYear() + '-' +
+    String(d.getMonth() + 1).padStart(2, '0') + '-' +
+    String(d.getDate()).padStart(2, '0') + ' ' +
+    String(d.getHours()).padStart(2, '0') + ':' +
+    String(d.getMinutes()).padStart(2, '0') + ':' +
+    String(d.getSeconds()).padStart(2, '0');
+
+  document.getElementById('metaFile').textContent = fileName;
+  document.getElementById('metaTime').textContent = 'Analyserad ' + ts;
+
+  document.getElementById('statPOUs').textContent = r.pouCount;
+  document.getElementById('statLines').textContent = r.lineCount.toLocaleString('sv-SE');
+  document.getElementById('statGVL').textContent = r.gvlVarCount;
+  document.getElementById('statUnused').textContent = r.unusedVars.length;
+  document.getElementById('statDiv').textContent = r.divisionRisks.length;
+  document.getElementById('statComments').textContent = r.missingComments.length;
+  document.getElementById('badgeUnused').textContent = r.unusedVars.length;
+  document.getElementById('badgeDiv').textContent = r.divisionRisks.length;
+  document.getElementById('badgeComments').textContent = r.missingComments.length;
+
+  // Tab: Unused
+  const uEl = document.getElementById('tab-unused');
+  if (r.unusedVars.length === 0) {
+    uEl.innerHTML = emptyState('Inga oanvända GVL-variabler hittades');
+  } else {
+    uEl.innerHTML =
+      '<p class="section-desc">Variabler deklarerade i GVL men aldrig refererade i någon POU-kod. Dessa kan tas bort eller är tecken på saknad implementering.</p>' +
+      '<div class="findings-table-wrap"><table><thead><tr><th>GVL</th><th>Variabel</th><th>Typ</th><th>Deklaration</th></tr></thead><tbody>' +
+      r.unusedVars.map(v =>
+        '<tr><td><span class="badge badge-gvl">' + esc(v.gvl) + '</span></td>' +
+        '<td class="mono">' + esc(v.name) + '</td>' +
+        '<td class="mono" style="color:var(--text2)">' + esc(v.type) + '</td>' +
+        '<td class="mono" style="white-space:pre-wrap;word-break:break-all;max-width:400px">' + esc(v.declaration) + '</td></tr>'
+      ).join('') +
+      '</tbody></table></div>';
+  }
+
+  // Tab: Division risks
+  const dEl = document.getElementById('tab-division');
+  if (r.divisionRisks.length === 0) {
+    dEl.innerHTML = emptyState('Inga divisions-risker hittades');
+  } else {
+    dEl.innerHTML =
+      '<p class="section-desc">Divisioner med variabla divisorer utan synligt nollskydd (MAX(1,...), IF &lt;&gt; 0, o.s.v.). Division med noll orsakar runtime-fel i TwinCAT.</p>' +
+      '<div class="findings-table-wrap"><table><thead><tr><th>Allvarlighet</th><th>POU</th><th>Rad</th><th>Divisor</th><th>Kodraden</th></tr></thead><tbody>' +
+      r.divisionRisks.map(d =>
+        '<tr><td><span class="sev sev-high"><span class="sev-dot"></span>Hög</span></td>' +
+        '<td><span class="badge badge-pou">' + esc(d.pou) + '</span></td>' +
+        '<td style="color:var(--text2)">' + d.line + '</td>' +
+        '<td class="mono" style="color:#A32D2D">' + esc(d.divisor) + '</td>' +
+        '<td class="mono" style="white-space:pre-wrap;word-break:break-all;max-width:400px">' + esc(d.code) + '</td></tr>'
+      ).join('') +
+      '</tbody></table></div>';
+  }
+
+  // Tab: Missing comments
+  const cEl = document.getElementById('tab-comments');
+  if (r.missingComments.length === 0) {
+    cEl.innerHTML = emptyState('Alla variabler har kommentarer — utmärkt!');
+  } else {
+    const shown = r.missingComments.slice(0, 300);
+    const extra = r.missingComments.length > 300 ? '<p style="font-size:12px;color:var(--text3);margin-top:10px">Visar 300 av ' + r.missingComments.length + ' fynd. Alla inkluderas i PDF-rapporten.</p>' : '';
+    cEl.innerHTML =
+      '<p class="section-desc">Variabler i VAR_INPUT, VAR_OUTPUT och VAR utan kommentar (// eller (* *)). IEC61131-3 §2.1.2 rekommenderar att alla in- och utgångar dokumenteras.</p>' +
+      '<div class="findings-table-wrap"><table><thead><tr><th>Allvarlighet</th><th>POU</th><th>Sektion</th><th>Variabel</th><th>Deklaration</th></tr></thead><tbody>' +
+      shown.map(c =>
+        '<tr>' +
+        '<td><span class="sev sev-' + (c.severity === 'high' ? 'high' : 'med') + '"><span class="sev-dot"></span>' + (c.severity === 'high' ? 'Hög' : 'Medel') + '</span></td>' +
+        '<td><span class="badge badge-pou">' + esc(c.pou) + '</span></td>' +
+        '<td><span class="badge ' + (c.severity === 'high' ? 'badge-warn' : '') + '">' + esc(c.section) + '</span></td>' +
+        '<td class="mono">' + esc(c.variable) + '</td>' +
+        '<td class="mono" style="white-space:pre-wrap;word-break:break-all;max-width:400px">' + esc(c.declaration) + '</td></tr>'
+      ).join('') +
+      '</tbody></table></div>' + extra;
+  }
+}
+
+function emptyState(msg) {
+  return '<div class="empty-state"><div class="empty-icon">✓</div>' + esc(msg) + '</div>';
+}
+
+function esc(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function showTab(name, btn) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+}
+
+function resetTool() {
+  document.getElementById('mainView').style.display = 'none';
+  document.getElementById('uploadView').style.display = 'flex';
+  document.getElementById('progressWrap').style.display = 'none';
+  document.getElementById('progressFill').style.width = '0%';
+  document.getElementById('fileInput').value = '';
+  document.getElementById('errorMsg').style.display = 'none';
+  analysisResult = null;
+  // Reset tabs
+  document.querySelectorAll('.tab-btn').forEach((b, i) => b.classList.toggle('active', i === 0));
+  document.querySelectorAll('.tab-pane').forEach((p, i) => p.classList.toggle('active', i === 0));
+}
+
+// ── PDF Export ─────────────────────────────────────────────────
+function exportPDF() {
+  if (!analysisResult) return;
+  const { jsPDF } = window.jspdf;
+  // Landscape A4: 297mm wide, 210mm tall
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  const r = analysisResult;
+  const W = 297, H = 210, M = 14;
+  let y = 0;
+
+  function addPage() { doc.addPage('a4', 'landscape'); y = 20; }
+  function checkY(need) { if (y + need > H - 12) addPage(); }
+
+  // Header bar
+  doc.setFillColor(26, 26, 24);
+  doc.rect(0, 0, W, 28, 'F');
+  doc.setTextColor(240, 239, 232);
+  doc.setFontSize(12); doc.setFont('helvetica', 'bold');
+  doc.text('Static-analytics TwinCAT 3 ST \u2014 IEC61131-3', M, 12);
+  doc.setFontSize(8); doc.setFont('helvetica', 'normal');
+  const d = r.timestamp;
+  const ts = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0') + ' ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0') + ':' + String(d.getSeconds()).padStart(2,'0');
+  doc.text(currentFileName, M, 19);
+  doc.text('Analyserad: ' + ts, M, 24);
+  y = 36;
+
+  // Summary boxes — 6 across on the wide page
+  doc.setTextColor(26, 26, 24);
+  const stats = [
+    ['POUs', r.pouCount, false],
+    ['Kodrader', r.lineCount.toLocaleString('sv-SE'), false],
+    ['GVL-variabler', r.gvlVarCount, false],
+    ['Oanvända variabler', r.unusedVars.length, r.unusedVars.length > 0],
+    ['Divisions-risker', r.divisionRisks.length, r.divisionRisks.length > 0],
+    ['Saknade kommentarer', r.missingComments.length, r.missingComments.length > 0],
+  ];
+  const cW = (W - M * 2) / 6;
+  stats.forEach(([label, val, isWarn], i) => {
+    const x = M + i * cW;
+    doc.setFillColor(245, 245, 245);
+    doc.roundedRect(x, y, cW - 3, 16, 2, 2, 'F');
+    if (isWarn) doc.setTextColor(186, 117, 23); else doc.setTextColor(26, 26, 24);
+    doc.setFontSize(13); doc.setFont('helvetica', 'bold');
+    doc.text(String(val), x + 4, y + 9);
+    doc.setTextColor(100, 100, 100); doc.setFontSize(7); doc.setFont('helvetica', 'normal');
+    doc.text(label, x + 4, y + 14);
+  });
+  y += 24;
+
+  function sectionHeader(title, count) {
+    checkY(16);
+    doc.setFillColor(240, 239, 232);
+    doc.rect(M, y, W - M * 2, 9, 'F');
+    doc.setTextColor(26, 26, 24); doc.setFontSize(9); doc.setFont('helvetica', 'bold');
+    doc.text(title, M + 3, y + 6);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(100, 100, 100);
+    doc.text(count + ' fynd', W - M - 3, y + 6, { align: 'right' });
+    y += 11;
+  }
+
+  const tableBase = {
+    styles: { fontSize: 7.5, cellPadding: 2.5, overflow: 'linebreak' },
+    headStyles: { fillColor: [40, 40, 38], textColor: 240, fontStyle: 'bold' },
+    alternateRowStyles: { fillColor: [248, 248, 246] },
+    margin: { left: M, right: M },
+    tableWidth: W - M * 2,
+  };
+
+  // Section 1: Unused vars
+  sectionHeader('Oanvända GVL-variabler', r.unusedVars.length);
+  if (r.unusedVars.length === 0) {
+    doc.setFontSize(8); doc.setTextColor(120, 120, 120);
+    doc.text('Inga fynd.', M, y); y += 8;
+  } else {
+    doc.autoTable({
+      ...tableBase, startY: y,
+      head: [['GVL', 'Variabel', 'Typ', 'Deklaration']],
+      body: r.unusedVars.map(v => [v.gvl, v.name, v.type, v.declaration]),
+      columnStyles: {
+        0: { cellWidth: 28 },
+        1: { cellWidth: 48 },
+        2: { cellWidth: 36 },
+        3: { cellWidth: 'auto' }
+      }
+    });
+    y = doc.lastAutoTable.finalY + 10;
+  }
+
+  // Section 2: Division risks
+  checkY(20);
+  sectionHeader('Divisions-risker', r.divisionRisks.length);
+  if (r.divisionRisks.length === 0) {
+    doc.setFontSize(8); doc.setTextColor(120, 120, 120);
+    doc.text('Inga fynd.', M, y); y += 8;
+  } else {
+    doc.autoTable({
+      ...tableBase, startY: y,
+      head: [['POU', 'Rad', 'Divisor', 'Kodraden']],
+      body: r.divisionRisks.map(d => [d.pou, d.line, d.divisor, d.code]),
+      columnStyles: {
+        0: { cellWidth: 52 },
+        1: { cellWidth: 16 },
+        2: { cellWidth: 40 },
+        3: { cellWidth: 'auto' }
+      }
+    });
+    y = doc.lastAutoTable.finalY + 10;
+  }
+
+  // Section 3: Missing comments
+  checkY(20);
+  sectionHeader('Saknade kommentarer', r.missingComments.length);
+  if (r.missingComments.length === 0) {
+    doc.setFontSize(8); doc.setTextColor(120, 120, 120);
+    doc.text('Inga fynd.', M, y); y += 8;
+  } else {
+    doc.autoTable({
+      ...tableBase, startY: y,
+      head: [['POU', 'Sektion', 'Variabel', 'Allvarlighet', 'Deklaration']],
+      body: r.missingComments.map(c => [c.pou, c.section, c.variable, c.severity === 'high' ? 'Hög' : 'Medel', c.declaration]),
+      columnStyles: {
+        0: { cellWidth: 52 },
+        1: { cellWidth: 30 },
+        2: { cellWidth: 40 },
+        3: { cellWidth: 22 },
+        4: { cellWidth: 'auto' }
+      }
+    });
+    y = doc.lastAutoTable.finalY + 10;
+  }
+
+  // Page numbers + footer
+  const pages = doc.getNumberOfPages();
+  for (let i = 1; i <= pages; i++) {
+    doc.setPage(i);
+    doc.setFontSize(7); doc.setTextColor(160, 160, 160);
+    doc.text('Static-analytics TwinCAT 3 ST \u2014 IEC61131-3', M, H - 5);
+    doc.text('Sida ' + i + ' / ' + pages, W / 2, H - 5, { align: 'center' });
+    doc.text(ts, W - M, H - 5, { align: 'right' });
+  }
+
+  const dateStr = d.getFullYear() + String(d.getMonth()+1).padStart(2,'0') + String(d.getDate()).padStart(2,'0');
+  doc.save('Static-Analytics_' + currentFileName.replace('.tnzip', '') + '_' + dateStr + '.pdf');
+}
+</script>
+</body>
+</html>

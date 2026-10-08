@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SFP-kalkyl — specifik fläkteleffekt</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    /* Färgerna följer svensk ventilationskodning: tilluft blå, frånluft gul,
+       uteluft grön, avluft rödbrun. Basen är galvaniserad plåt. */
+    --plat:        #E7E9EB;
+    --plat-ljus:   #F4F5F6;
+    --papper:      #FCFCFB;
+    --ink:         #14181C;
+    --ink-2:       #5B646D;
+    --ink-3:       #8B939B;
+    --linje:       #C9CFD4;
+    --linje-fin:   #DDE1E5;
+    --tilluft:     #1B62CC;
+    --franluft:    #D6971A;
+    --ok:          #14805A;
+    --over:        #AF3A20;
+
+    --font-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  }
+
+  *{ box-sizing: border-box; }
+
+  html{ -webkit-text-size-adjust: 100%; }
+
+  body{
+    margin:0;
+    background: var(--plat);
+    background-image:
+      linear-gradient(0deg, rgba(20,24,28,.028) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(20,24,28,.028) 1px, transparent 1px);
+    background-size: 22px 22px;
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: 16px;
+    line-height: 1.45;
+  }
+
+  .ark{
+    max-width: 1060px;
+    margin: 0 auto;
+    padding: 32px 20px 56px;
+  }
+
+  /* ── Huvud ─────────────────────────────────────────── */
+  .masthead{
+    border-top: 3px solid var(--ink);
+    padding-top: 14px;
+    margin-bottom: 26px;
+  }
+  .eyebrow{
+    margin:0 0 10px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+  }
+  h1{
+    margin:0;
+    font-size: clamp(38px, 7vw, 62px);
+    font-weight: 700;
+    letter-spacing: -.035em;
+    line-height: .92;
+  }
+  .lede{
+    margin: 12px 0 0;
+    max-width: 46ch;
+    color: var(--ink-2);
+    font-size: 15px;
+  }
+
+  /* ── Rutnät ────────────────────────────────────────── */
+  .grid{
+    display: grid;
+    grid-template-columns: minmax(0,1.05fr) minmax(0,1fr);
+    gap: 18px;
+    align-items: start;
+  }
+  @media (max-width: 860px){
+    .grid{ grid-template-columns: 1fr; }
+  }
+
+  .panel{
+    background: var(--papper);
+    border: 1px solid var(--linje);
+    border-radius: 2px;
+  }
+  .panel__head{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    gap:12px;
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--linje-fin);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+  }
+  .panel__body{ padding: 18px; }
+
+  /* ── Enhetsväljare ─────────────────────────────────── */
+  .units{
+    display:flex;
+    flex-wrap:wrap;
+    gap: 22px;
+    padding-bottom: 16px;
+    margin-bottom: 4px;
+    border-bottom: 1px dashed var(--linje);
+  }
+  .units__grp{ display:flex; align-items:center; gap:10px; }
+  .units__lbl{
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  .seg{
+    display:inline-flex;
+    border: 1px solid var(--linje);
+    border-radius: 2px;
+    overflow:hidden;
+    background: var(--plat-ljus);
+  }
+  .seg button{
+    appearance:none;
+    border:0;
+    background: transparent;
+    padding: 5px 10px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--ink-2);
+    cursor: pointer;
+    border-right: 1px solid var(--linje-fin);
+  }
+  .seg button:last-child{ border-right: 0; }
+  .seg button:hover{ background: #fff; color: var(--ink); }
+  .seg button[aria-pressed="true"]{
+    background: var(--ink);
+    color: #fff;
+  }
+
+  /* ── Kanalkort ─────────────────────────────────────── */
+  .duct{
+    position: relative;
+    padding: 16px 0 16px 16px;
+    border-bottom: 1px solid var(--linje-fin);
+  }
+  .duct::before{
+    content:"";
+    position:absolute;
+    left:0; top:16px; bottom:16px;
+    width: 4px;
+    border-radius: 2px;
+    background: var(--strimma, var(--ink-3));
+  }
+  .duct--till{ --strimma: var(--tilluft); }
+  .duct--fran{ --strimma: var(--franluft); }
+  .duct--ovr{ --strimma: var(--linje); }
+
+  .duct__name{
+    display:flex;
+    align-items:baseline;
+    gap:10px;
+    margin-bottom: 12px;
+  }
+  .duct__name h2{
+    margin:0;
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: -.01em;
+  }
+  .duct__hint{
+    font-size: 12.5px;
+    color: var(--ink-3);
+  }
+
+  .fields{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  @media (max-width: 420px){ .fields{ grid-template-columns: 1fr; } }
+
+  .field label{
+    display:block;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin-bottom: 5px;
+  }
+  .inputwrap{
+    display:flex;
+    align-items:stretch;
+    border: 1px solid var(--linje);
+    border-radius: 2px;
+    background:#fff;
+    transition: border-color .12s ease, box-shadow .12s ease;
+  }
+  .inputwrap:focus-within{
+    border-color: var(--ink);
+    box-shadow: 0 0 0 3px rgba(20,24,28,.10);
+  }
+  .inputwrap input{
+    flex:1;
+    min-width:0;
+    border:0;
+    background:transparent;
+    padding: 9px 10px;
+    font-family: var(--font-mono);
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--ink);
+  }
+  .inputwrap input:focus{ outline: none; }
+  .inputwrap .suffix{
+    display:flex;
+    align-items:center;
+    padding: 0 10px;
+    border-left: 1px solid var(--linje-fin);
+    background: var(--plat-ljus);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--ink-2);
+    white-space: nowrap;
+  }
+
+  select{
+    width:100%;
+    appearance:none;
+    border:1px solid var(--linje);
+    border-radius:2px;
+    background:#fff url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8'><path d='M1 1l5 5 5-5' fill='none' stroke='%235B646D' stroke-width='1.6'/></svg>") no-repeat right 12px center;
+    padding: 9px 34px 9px 10px;
+    font-family: var(--font-display);
+    font-size: 14.5px;
+    color: var(--ink);
+    cursor:pointer;
+  }
+  select:focus-visible, button:focus-visible{
+    outline: 2px solid var(--ink);
+    outline-offset: 2px;
+  }
+
+  .krav{ padding: 16px 0 4px; }
+  .krav__row{
+    display:grid;
+    grid-template-columns: 1fr 118px;
+    gap: 12px;
+    align-items:end;
+  }
+  .krav__note{
+    margin: 10px 0 0;
+    font-size: 12.5px;
+    color: var(--ink-3);
+    max-width: 52ch;
+  }
+  .hidden{ display:none !important; }
+
+  /* ── Resultat ──────────────────────────────────────── */
+  .result{ position: sticky; top: 18px; }
+  @media (max-width: 860px){ .result{ position: static; } }
+
+  .readout{
+    display:flex;
+    align-items:flex-end;
+    gap: 12px;
+    padding: 4px 0 2px;
+  }
+  .readout__val{
+    font-family: var(--font-mono);
+    font-size: clamp(56px, 12vw, 82px);
+    font-weight: 600;
+    letter-spacing: -.05em;
+    line-height: .86;
+    font-variant-numeric: tabular-nums;
+  }
+  .readout__unit{
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--ink-2);
+    padding-bottom: 6px;
+  }
+
+  .verdict{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    margin-top: 16px;
+    padding: 6px 12px 6px 10px;
+    border-radius: 2px;
+    font-size: 13.5px;
+    font-weight: 500;
+    border: 1px solid transparent;
+  }
+  .verdict__dot{ width:8px; height:8px; border-radius:50%; background: currentColor; flex:none; }
+  .verdict--ok{ color: var(--ok); border-color: rgba(20,128,90,.35); background: rgba(20,128,90,.07); }
+  .verdict--over{ color: var(--over); border-color: rgba(175,58,32,.35); background: rgba(175,58,32,.06); }
+  .verdict--tom{ color: var(--ink-3); border-color: var(--linje-fin); background: var(--plat-ljus); }
+
+  /* Signatur: mätskalan */
+  .skala{ margin: 26px 0 6px; }
+  .skala__spar{
+    position: relative;
+    height: 46px;
+    border-bottom: 1.5px solid var(--ink);
+  }
+  .skala__fyll{
+    position:absolute;
+    left:0; bottom:0;
+    height: 14px;
+    background: var(--fyll, var(--ink-3));
+    opacity:.85;
+    transition: width .35s cubic-bezier(.22,.7,.3,1), background-color .25s linear;
+  }
+  .tick{
+    position:absolute;
+    bottom:0;
+    width:1px;
+    background: var(--linje);
+    transform: translateX(-.5px);
+  }
+  .tick--liten{ height: 6px; }
+  .tick--stor{ height: 12px; background: var(--ink-3); }
+  .tick__txt{
+    position:absolute;
+    bottom: -20px;
+    left: 0;
+    transform: translateX(-50%);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--ink-3);
+  }
+  .kravmark{
+    position:absolute;
+    bottom:0;
+    top: 0;
+    width: 2px;
+    background: var(--ink);
+    transform: translateX(-1px);
+    transition: left .25s ease;
+  }
+  .kravmark__flagga{
+    position:absolute;
+    top:-2px; left: 5px;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--ink);
+    white-space: nowrap;
+    background: var(--papper);
+    padding: 0 3px;
+  }
+  .kravmark--vanster .kravmark__flagga{ left: auto; right: 5px; }
+  .visare{
+    position:absolute;
+    bottom: -1px;
+    width: 0; height: 0;
+    border-left: 7px solid transparent;
+    border-right: 7px solid transparent;
+    border-bottom: 11px solid var(--visarfarg, var(--ink));
+    transform: translateX(-7px);
+    transition: left .35s cubic-bezier(.22,.7,.3,1);
+  }
+  .skala__fot{
+    margin-top: 26px;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+
+  .rader{
+    margin: 22px 0 0;
+    border-top: 1px solid var(--linje-fin);
+  }
+  .rad{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    gap: 14px;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--linje-fin);
+    font-size: 14px;
+  }
+  .rad__namn{ color: var(--ink-2); }
+  .rad__namn small{ display:block; color: var(--ink-3); font-size: 11.5px; }
+  .rad__varde{
+    font-family: var(--font-mono);
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    text-align:right;
+    white-space: nowrap;
+  }
+
+  .formel{
+    margin-top: 18px;
+    padding: 12px 14px;
+    background: var(--plat-ljus);
+    border: 1px solid var(--linje-fin);
+    border-left: 3px solid var(--ink);
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    line-height: 1.7;
+    color: var(--ink);
+    overflow-wrap: anywhere;
+  }
+  .formel b{ font-weight: 600; }
+
+  .verktyg{
+    display:flex;
+    gap: 10px;
+    margin-top: 16px;
+  }
+  .knapp{
+    appearance:none;
+    border: 1px solid var(--ink);
+    background: var(--ink);
+    color:#fff;
+    border-radius: 2px;
+    padding: 9px 14px;
+    font-family: var(--font-display);
+    font-size: 13.5px;
+    font-weight: 500;
+    cursor:pointer;
+  }
+  .knapp--tunn{ background: transparent; color: var(--ink); }
+  .knapp:hover{ opacity: .88; }
+
+  footer{
+    margin-top: 26px;
+    padding-top: 14px;
+    border-top: 1px solid var(--linje);
+    font-size: 12.5px;
+    color: var(--ink-3);
+    max-width: 78ch;
+  }
+  footer p{ margin: 0 0 6px; }
+  footer b{ color: var(--ink-2); font-weight: 500; }
+
+  @media (prefers-reduced-motion: reduce){
+    *{ transition: none !important; }
+  }
+
+  @media print{
+    body{ background: #fff; }
+    .verktyg{ display:none; }
+    .panel{ border-color: #999; }
+  }
+</style>
+</head>
+<body>
+<div class="ark">
+
+  <header class="masthead">
+    <p class="eyebrow">Specifik fläkteleffekt · SS-EN 16798-3</p>
+    <h1>SFP-tal</h1>
+    <p class="lede">Eleffekten till systemets samtliga fläktar, delat med det största av tillufts- och frånluftsflödet. Fyll i mätvärden eller projekterade värden — resultatet uppdateras direkt.</p>
+  </header>
+
+  <main class="grid">
+
+    <!-- INMATNING -->
+    <section class="panel">
+      <div class="panel__head"><span>Indata</span><span id="stampel">CAV · 100 % flöde</span></div>
+      <div class="panel__body">
+
+        <div class="units">
+          <div class="units__grp">
+            <span class="units__lbl">Flöde</span>
+            <div class="seg" id="segFlode" role="group" aria-label="Enhet för luftflöde">
+              <button type="button" data-v="ls" aria-pressed="true">l/s</button>
+              <button type="button" data-v="m3s" aria-pressed="false">m³/s</button>
+              <button type="button" data-v="m3h" aria-pressed="false">m³/h</button>
+            </div>
+          </div>
+          <div class="units__grp">
+            <span class="units__lbl">Effekt</span>
+            <div class="seg" id="segEffekt" role="group" aria-label="Enhet för eleffekt">
+              <button type="button" data-v="w" aria-pressed="true">W</button>
+              <button type="button" data-v="kw" aria-pressed="false">kW</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="duct duct--till">
+          <div class="duct__name">
+            <h2>Tilluft</h2>
+            <span class="duct__hint">Lämna tomt för frånluftssystem</span>
+          </div>
+          <div class="fields">
+            <div class="field">
+              <label for="qTill">Luftflöde</label>
+              <div class="inputwrap">
+                <input id="qTill" inputmode="decimal" value="45" autocomplete="off">
+                <span class="suffix" data-suffix="flode">l/s</span>
+              </div>
+            </div>
+            <div class="field">
+              <label for="pTill">Fläkteffekt</label>
+              <div class="inputwrap">
+                <input id="pTill" inputmode="decimal" value="24" autocomplete="off">
+                <span class="suffix" data-suffix="effekt">W</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="duct duct--fran">
+          <div class="duct__name">
+            <h2>Frånluft</h2>
+            <span class="duct__hint">Inkl. sammanlagrad spiskåpa</span>
+          </div>
+          <div class="fields">
+            <div class="field">
+              <label for="qFran">Luftflöde</label>
+              <div class="inputwrap">
+                <input id="qFran" inputmode="decimal" value="50" autocomplete="off">
+                <span class="suffix" data-suffix="flode">l/s</span>
+              </div>
+            </div>
+            <div class="field">
+              <label for="pFran">Fläkteffekt</label>
+              <div class="inputwrap">
+                <input id="pFran" inputmode="decimal" value="26" autocomplete="off">
+                <span class="suffix" data-suffix="effekt">W</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="duct duct--ovr">
+          <div class="duct__name">
+            <h2>Övriga fläktar</h2>
+            <span class="duct__hint">Ingår i samma system</span>
+          </div>
+          <div class="fields">
+            <div class="field">
+              <label for="pOvr">Eleffekt</label>
+              <div class="inputwrap">
+                <input id="pOvr" inputmode="decimal" value="0" autocomplete="off">
+                <span class="suffix" data-suffix="effekt">W</span>
+              </div>
+            </div>
+            <div class="field">
+              <label for="drifttid">Drifttid</label>
+              <div class="inputwrap">
+                <input id="drifttid" inputmode="decimal" value="8760" autocomplete="off">
+                <span class="suffix">h/år</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="krav">
+          <div class="krav__row">
+            <div class="field">
+              <label for="kravVal">Jämför mot</label>
+              <select id="kravVal">
+                <optgroup label="BBR 29, allmänt råd (nybyggnad)">
+                  <option value="1.5" selected>Från- och tilluft med värmeåtervinning — 1,5</option>
+                  <option value="1.6">Från- och tilluft med värmeåtervinning och kyla — 1,6</option>
+                  <option value="1.1">Från- och tilluft utan värmeåtervinning — 1,1</option>
+                  <option value="0.75">Frånluft med värmeåtervinning — 0,75</option>
+                  <option value="0.5">Frånluft — 0,5</option>
+                </optgroup>
+                <optgroup label="Äldre BBR (t.o.m. BBR 28)">
+                  <option value="2.0">Från- och tilluft med värmeåtervinning — 2,0</option>
+                  <option value="1.5|ft">Från- och tilluft utan värmeåtervinning — 1,5</option>
+                  <option value="1.0">Frånluft med värmeåtervinning — 1,0</option>
+                  <option value="0.6">Frånluft — 0,6</option>
+                </optgroup>
+                <optgroup label="Ändring av byggnad">
+                  <option value="1.7">Byte av aggregat, FTX — 1,7</option>
+                </optgroup>
+                <optgroup label="Annat">
+                  <option value="custom">Egen kravnivå …</option>
+                </optgroup>
+              </select>
+            </div>
+            <div class="field hidden" id="kravEgetFalt">
+              <label for="kravEget">Nivå</label>
+              <div class="inputwrap">
+                <input id="kravEget" inputmode="decimal" value="1,5" autocomplete="off">
+                <span class="suffix">kW/(m³/s)</span>
+              </div>
+            </div>
+          </div>
+          <p class="krav__note">För behovsstyrda system (VAV/DCV) kontrolleras nivån normalt vid 70 % av maxflödet — mata i så fall in flöde och effekt vid den driftpunkten.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- RESULTAT -->
+    <aside class="panel result">
+      <div class="panel__head"><span>Resultat</span><span id="dimFlodeTag">Dimensionerande flöde</span></div>
+      <div class="panel__body">
+
+        <div class="readout">
+          <span class="readout__val" id="sfpVal">1,00</span>
+          <span class="readout__unit">kW/(m³/s)</span>
+        </div>
+
+        <div class="verdict verdict--ok" id="verdict">
+          <span class="verdict__dot"></span>
+          <span id="verdictTxt">33 % under nivån 1,5</span>
+        </div>
+
+        <div class="skala">
+          <div class="skala__spar" id="spar">
+            <div class="skala__fyll" id="fyll" style="width:33%"></div>
+            <div class="kravmark" id="kravmark" style="left:50%">
+              <span class="kravmark__flagga" id="kravFlagga">Krav 1,5</span>
+            </div>
+            <div class="visare" id="visare" style="left:33%"></div>
+          </div>
+          <p class="skala__fot">Skala 0 – 3,0 kW/(m³/s) · lägre är bättre</p>
+        </div>
+
+        <dl class="rader" id="rader"></dl>
+
+        <p class="formel" id="formel"></p>
+
+        <div class="verktyg">
+          <button class="knapp" id="kopiera" type="button">Kopiera underlag</button>
+          <button class="knapp knapp--tunn" id="nolla" type="button">Nollställ</button>
+        </div>
+
+      </div>
+    </aside>
+
+  </main>
+
+  <footer>
+    <p><b>Så räknas det.</b> SFP = summan av eleffekten till alla fläktar och aggregat i systemet, dividerat med det största av tillufts- och frånluftsflödet. SFP<sub>v</sub> avser i stället en enskild fläkt eller ett enskilt aggregat och redovisas per luftström här. Effekten ska vara aktiv eleffekt från nätet, alltså inklusive motorstyrning och frekvensomriktare.</p>
+    <p><b>Om nivåerna.</b> Värdena är allmänna råd och riktvärden, inte hårda gränser — BBR 29 avsnitt 9:6 för nybyggnad, äldre BBR för jämförelse med befintliga anläggningar. Boverkets nya energiregler ersätter BBR:s energiavsnitt den 1 oktober 2026, så stäm alltid av mot det regelverk som gäller för ditt ärende.</p>
+  </footer>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var el = function(id){ return document.getElementById(id); };
+
+  var state = {
+    flodeEnhet: "ls",
+    effektEnhet: "w"
+  };
+
+  var FLODE_TXT = { ls: "l/s", m3s: "m³/s", m3h: "m³/h" };
+  var EFFEKT_TXT = { w: "W", kw: "kW" };
+  var SKALA_MAX = 3.0;
+
+  function num(v){
+    if (typeof v !== "string") v = String(v == null ? "" : v);
+    v = v.replace(/\s|\u00a0/g, "").replace(",", ".");
+    var n = parseFloat(v);
+    return isFinite(n) && n >= 0 ? n : 0;
+  }
+
+  function tillM3s(v){
+    if (state.flodeEnhet === "ls") return v / 1000;
+    if (state.flodeEnhet === "m3h") return v / 3600;
+    return v;
+  }
+
+  function tillKW(v){
+    return state.effektEnhet === "w" ? v / 1000 : v;
+  }
+
+  function fmt(n, dec){
+    if (!isFinite(n)) return "—";
+    return n.toLocaleString("sv-SE", {
+      minimumFractionDigits: dec,
+      maximumFractionDigits: dec
+    });
+  }
+
+  /* Enhetsväljare */
+  function kopplaSeg(segId, nyckel, txtKarta, suffixNamn){
+    var box = el(segId);
+    box.addEventListener("click", function(e){
+      var b = e.target.closest("button");
+      if (!b) return;
+      state[nyckel] = b.dataset.v;
+      Array.prototype.forEach.call(box.querySelectorAll("button"), function(x){
+        x.setAttribute("aria-pressed", String(x === b));
+      });
+      Array.prototype.forEach.call(
+        document.querySelectorAll('[data-suffix="' + suffixNamn + '"]'),
+        function(s){ s.textContent = txtKarta[state[nyckel]]; }
+      );
+      rakna();
+    });
+  }
+  kopplaSeg("segFlode", "flodeEnhet", FLODE_TXT, "flode");
+  kopplaSeg("segEffekt", "effektEnhet", EFFEKT_TXT, "effekt");
+
+  /* Kravnivå */
+  el("kravVal").addEventListener("change", function(){
+    el("kravEgetFalt").classList.toggle("hidden", this.value !== "custom");
+    if (this.value === "custom") el("kravEget").focus();
+    rakna();
+  });
+
+  function kravNivo(){
+    var v = el("kravVal").value;
+    if (v === "custom") return num(el("kravEget").value);
+    return parseFloat(v.split("|")[0]);
+  }
+
+  function kravEtikett(){
+    var s = el("kravVal");
+    if (s.value === "custom") return "Egen kravnivå";
+    var opt = s.options[s.selectedIndex];
+    var grupp = opt.parentNode.label || "";
+    return opt.text.replace(/\s—\s[\d,]+$/, "") + " (" + grupp.replace(/,.*$/, "") + ")";
+  }
+
+  /* Skalans gradering ritas en gång */
+  (function ritaSkala(){
+    var spar = el("spar");
+    for (var i = 0; i <= 30; i++){
+      var v = i / 10;
+      var stor = (i % 5 === 0);
+      var t = document.createElement("div");
+      t.className = "tick " + (stor ? "tick--stor" : "tick--liten");
+      t.style.left = (v / SKALA_MAX * 100) + "%";
+      if (stor){
+        var txt = document.createElement("span");
+        txt.className = "tick__txt";
+        txt.textContent = fmt(v, 1);
+        t.appendChild(txt);
+      }
+      spar.insertBefore(t, spar.firstChild.nextSibling);
+    }
+  })();
+
+  var rader = el("rader");
+
+  function rad(namn, under, varde){
+    var d = document.createElement("div");
+    d.className = "rad";
+    var n = document.createElement("span");
+    n.className = "rad__namn";
+    n.textContent = namn;
+    if (under){
+      var s = document.createElement("small");
+      s.textContent = under;
+      n.appendChild(s);
+    }
+    var v = document.createElement("span");
+    v.className = "rad__varde";
+    v.textContent = varde;
+    d.appendChild(n);
+    d.appendChild(v);
+    rader.appendChild(d);
+  }
+
+  var senaste = null;
+
+  function rakna(){
+    var qT = tillM3s(num(el("qTill").value));
+    var qF = tillM3s(num(el("qFran").value));
+    var pT = tillKW(num(el("pTill").value));
+    var pF = tillKW(num(el("pFran").value));
+    var pO = tillKW(num(el("pOvr").value));
+    var timmar = num(el("drifttid").value);
+
+    var qMax = Math.max(qT, qF);
+    var pTot = pT + pF + pO;
+    var krav = kravNivo();
+    var sfp = qMax > 0 ? pTot / qMax : null;
+
+    /* Stora talet */
+    el("sfpVal").textContent = sfp === null ? "—" : fmt(sfp, 2);
+
+    /* Omdöme */
+    var v = el("verdict"), vt = el("verdictTxt");
+    v.className = "verdict";
+    if (sfp === null){
+      v.classList.add("verdict--tom");
+      vt.textContent = "Ange ett luftflöde för att räkna";
+    } else if (!krav){
+      v.classList.add("verdict--tom");
+      vt.textContent = "Ingen kravnivå angiven";
+    } else if (sfp <= krav){
+      v.classList.add("verdict--ok");
+      vt.textContent = fmt((1 - sfp / krav) * 100, 0) + " % marginal till nivån " + fmt(krav, 2);
+    } else {
+      v.classList.add("verdict--over");
+      vt.textContent = fmt((sfp / krav - 1) * 100, 0) + " % över nivån " + fmt(krav, 2);
+    }
+
+    /* Skala */
+    var andel = sfp === null ? 0 : Math.min(sfp / SKALA_MAX, 1) * 100;
+    var farg = sfp === null || !krav ? "var(--ink-3)" : (sfp <= krav ? "var(--ok)" : "var(--over)");
+    el("fyll").style.width = andel + "%";
+    el("fyll").style.background = farg;
+    el("visare").style.left = andel + "%";
+    el("visare").style.setProperty("--visarfarg", farg);
+
+    var kravAndel = Math.min(krav / SKALA_MAX, 1) * 100;
+    var km = el("kravmark");
+    km.style.left = kravAndel + "%";
+    km.classList.toggle("kravmark--vanster", kravAndel > 68);
+    el("kravFlagga").textContent = krav ? "Krav " + fmt(krav, 2) : "";
+    km.style.display = krav ? "" : "none";
+
+    /* Rader */
+    rader.innerHTML = "";
+    rad("Dimensionerande flöde", "största av till- och frånluft", fmt(qMax, 3) + " m³/s");
+    rad("Total fläkteffekt", "till, från och övriga", fmt(pTot, 3) + " kW");
+    rad("SFPv tilluft", "enskild fläkt", qT > 0 ? fmt(pT / qT, 2) + " kW/(m³/s)" : "—");
+    rad("SFPv frånluft", "enskild fläkt", qF > 0 ? fmt(pF / qF, 2) + " kW/(m³/s)" : "—");
+    rad("Högsta effekt vid nivån", krav ? "vid " + fmt(krav, 2) + " kW/(m³/s)" : "", krav ? fmt(krav * qMax, 3) + " kW" : "—");
+    rad("Fläktel per år", fmt(timmar, 0) + " h drift", fmt(pTot * timmar, 0) + " kWh");
+
+    /* Formel med insatta värden */
+    var f = el("formel");
+    if (sfp === null){
+      f.textContent = "SFP = total fläkteffekt (kW) ÷ största luftflöde (m³/s)";
+    } else {
+      f.innerHTML = "SFP = (" + fmt(pT, 3) + " + " + fmt(pF, 3) + (pO > 0 ? " + " + fmt(pO, 3) : "") +
+        ") kW ÷ " + fmt(qMax, 3) + " m³/s = <b>" + fmt(sfp, 2) + " kW/(m³/s)</b>";
+    }
+
+    el("dimFlodeTag").textContent = qMax > 0 ? fmt(qMax, 3) + " m³/s dimensionerande" : "Inget flöde angivet";
+
+    senaste = { qT: qT, qF: qF, pT: pT, pF: pF, pO: pO, qMax: qMax, pTot: pTot, sfp: sfp, krav: krav, timmar: timmar };
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll("input"), function(i){
+    i.addEventListener("input", rakna);
+  });
+
+  el("nolla").addEventListener("click", function(){
+    ["qTill","pTill","qFran","pFran","pOvr"].forEach(function(id){ el(id).value = ""; });
+    el("drifttid").value = "8760";
+    rakna();
+    el("qTill").focus();
+  });
+
+  el("kopiera").addEventListener("click", function(){
+    var s = senaste;
+    if (!s) return;
+    var rows = [
+      "SFP-beräkning",
+      "Tilluft:            " + fmt(s.qT, 3) + " m³/s   " + fmt(s.pT, 3) + " kW",
+      "Frånluft:           " + fmt(s.qF, 3) + " m³/s   " + fmt(s.pF, 3) + " kW",
+      "Övriga fläktar:     " + fmt(s.pO, 3) + " kW",
+      "Dim. luftflöde:     " + fmt(s.qMax, 3) + " m³/s",
+      "Total fläkteffekt:  " + fmt(s.pTot, 3) + " kW",
+      "SFP:                " + (s.sfp === null ? "—" : fmt(s.sfp, 2) + " kW/(m³/s)"),
+      "Jämfört med:        " + kravEtikett() + " " + fmt(s.krav, 2) + " kW/(m³/s)",
+      "Utfall:             " + el("verdictTxt").textContent,
+      "Fläktel:            " + fmt(s.pTot * s.timmar, 0) + " kWh/år vid " + fmt(s.timmar, 0) + " h"
+    ].join("\n");
+
+    var knapp = this;
+    var klart = function(){
+      knapp.textContent = "Kopierat";
+      setTimeout(function(){ knapp.textContent = "Kopiera underlag"; }, 1600);
+    };
+
+    if (navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(rows).then(klart, function(){ fallback(rows, klart); });
+    } else {
+      fallback(rows, klart);
+    }
+  });
+
+  function fallback(text, klart){
+    var ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand("copy"); klart(); } catch(e){ /* tyst */ }
+    document.body.removeChild(ta);
+  }
+
+  rakna();
+})();
+</script>
+</body>
+</html>

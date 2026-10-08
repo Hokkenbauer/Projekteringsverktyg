@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>24VAC Dimensioneringsverktyg</title>
+<style>
+  :root{
+    --bg:#0B1F33;
+    --panel:#102841;
+    --panel-2:#0E2237;
+    --grid:#1C3A57;
+    --line:#234567;
+    --amber:#FFB000;
+    --amber-dim:#8a6519;
+    --green:#4ADE80;
+    --red:#F87171;
+    --text:#E8EEF4;
+    --text-dim:#9FB3C8;
+    --mono:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:
+      linear-gradient(var(--grid) 1px,transparent 1px) 0 0/40px 40px,
+      linear-gradient(90deg,var(--grid) 1px,transparent 1px) 0 0/40px 40px,
+      var(--bg);
+    color:var(--text);
+    font-family:var(--sans);
+    min-height:100vh;
+    padding:24px;
+  }
+  .wrap{max-width:1180px;margin:0 auto;}
+  header{
+    display:flex;justify-content:space-between;align-items:flex-end;
+    border-bottom:2px solid var(--amber);
+    padding-bottom:14px;margin-bottom:22px;flex-wrap:wrap;gap:10px;
+  }
+  header h1{
+    margin:0;font-size:22px;letter-spacing:.5px;font-weight:700;
+  }
+  header h1 span{color:var(--amber);}
+  header .sub{color:var(--text-dim);font-size:12.5px;font-family:var(--mono);}
+  .badge{
+    font-family:var(--mono);font-size:11px;color:var(--bg);
+    background:var(--amber);padding:3px 8px;border-radius:3px;font-weight:700;
+    letter-spacing:.5px;
+  }
+
+  .panel{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:18px 20px;
+    margin-bottom:18px;
+  }
+  .panel-title{
+    font-size:11px;text-transform:uppercase;letter-spacing:1.2px;
+    color:var(--amber);font-weight:700;margin-bottom:14px;
+    display:flex;align-items:center;gap:8px;
+  }
+  .panel-title::after{content:"";flex:1;height:1px;background:var(--line);}
+
+  .settings-grid{
+    display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));
+    gap:14px;
+  }
+  .field label{
+    display:block;font-size:11px;color:var(--text-dim);margin-bottom:5px;
+    font-family:var(--mono);
+  }
+  .field input, .field select{
+    width:100%;background:var(--panel-2);border:1px solid var(--line);
+    color:var(--text);padding:8px 9px;border-radius:4px;font-size:13.5px;
+    font-family:var(--mono);
+  }
+  .field input:focus, .field select:focus{outline:1px solid var(--amber);border-color:var(--amber);}
+
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  thead th{
+    text-align:left;font-family:var(--mono);font-size:10.5px;color:var(--text-dim);
+    text-transform:uppercase;letter-spacing:.6px;padding:6px 8px;
+    border-bottom:1px solid var(--line);font-weight:600;
+  }
+  tbody td{padding:6px 8px;border-bottom:1px solid var(--grid);vertical-align:middle;}
+  tbody tr:hover{background:rgba(255,176,0,0.04);}
+  tbody input{
+    width:100%;background:var(--panel-2);border:1px solid var(--line);
+    color:var(--text);padding:6px 7px;border-radius:4px;font-size:13px;font-family:var(--mono);
+  }
+  tbody input:focus{outline:1px solid var(--amber);border-color:var(--amber);}
+  .num{text-align:right;}
+  .mono{font-family:var(--mono);}
+  .col-name{min-width:160px;}
+  .col-narrow{width:78px;}
+  .result-cell{font-family:var(--mono);text-align:right;white-space:nowrap;}
+  .ok{color:var(--green);}
+  .warn{color:var(--red);font-weight:700;}
+  .del-btn{
+    background:none;border:1px solid var(--line);color:var(--text-dim);
+    width:26px;height:26px;border-radius:4px;cursor:pointer;font-size:14px;line-height:1;
+  }
+  .del-btn:hover{border-color:var(--red);color:var(--red);}
+
+  .add-row{
+    margin-top:12px;background:none;border:1px dashed var(--line);
+    color:var(--amber);padding:9px 14px;border-radius:4px;cursor:pointer;
+    font-family:var(--mono);font-size:12.5px;width:100%;
+  }
+  .add-row:hover{border-color:var(--amber);background:rgba(255,176,0,0.06);}
+
+  .summary-grid{
+    display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+    gap:14px;
+  }
+  .stat{
+    background:var(--panel-2);border:1px solid var(--line);border-radius:5px;
+    padding:14px 16px;
+  }
+  .stat .label{font-size:10.5px;color:var(--text-dim);font-family:var(--mono);
+    text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;}
+  .stat .value{font-size:22px;font-weight:700;font-family:var(--mono);color:var(--amber);}
+  .stat .value small{font-size:13px;color:var(--text-dim);font-weight:400;}
+  .stat.accent{border-color:var(--amber);}
+
+  footer{
+    text-align:center;color:var(--text-dim);font-size:11px;font-family:var(--mono);
+    margin-top:24px;padding-top:16px;border-top:1px solid var(--grid);line-height:1.7;
+  }
+  .note{
+    font-size:11.5px;color:var(--text-dim);margin-top:10px;line-height:1.6;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div>
+      <h1>24VAC <span>Dimensioneringsverktyg</span></h1>
+      <div class="sub">Kabelarea · Spänningsfall · Säkring · Transformator — fastighetsautomation</div>
+    </div>
+    <div class="badge">KOPPAR / 24V AC</div>
+  </header>
+
+  <div class="panel">
+    <div class="panel-title">Systeminställningar</div>
+    <div class="settings-grid">
+      <div class="field">
+        <label>Systemspänning (V AC)</label>
+        <input type="number" id="voltage" value="24" step="0.1">
+      </div>
+      <div class="field">
+        <label>Max tillåtet spänningsfall (%)</label>
+        <input type="number" id="maxDrop" value="10" step="0.5">
+      </div>
+      <div class="field">
+        <label>Transformator-marginal (%)</label>
+        <input type="number" id="margin" value="25" step="5">
+      </div>
+      <div class="field">
+        <label>Säkringsmarginal per last (%)</label>
+        <input type="number" id="fuseMargin" value="25" step="5">
+      </div>
+    </div>
+    <div class="note">Spänningsfall beräknas enligt ΔU = (2 × L × I × ρ) / A, ρ(koppar) = 0.0175 Ω·mm²/m. Varje rad nedan antas vara en egen radiell kabeldragning (längd = avstånd från central/transformator till lasten).</div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">Laster &amp; kabeldragningar</div>
+    <table>
+      <thead>
+        <tr>
+          <th class="col-name">Benämning</th>
+          <th class="col-narrow num">Antal</th>
+          <th class="col-narrow num">VA/st</th>
+          <th class="col-narrow num">Längd (m)</th>
+          <th class="num">Ström (A)</th>
+          <th class="num">Min. area</th>
+          <th class="num">Fall vid vald area</th>
+          <th class="num">Säkring</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="loadBody"></tbody>
+    </table>
+    <button class="add-row" id="addRow">+ Lägg till last</button>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">Sammanställning</div>
+    <div class="summary-grid">
+      <div class="stat">
+        <div class="label">Total last</div>
+        <div class="value" id="totalVA">0 <small>VA</small></div>
+      </div>
+      <div class="stat">
+        <div class="label">Total ström</div>
+        <div class="value" id="totalA">0 <small>A</small></div>
+      </div>
+      <div class="stat accent">
+        <div class="label">Föreslagen transformator</div>
+        <div class="value" id="transformerVA">0 <small>VA</small></div>
+      </div>
+      <div class="stat">
+        <div class="label">Huvudsäkring (sekundär)</div>
+        <div class="value" id="mainFuse">0 <small>A</small></div>
+      </div>
+    </div>
+    <div class="note">Transformator väljs som närmast överliggande standardstorlek av (total last × (1 + marginal)). Huvudsäkring väljs som närmast överliggande standardvärde av total ström × (1 + säkringsmarginal).</div>
+  </div>
+
+  <footer>
+    Beräkningar avser vägledande dimensionering enligt allmän kabelteori (förenklad, ej temperaturkorrigerad).<br>
+    Kontrollera alltid mot tillverkarens dokumentation och gällande installationsregler innan idrifttagning.
+  </footer>
+
+</div>
+
+<script>
+const STD_AREAS = [0.5,0.75,1,1.5,2.5,4,6,10,16];
+const STD_FUSES = [0.5,1,1.6,2,3,4,5,6,8,10,13,16,20,25];
+const STD_TRAFO = [16,20,25,40,50,63,80,100,125,160,200,250,315,400,500,630,800,1000];
+const RHO = 0.0175; // Ω·mm²/m copper
+
+let loads = [
+  {id:1, name:'Brandspjäll', qty:4, va:8, length:25},
+  {id:2, name:'VAV-spjäll', qty:6, va:6, length:18},
+  {id:3, name:'Rumsregulator', qty:8, va:2, length:30},
+];
+let nextId = 4;
+
+function fmt(n, d=2){
+  if(!isFinite(n)) return '–';
+  return n.toLocaleString('sv-SE',{minimumFractionDigits:d, maximumFractionDigits:d});
+}
+
+function nearestStd(value, arr){
+  for(const v of arr){ if(v >= value - 1e-9) return v; }
+  return arr[arr.length-1];
+}
+
+function rowCalc(load, settings){
+  const totalVA = load.qty * load.va;
+  const current = settings.voltage > 0 ? totalVA / settings.voltage : 0;
+  const allowedVolt = settings.voltage * (settings.maxDrop/100);
+  let reqArea = 0;
+  if(allowedVolt > 0 && load.length > 0){
+    reqArea = (2 * load.length * current * RHO) / allowedVolt;
+  }
+  const chosenArea = reqArea > 0 ? nearestStd(reqArea, STD_AREAS) : STD_AREAS[0];
+  const actualDropV = chosenArea > 0 ? (2 * load.length * current * RHO) / chosenArea : 0;
+  const actualDropPct = settings.voltage > 0 ? (actualDropV / settings.voltage) * 100 : 0;
+  const fuse = nearestStd(current * (1 + settings.fuseMargin/100), STD_FUSES);
+  return {totalVA, current, reqArea, chosenArea, actualDropPct, fuse};
+}
+
+function getSettings(){
+  return {
+    voltage: parseFloat(document.getElementById('voltage').value) || 24,
+    maxDrop: parseFloat(document.getElementById('maxDrop').value) || 10,
+    margin: parseFloat(document.getElementById('margin').value) || 25,
+    fuseMargin: parseFloat(document.getElementById('fuseMargin').value) || 25,
+  };
+}
+
+function render(){
+  const settings = getSettings();
+  const tbody = document.getElementById('loadBody');
+  tbody.innerHTML = '';
+
+  let sumVA = 0;
+
+  loads.forEach(load => {
+    const r = rowCalc(load, settings);
+    sumVA += r.totalVA;
+
+    const dropExceeded = r.actualDropPct > settings.maxDrop + 0.001;
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input data-field="name" data-id="${load.id}" type="text" value="${load.name}"></td>
+      <td><input class="num" data-field="qty" data-id="${load.id}" type="number" min="0" step="1" value="${load.qty}"></td>
+      <td><input class="num" data-field="va" data-id="${load.id}" type="number" min="0" step="0.1" value="${load.va}"></td>
+      <td><input class="num" data-field="length" data-id="${load.id}" type="number" min="0" step="1" value="${load.length}"></td>
+      <td class="result-cell">${fmt(r.current,2)} A</td>
+      <td class="result-cell">${fmt(r.chosenArea,2)} mm²</td>
+      <td class="result-cell ${dropExceeded ? 'warn' : 'ok'}">${fmt(r.actualDropPct,1)} %</td>
+      <td class="result-cell">${fmt(r.fuse,1)} A</td>
+      <td><button class="del-btn" data-del="${load.id}" title="Ta bort">✕</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  const totalCurrent = settings.voltage > 0 ? sumVA / settings.voltage : 0;
+  const trafoTarget = sumVA * (1 + settings.margin/100);
+  const trafoSize = nearestStd(trafoTarget, STD_TRAFO);
+  const mainFuse = nearestStd(totalCurrent * (1 + settings.fuseMargin/100), STD_FUSES);
+
+  document.getElementById('totalVA').innerHTML = `${fmt(sumVA,1)} <small>VA</small>`;
+  document.getElementById('totalA').innerHTML = `${fmt(totalCurrent,2)} <small>A</small>`;
+  document.getElementById('transformerVA').innerHTML = `${fmt(trafoSize,0)} <small>VA</small>`;
+  document.getElementById('mainFuse').innerHTML = `${fmt(mainFuse,1)} <small>A</small>`;
+
+  // bind events
+  tbody.querySelectorAll('input').forEach(inp=>{
+    inp.addEventListener('input', onFieldChange);
+  });
+  tbody.querySelectorAll('[data-del]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      loads = loads.filter(l=>l.id !== parseInt(btn.dataset.del));
+      render();
+    });
+  });
+}
+
+function onFieldChange(e){
+  const id = parseInt(e.target.dataset.id);
+  const field = e.target.dataset.field;
+  const load = loads.find(l=>l.id===id);
+  if(!load) return;
+  if(field === 'name'){
+    load.name = e.target.value;
+  } else {
+    load[field] = parseFloat(e.target.value) || 0;
+  }
+  render();
+  // restore focus to the edited input after re-render
+  const sel = `[data-field="${field}"][data-id="${id}"]`;
+  const el = document.querySelector(sel);
+  if(el){ el.focus(); const v = el.value; el.value=''; el.value=v; }
+}
+
+document.getElementById('addRow').addEventListener('click', ()=>{
+  loads.push({id: nextId++, name: 'Ny last', qty: 1, va: 2, length: 10});
+  render();
+});
+
+['voltage','maxDrop','margin','fuseMargin'].forEach(id=>{
+  document.getElementById(id).addEventListener('input', render);
+});
+
+render();
+</script>
+</body>
+</html>

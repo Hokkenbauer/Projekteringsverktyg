@@ -1,0 +1,544 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>XML-jämförelse</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: arbetsbänk – två inmatningsfält sida vid sida, sammanfattning, sedan resultat i flikar (strukturella skillnader / radvis diff) */
+:root {
+  --bg: #f5f7f7;
+  --panel: #ffffff;
+  --fg: #1c2426;
+  --muted: #5e6b6e;
+  --line: #d9e0e1;
+  --accent: #1f6f78;
+  --accent-soft: #e2f0f1;
+  --add: #1d7a3e;
+  --add-bg: #e3f4e8;
+  --del: #b3261e;
+  --del-bg: #fbe6e4;
+  --chg: #8a5a00;
+  --chg-bg: #fdf1d8;
+  --code-bg: #f9fbfb;
+  --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111617; --panel: #182022; --fg: #e3eaeb; --muted: #93a2a5; --line: #2b3639;
+    --accent: #5cb8c2; --accent-soft: #1b3336;
+    --add: #6fd08f; --add-bg: #173024; --del: #f28b82; --del-bg: #3a1c1a; --chg: #f0c060; --chg-bg: #362a12;
+    --code-bg: #141b1d; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111617; --panel: #182022; --fg: #e3eaeb; --muted: #93a2a5; --line: #2b3639;
+  --accent: #5cb8c2; --accent-soft: #1b3336;
+  --add: #6fd08f; --add-bg: #173024; --del: #f28b82; --del-bg: #3a1c1a; --chg: #f0c060; --chg-bg: #362a12;
+  --code-bg: #141b1d; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 15px; line-height: 1.5; }
+.wrap { max-width: 1280px; margin: 0 auto; padding-inline: 20px; padding-block: 28px 48px; display: grid; gap: 22px; }
+header h1 { font-size: 1.6rem; font-weight: 600; margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+header p { margin: 4px 0 0; color: var(--muted); max-width: 65ch; }
+.inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 760px) { .inputs { grid-template-columns: 1fr; } }
+.side { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; display: grid; grid-template-rows: auto 1fr auto; min-width: 0; }
+.side-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.side-head label { font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.side-head .tag { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: 0; }
+.tools { display: flex; gap: 6px; flex-wrap: wrap; }
+textarea { width: 100%; min-height: 260px; resize: vertical; border: 0; background: var(--code-bg); color: var(--fg); font: 13px/1.55 var(--mono); padding: 12px; outline: none; tab-size: 2; }
+textarea:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
+.side.drag textarea { box-shadow: inset 0 0 0 2px var(--accent); background: var(--accent-soft); }
+.status { font-size: 0.8rem; padding: 6px 12px; border-top: 1px solid var(--line); color: var(--muted); min-height: 32px; font-variant-numeric: tabular-nums; }
+.status.err { color: var(--del); background: var(--del-bg); }
+button, .filebtn { font: 500 0.82rem var(--sans); border: 1px solid var(--line); background: var(--panel); color: var(--fg); border-radius: 6px; padding: 5px 10px; cursor: pointer; }
+button:hover, .filebtn:hover { border-color: var(--accent); color: var(--accent); }
+button:focus-visible, .filebtn:focus-within, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.filebtn input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.filebtn { position: relative; display: inline-block; }
+.primary { background: var(--accent); color: var(--panel); border-color: var(--accent); padding: 8px 18px; font-size: 0.9rem; }
+.primary:hover { color: var(--panel); filter: brightness(1.08); }
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 20px; }
+.controls label { display: inline-flex; align-items: center; gap: 6px; font-size: 0.88rem; cursor: pointer; }
+.controls input[type=checkbox] { accent-color: var(--accent); width: 15px; height: 15px; }
+.summary { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.summary .verdict { font-weight: 600; margin-right: 8px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 0.82rem; font-weight: 500; font-variant-numeric: tabular-nums; border: 1px solid transparent; cursor: pointer; background: var(--panel); color: var(--fg); border-color: var(--line); }
+.chip[aria-pressed="false"] { opacity: 0.45; }
+.chip .n { font-weight: 600; }
+.chip.add { background: var(--add-bg); color: var(--add); border-color: transparent; }
+.chip.del { background: var(--del-bg); color: var(--del); border-color: transparent; }
+.chip.chg { background: var(--chg-bg); color: var(--chg); border-color: transparent; }
+.results { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; min-width: 0; }
+.tabs { display: flex; border-bottom: 1px solid var(--line); padding: 0 8px; gap: 4px; }
+.tabs button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; padding: 10px 12px; color: var(--muted); }
+.tabs button[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); }
+.pane { padding: 4px 0; }
+.difflist { list-style: none; margin: 0; padding: 0; }
+.difflist li { display: grid; grid-template-columns: 7.5rem 1fr; gap: 4px 14px; padding: 10px 16px; border-bottom: 1px solid var(--line); align-items: start; }
+.difflist li:last-child { border-bottom: 0; }
+@media (max-width: 560px) { .difflist li { grid-template-columns: 1fr; } }
+.kind { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; padding: 2px 8px; border-radius: 4px; justify-self: start; }
+.kind.add { background: var(--add-bg); color: var(--add); }
+.kind.del { background: var(--del-bg); color: var(--del); }
+.kind.chg { background: var(--chg-bg); color: var(--chg); }
+.dbody { min-width: 0; }
+.path { font: 12.5px var(--mono); color: var(--accent); word-break: break-all; }
+.vals { margin-top: 4px; display: grid; gap: 3px; font: 12.5px/1.5 var(--mono); }
+.vals div { overflow-wrap: anywhere; white-space: pre-wrap; padding: 2px 8px; border-radius: 4px; }
+.vals .o { background: var(--del-bg); color: var(--del); }
+.vals .n { background: var(--add-bg); color: var(--add); }
+.vals .snip { max-height: 9em; overflow: auto; }
+.empty { padding: 28px 16px; text-align: center; color: var(--muted); }
+.linediff { overflow-x: auto; }
+.linediff table { border-collapse: collapse; width: 100%; font: 12.5px/1.55 var(--mono); table-layout: fixed; min-width: 640px; }
+.linediff td { padding: 0 8px; vertical-align: top; white-space: pre-wrap; overflow-wrap: anywhere; }
+.linediff td.ln { width: 3.4rem; text-align: right; color: var(--muted); user-select: none; font-variant-numeric: tabular-nums; border-right: 1px solid var(--line); }
+.linediff td.mid { width: 0; padding: 0; border-left: 1px solid var(--line); }
+.linediff .d { background: var(--del-bg); color: var(--del); }
+.linediff .a { background: var(--add-bg); color: var(--add); }
+.linediff .x { background: var(--code-bg); }
+.linediff tr.fold td { text-align: center; color: var(--muted); background: var(--accent-soft); font-family: var(--sans); font-size: 0.8rem; padding: 3px; cursor: pointer; }
+.note { font-size: 0.82rem; color: var(--muted); padding: 8px 16px; }
+@media (prefers-reduced-motion: no-preference) { .chip, button { transition: border-color .15s, opacity .15s, color .15s; } }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <h1>XML-jämförelse</h1>
+    <p>Klistra in eller släpp två XML-filer. Verktyget jämför dem element för element och visar vad som lagts till, tagits bort eller ändrats, med en XPath-sökväg till varje skillnad. Allt körs i webbläsaren – inget laddas upp.</p>
+  </header>
+
+  <section class="inputs">
+    <div class="side" id="sideA">
+      <div class="side-head">
+        <label for="xmlA"><span class="tag" style="background:var(--del)"></span>Original (A)</label>
+        <div class="tools">
+          <span class="filebtn">Öppna fil…<input type="file" id="fileA" accept=".xml,.xsd,.xsl,.xslt,.svg,.config,.plist,.txt,text/xml,application/xml"></span>
+          <button type="button" id="fmtA">Formatera</button>
+          <button type="button" id="clrA">Töm</button>
+        </div>
+      </div>
+      <textarea id="xmlA" spellcheck="false" placeholder="Klistra in XML eller dra hit en fil"></textarea>
+      <div class="status" id="statA"></div>
+    </div>
+    <div class="side" id="sideB">
+      <div class="side-head">
+        <label for="xmlB"><span class="tag" style="background:var(--add)"></span>Ändrad (B)</label>
+        <div class="tools">
+          <span class="filebtn">Öppna fil…<input type="file" id="fileB" accept=".xml,.xsd,.xsl,.xslt,.svg,.config,.plist,.txt,text/xml,application/xml"></span>
+          <button type="button" id="fmtB">Formatera</button>
+          <button type="button" id="clrB">Töm</button>
+        </div>
+      </div>
+      <textarea id="xmlB" spellcheck="false" placeholder="Klistra in XML eller dra hit en fil"></textarea>
+      <div class="status" id="statB"></div>
+    </div>
+  </section>
+
+  <section class="controls" aria-label="Inställningar">
+    <button type="button" class="primary" id="run">Jämför</button>
+    <button type="button" id="swap">Byt plats A ⇄ B</button>
+    <label><input type="checkbox" id="optWs" checked> Ignorera blanksteg i text</label>
+    <label><input type="checkbox" id="optComments" checked> Ignorera kommentarer</label>
+    <label><input type="checkbox" id="optCase"> Ignorera versaler/gemener</label>
+    <label><input type="checkbox" id="optKey" checked> Matcha element på id/name/key</label>
+    <label><input type="checkbox" id="optAuto" checked> Jämför automatiskt</label>
+  </section>
+
+  <section class="summary" id="summary" aria-live="polite"></section>
+
+  <section class="results">
+    <div class="tabs" role="tablist">
+      <button type="button" role="tab" id="tabS" aria-selected="true" aria-controls="paneS">Strukturella skillnader</button>
+      <button type="button" role="tab" id="tabL" aria-selected="false" aria-controls="paneL">Radvis diff</button>
+    </div>
+    <div class="pane" id="paneS" role="tabpanel"></div>
+    <div class="pane" id="paneL" role="tabpanel" hidden></div>
+  </section>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const A = $("xmlA"), B = $("xmlB");
+
+  const SAMPLE_A = `<?xml version="1.0" encoding="UTF-8"?>
+<!-- Exempeldata: ordrar från webbutiken -->
+<order id="10452" status="pending" currency="SEK">
+  <customer id="C-881">
+    <name>Anna Lindqvist</name>
+    <email>anna.lindqvist@example.se</email>
+    <address city="Göteborg" zip="411 06">Vasagatan 12</address>
+  </customer>
+  <items>
+    <item sku="KAF-250" qty="2" price="89.00">Kaffebönor mellanrost 250 g</item>
+    <item sku="MUG-01" qty="1" price="149.00">Emaljmugg, blå</item>
+    <item sku="FIL-100" qty="1" price="39.00">Kaffefilter nr 4</item>
+  </items>
+  <shipping method="postnord" cost="59.00"/>
+  <total>425.00</total>
+</order>`;
+
+  const SAMPLE_B = `<?xml version="1.0" encoding="UTF-8"?>
+<!-- Exempeldata: ordrar från webbutiken -->
+<order id="10452" status="shipped" currency="SEK" shippedAt="2026-09-29">
+  <customer id="C-881">
+    <name>Anna Lindqvist</name>
+    <email>anna@lindqvist.se</email>
+    <address city="Göteborg" zip="411 06">Vasagatan 12</address>
+  </customer>
+  <items>
+    <item sku="KAF-250" qty="3" price="89.00">Kaffebönor mellanrost 250 g</item>
+    <item sku="MUG-01" qty="1" price="149.00">Emaljmugg, blå</item>
+    <item sku="TE-050" qty="1" price="65.00">Grönt te 50 g</item>
+  </items>
+  <shipping method="postnord" cost="0.00"/>
+  <total>481.00</total>
+  <tracking>00370712345678901234</tracking>
+</order>`;
+
+  A.value = SAMPLE_A; B.value = SAMPLE_B;
+
+  const opts = () => ({
+    ws: $("optWs").checked, comments: $("optComments").checked,
+    icase: $("optCase").checked, key: $("optKey").checked
+  });
+
+  // ---------- Parsing ----------
+  function parse(text) {
+    if (!text.trim()) return { error: "Tomt" };
+    const doc = new DOMParser().parseFromString(text, "application/xml");
+    const err = doc.getElementsByTagName("parsererror")[0];
+    if (err) {
+      let msg = err.textContent.replace(/\s+/g, " ").trim();
+      msg = msg.replace(/^This page contains the following errors:\s*/i, "").replace(/Below is a rendering.*$/i, "");
+      return { error: msg || "Ogiltig XML" };
+    }
+    return { doc };
+  }
+
+  // ---------- Pretty-print ----------
+  const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const escA = s => esc(s).replace(/"/g, "&quot;");
+  function pretty(doc, o, sortAttrs) {
+    const out = [];
+    const walk = (node, depth) => {
+      const pad = "  ".repeat(depth);
+      if (node.nodeType === 8) { if (!o.comments) out.push(pad + "<!--" + node.data + "-->"); return; }
+      if (node.nodeType === 7) { out.push(pad + "<?" + node.target + " " + node.data + "?>"); return; }
+      if (node.nodeType === 3 || node.nodeType === 4) {
+        const t = node.data.trim();
+        if (t) out.push(pad + (node.nodeType === 4 ? "<![CDATA[" + node.data + "]]>" : esc(o.ws ? t.replace(/\s+/g, " ") : t)));
+        return;
+      }
+      if (node.nodeType !== 1) return;
+      let attrs = Array.from(node.attributes).map(a => [a.name, a.value]);
+      if (sortAttrs) attrs.sort((x, y) => x[0].localeCompare(y[0]));
+      const open = "<" + node.nodeName + attrs.map(([n, v]) => " " + n + '="' + escA(v) + '"').join("");
+      const kids = Array.from(node.childNodes).filter(c =>
+        !(c.nodeType === 3 && !c.data.trim()) && !(c.nodeType === 8 && o.comments));
+      if (!kids.length) { out.push(pad + open + "/>"); return; }
+      if (kids.length === 1 && kids[0].nodeType === 3) {
+        const t = kids[0].data.trim();
+        out.push(pad + open + ">" + esc(o.ws ? t.replace(/\s+/g, " ") : t) + "</" + node.nodeName + ">");
+        return;
+      }
+      out.push(pad + open + ">");
+      kids.forEach(k => walk(k, depth + 1));
+      out.push(pad + "</" + node.nodeName + ">");
+    };
+    Array.from(doc.childNodes).forEach(n => walk(n, 0));
+    return out;
+  }
+
+  // ---------- Structural diff ----------
+  const KEY_ATTRS = ["id", "name", "key", "sku", "code", "ref", "uuid", "guid"];
+  function keyOf(el, o) {
+    if (o.key) for (const k of KEY_ATTRS) if (el.hasAttribute(k)) return el.nodeName + "\u0000@" + k + "=" + el.getAttribute(k);
+    return el.nodeName;
+  }
+  function label(el, o, idx, total) {
+    if (o.key) for (const k of KEY_ATTRS) if (el.hasAttribute(k)) return el.nodeName + "[@" + k + "='" + el.getAttribute(k) + "']";
+    return total > 1 ? el.nodeName + "[" + idx + "]" : el.nodeName;
+  }
+  function ownText(el, o) {
+    let t = "";
+    for (const c of el.childNodes) if (c.nodeType === 3 || c.nodeType === 4) t += c.data;
+    if (o.ws) t = t.replace(/\s+/g, " ").trim();
+    return t;
+  }
+  const norm = (s, o) => o.icase ? s.toLowerCase() : s;
+  function snippet(el, o) {
+    const lines = pretty({ childNodes: [el] }, o, true);
+    return lines.join("\n");
+  }
+
+  function diffTree(a, b, o) {
+    const res = [];
+    const cmp = (x, y, path) => {
+      // attributes
+      const names = new Set([...Array.from(x.attributes, t => t.name), ...Array.from(y.attributes, t => t.name)]);
+      for (const n of [...names].sort()) {
+        const hx = x.hasAttribute(n), hy = y.hasAttribute(n);
+        if (hx && !hy) res.push({ t: "del", what: "attribut", path: path + "/@" + n, o: x.getAttribute(n) });
+        else if (!hx && hy) res.push({ t: "add", what: "attribut", path: path + "/@" + n, n: y.getAttribute(n) });
+        else if (norm(x.getAttribute(n), o) !== norm(y.getAttribute(n), o))
+          res.push({ t: "chg", what: "attribut", path: path + "/@" + n, o: x.getAttribute(n), n: y.getAttribute(n) });
+      }
+      // text
+      const tx = ownText(x, o), ty = ownText(y, o);
+      if (norm(tx, o) !== norm(ty, o)) {
+        if (!tx) res.push({ t: "add", what: "text", path: path + "/text()", n: ty });
+        else if (!ty) res.push({ t: "del", what: "text", path: path + "/text()", o: tx });
+        else res.push({ t: "chg", what: "text", path: path + "/text()", o: tx, n: ty });
+      }
+      // children
+      const ca = Array.from(x.children), cb = Array.from(y.children);
+      const countA = {}, countB = {};
+      ca.forEach(c => countA[c.nodeName] = (countA[c.nodeName] || 0) + 1);
+      cb.forEach(c => countB[c.nodeName] = (countB[c.nodeName] || 0) + 1);
+      const pool = new Map();
+      const seenB = {};
+      cb.forEach(c => {
+        seenB[c.nodeName] = (seenB[c.nodeName] || 0) + 1;
+        const k = keyOf(c, o);
+        if (!pool.has(k)) pool.set(k, []);
+        pool.get(k).push({ el: c, idx: seenB[c.nodeName] });
+      });
+      const used = new Set();
+      const seenA = {};
+      ca.forEach(c => {
+        seenA[c.nodeName] = (seenA[c.nodeName] || 0) + 1;
+        const idx = seenA[c.nodeName];
+        const q = pool.get(keyOf(c, o));
+        const tot = Math.max(countA[c.nodeName] || 0, countB[c.nodeName] || 0);
+        if (q && q.length) {
+          const m = q.shift(); used.add(m.el);
+          cmp(c, m.el, path + "/" + label(c, o, idx, tot));
+        } else {
+          res.push({ t: "del", what: "element", path: path + "/" + label(c, o, idx, tot), o: snippet(c, o), block: true });
+        }
+      });
+      const seenB2 = {};
+      cb.forEach(c => {
+        seenB2[c.nodeName] = (seenB2[c.nodeName] || 0) + 1;
+        if (used.has(c)) return;
+        const tot = Math.max(countA[c.nodeName] || 0, countB[c.nodeName] || 0);
+        res.push({ t: "add", what: "element", path: path + "/" + label(c, o, seenB2[c.nodeName], tot), n: snippet(c, o), block: true });
+      });
+    };
+    const ra = a.documentElement, rb = b.documentElement;
+    if (ra.nodeName !== rb.nodeName) {
+      res.push({ t: "chg", what: "rotelement", path: "/", o: ra.nodeName, n: rb.nodeName });
+    }
+    cmp(ra, rb, "/" + ra.nodeName);
+    return res;
+  }
+
+  // ---------- Line diff (LCS) ----------
+  function lineDiff(x, y) {
+    let s = 0;
+    while (s < x.length && s < y.length && x[s] === y[s]) s++;
+    let ex = x.length, ey = y.length;
+    while (ex > s && ey > s && x[ex - 1] === y[ey - 1]) { ex--; ey--; }
+    const mx = x.slice(s, ex), my = y.slice(s, ey);
+    const ops = [];
+    for (let i = 0; i < s; i++) ops.push(["=", i, i]);
+    const n = mx.length, m = my.length;
+    if (n * m > 12e6) {
+      mx.forEach((_, i) => ops.push(["-", s + i, null]));
+      my.forEach((_, j) => ops.push(["+", null, s + j]));
+    } else {
+      const W = m + 1, L = new Uint32Array((n + 1) * W);
+      for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--)
+        L[i * W + j] = mx[i] === my[j] ? L[(i + 1) * W + j + 1] + 1 : Math.max(L[(i + 1) * W + j], L[i * W + j + 1]);
+      let i = 0, j = 0;
+      while (i < n && j < m) {
+        if (mx[i] === my[j]) { ops.push(["=", s + i, s + j]); i++; j++; }
+        else if (L[(i + 1) * W + j] >= L[i * W + j + 1]) { ops.push(["-", s + i, null]); i++; }
+        else { ops.push(["+", null, s + j]); j++; }
+      }
+      while (i < n) ops.push(["-", s + i++, null]);
+      while (j < m) ops.push(["+", null, s + j++]);
+    }
+    for (let i = ex, j = ey; i < x.length; i++, j++) ops.push(["=", i, j]);
+    // pair up adjacent -/+ runs into side-by-side rows
+    const rows = [];
+    for (let k = 0; k < ops.length;) {
+      if (ops[k][0] === "=") { rows.push({ t: "=", l: ops[k][1], r: ops[k][2] }); k++; continue; }
+      const dels = [], adds = [];
+      while (k < ops.length && ops[k][0] !== "=") { (ops[k][0] === "-" ? dels : adds).push(ops[k]); k++; }
+      const len = Math.max(dels.length, adds.length);
+      for (let q = 0; q < len; q++) rows.push({ t: "x", l: dels[q] ? dels[q][1] : null, r: adds[q] ? adds[q][2] : null });
+    }
+    return rows;
+  }
+
+  // ---------- Rendering ----------
+  const filters = { add: true, del: true, chg: true };
+  let lastDiffs = [];
+  const KIND = { add: "Tillagd", del: "Borttagen", chg: "Ändrad" };
+
+  function renderSummary(diffs, errs) {
+    const el = $("summary");
+    if (errs) { el.innerHTML = '<span class="verdict" style="color:var(--del)">Kan inte jämföra – rätta XML-felet ovan.</span>'; return; }
+    const c = { add: 0, del: 0, chg: 0 };
+    diffs.forEach(d => c[d.t]++);
+    const total = diffs.length;
+    el.innerHTML = "";
+    const v = document.createElement("span");
+    v.className = "verdict";
+    v.textContent = total ? total + (total === 1 ? " skillnad" : " skillnader") : "Filerna är likvärdiga";
+    if (!total) v.style.color = "var(--add)";
+    el.append(v);
+    if (!total) return;
+    [["add", "tillagda"], ["del", "borttagna"], ["chg", "ändrade"]].forEach(([k, txt]) => {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "chip " + k;
+      b.setAttribute("aria-pressed", String(filters[k]));
+      b.title = "Visa/dölj " + txt;
+      b.innerHTML = '<span class="n">' + c[k] + "</span> " + txt;
+      b.onclick = () => { filters[k] = !filters[k]; renderSummary(lastDiffs); renderList(lastDiffs); };
+      el.append(b);
+    });
+  }
+
+  function renderList(diffs) {
+    const pane = $("paneS");
+    pane.innerHTML = "";
+    const shown = diffs.filter(d => filters[d.t]);
+    if (!diffs.length) { pane.innerHTML = '<div class="empty">Inga strukturella skillnader med nuvarande inställningar.</div>'; return; }
+    if (!shown.length) { pane.innerHTML = '<div class="empty">Alla skillnader är dolda av filtren ovan.</div>'; return; }
+    const ul = document.createElement("ul"); ul.className = "difflist";
+    shown.forEach(d => {
+      const li = document.createElement("li");
+      const k = document.createElement("span");
+      k.className = "kind " + d.t; k.textContent = KIND[d.t] + " " + d.what.replace("element", "elem.").replace("attribut", "attr.");
+      const body = document.createElement("div"); body.className = "dbody";
+      const p = document.createElement("div"); p.className = "path"; p.textContent = d.path;
+      body.append(p);
+      const vals = document.createElement("div"); vals.className = "vals";
+      if (d.o !== undefined) { const x = document.createElement("div"); x.className = "o" + (d.block ? " snip" : ""); x.textContent = (d.block ? "" : "− ") + (d.o === "" ? "(tomt)" : d.o); vals.append(x); }
+      if (d.n !== undefined) { const x = document.createElement("div"); x.className = "n" + (d.block ? " snip" : ""); x.textContent = (d.block ? "" : "+ ") + (d.n === "" ? "(tomt)" : d.n); vals.append(x); }
+      body.append(vals);
+      li.append(k, body); ul.append(li);
+    });
+    pane.append(ul);
+  }
+
+  function renderLines(la, lb) {
+    const pane = $("paneL");
+    pane.innerHTML = "";
+    const rows = lineDiff(la, lb);
+    const note = document.createElement("div"); note.className = "note";
+    note.textContent = "Båda filerna är normaliserade (indrag, sorterade attribut) innan radjämförelsen, så att bara innehållsskillnader syns.";
+    pane.append(note);
+    const box = document.createElement("div"); box.className = "linediff";
+    const tbl = document.createElement("table");
+    const CTX = 3;
+    const keep = rows.map((r, i) => r.t !== "=");
+    const vis = rows.map((_, i) => { for (let d = -CTX; d <= CTX; d++) if (keep[i + d]) return true; return false; });
+    const cell = (cls, txt) => { const td = document.createElement("td"); td.className = cls; td.textContent = txt; return td; };
+    const addRow = r => {
+      const tr = document.createElement("tr");
+      if (r.t === "=") {
+        tr.append(cell("ln", r.l + 1), cell("", la[r.l]), cell("mid", ""), cell("ln", r.r + 1), cell("", lb[r.r]));
+      } else {
+        tr.append(cell("ln", r.l != null ? r.l + 1 : ""), cell(r.l != null ? "d" : "x", r.l != null ? la[r.l] : ""),
+          cell("mid", ""), cell("ln", r.r != null ? r.r + 1 : ""), cell(r.r != null ? "a" : "x", r.r != null ? lb[r.r] : ""));
+      }
+      return tr;
+    };
+    for (let i = 0; i < rows.length;) {
+      if (vis[i]) { tbl.append(addRow(rows[i])); i++; continue; }
+      const start = i; while (i < rows.length && !vis[i]) i++;
+      const hidden = rows.slice(start, i);
+      const tr = document.createElement("tr"); tr.className = "fold";
+      const td = document.createElement("td"); td.colSpan = 5; td.tabIndex = 0;
+      td.textContent = "⋯ " + hidden.length + " oförändrade rader – klicka för att visa";
+      const expand = () => { const frag = document.createDocumentFragment(); hidden.forEach(r => frag.append(addRow(r))); tr.replaceWith(frag); };
+      td.onclick = expand; td.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); expand(); } };
+      tr.append(td); tbl.append(tr);
+    }
+    if (!rows.some(r => r.t !== "=")) {
+      pane.innerHTML = '<div class="empty">Inga radskillnader efter normalisering.</div>'; return;
+    }
+    box.append(tbl); pane.append(box);
+  }
+
+  function setStatus(which, p, text) {
+    const s = $(which);
+    if (p.error) { s.className = "status err"; s.textContent = p.error === "Tomt" ? "Ingen XML inmatad." : "XML-fel: " + p.error; return; }
+    s.className = "status";
+    const n = p.doc.getElementsByTagName("*").length;
+    const lines = text.split("\n").length;
+    s.textContent = "Giltig XML · rot <" + p.doc.documentElement.nodeName + "> · " + n.toLocaleString("sv-SE") + " element · " + lines.toLocaleString("sv-SE") + " rader";
+  }
+
+  function run() {
+    const o = opts();
+    const pa = parse(A.value), pb = parse(B.value);
+    setStatus("statA", pa, A.value); setStatus("statB", pb, B.value);
+    if (pa.error || pb.error) {
+      lastDiffs = [];
+      renderSummary([], true);
+      $("paneS").innerHTML = '<div class="empty">Båda sidorna måste innehålla giltig XML.</div>';
+      $("paneL").innerHTML = '<div class="empty">Båda sidorna måste innehålla giltig XML.</div>';
+      return;
+    }
+    lastDiffs = diffTree(pa.doc, pb.doc, o);
+    renderSummary(lastDiffs);
+    renderList(lastDiffs);
+    let la = pretty(pa.doc, o, true), lb = pretty(pb.doc, o, true);
+    if (o.icase) { la = la.map(s => s.toLowerCase()); lb = lb.map(s => s.toLowerCase()); }
+    renderLines(la, lb);
+  }
+
+  // ---------- Wiring ----------
+  let timer;
+  const auto = () => { if ($("optAuto").checked) { clearTimeout(timer); timer = setTimeout(run, 350); } };
+  A.addEventListener("input", auto); B.addEventListener("input", auto);
+  ["optWs", "optComments", "optCase", "optKey"].forEach(id => $(id).addEventListener("change", run));
+  $("run").onclick = run;
+  $("swap").onclick = () => { [A.value, B.value] = [B.value, A.value]; run(); };
+
+  const loadFile = (file, ta) => {
+    const r = new FileReader();
+    r.onload = () => { ta.value = r.result; run(); };
+    r.readAsText(file);
+  };
+  [["fileA", A, "sideA"], ["fileB", B, "sideB"]].forEach(([fid, ta, sid]) => {
+    $(fid).addEventListener("change", e => { if (e.target.files[0]) loadFile(e.target.files[0], ta); e.target.value = ""; });
+    const side = $(sid);
+    side.addEventListener("dragover", e => { e.preventDefault(); side.classList.add("drag"); });
+    side.addEventListener("dragleave", () => side.classList.remove("drag"));
+    side.addEventListener("drop", e => {
+      e.preventDefault(); side.classList.remove("drag");
+      const f = e.dataTransfer.files[0]; if (f) loadFile(f, ta);
+    });
+  });
+  const fmt = ta => { const p = parse(ta.value); if (p.doc) { ta.value = pretty(p.doc, { ws: true, comments: false }, false).join("\n"); run(); } else run(); };
+  $("fmtA").onclick = () => fmt(A); $("fmtB").onclick = () => fmt(B);
+  $("clrA").onclick = () => { A.value = ""; run(); A.focus(); };
+  $("clrB").onclick = () => { B.value = ""; run(); B.focus(); };
+
+  const tabs = [["tabS", "paneS"], ["tabL", "paneL"]];
+  tabs.forEach(([t, p]) => $(t).onclick = () => tabs.forEach(([t2, p2]) => {
+    $(t2).setAttribute("aria-selected", String(t2 === t)); $(p2).hidden = t2 !== t;
+  }));
+
+  run();
+})();
+</script>
+</body>
+</html>

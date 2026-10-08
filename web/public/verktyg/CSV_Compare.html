@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CSV Jämförelse</title>
+<style>
+  :root {
+    --bg:        #0d1117;
+    --surface:   #161b22;
+    --border:    #30363d;
+    --text:      #e6edf3;
+    --muted:     #8b949e;
+    --accent:    #388bfd;
+    --only-a:    #f85149;
+    --only-b:    #3fb950;
+    --diff:      #d29922;
+    --diff-bg-a: rgba(248, 81, 73, 0.10);
+    --diff-bg-b: rgba(63, 185, 80, 0.10);
+    --diff-cell: rgba(210, 153, 34, 0.15);
+    --radius:    6px;
+    --mono:      'JetBrains Mono', 'Consolas', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 14px;
+    min-height: 100vh;
+  }
+
+  header {
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  header h1 {
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: -0.3px;
+  }
+
+  .tag {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-weight: 600;
+    background: rgba(56, 139, 253, 0.15);
+    color: var(--accent);
+    border: 1px solid rgba(56, 139, 253, 0.3);
+  }
+
+  .upload-zone {
+    padding: 24px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  .file-card {
+    background: var(--surface);
+    border: 1px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    text-align: center;
+    transition: border-color 0.2s, background 0.2s;
+    cursor: pointer;
+    position: relative;
+  }
+
+  .file-card:hover, .file-card.dragover {
+    border-color: var(--accent);
+    background: rgba(56, 139, 253, 0.05);
+  }
+
+  .file-card input[type=file] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+    width: 100%;
+    height: 100%;
+  }
+
+  .file-card .icon {
+    font-size: 28px;
+    margin-bottom: 8px;
+    display: block;
+  }
+
+  .file-card h3 {
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  .file-card .hint {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .file-card.loaded {
+    border-style: solid;
+    border-color: var(--accent);
+  }
+
+  .file-card.loaded .filename {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--accent);
+    margin-top: 6px;
+    word-break: break-all;
+  }
+
+  .controls {
+    padding: 0 24px 16px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    padding: 7px 16px;
+    border-radius: var(--radius);
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    transition: opacity 0.15s;
+  }
+
+  .btn:disabled { opacity: 0.35; cursor: default; }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+  }
+
+  .btn-ghost {
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+
+  .btn:not(:disabled):hover { opacity: 0.85; }
+
+  .filter-bar {
+    padding: 0 24px 14px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .filter-bar label {
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .chip {
+    padding: 4px 12px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .chip.active-all    { border-color: var(--accent); color: var(--accent); background: rgba(56,139,253,.1); }
+  .chip.active-only-a { border-color: var(--only-a); color: var(--only-a); background: rgba(248,81,73,.1); }
+  .chip.active-only-b { border-color: var(--only-b); color: var(--only-b); background: rgba(63,185,80,.1); }
+  .chip.active-diff   { border-color: var(--diff);   color: var(--diff);   background: rgba(210,153,34,.1); }
+  .chip.active-same   { border-color: var(--muted);  color: var(--muted);  background: rgba(139,148,158,.1); }
+
+  .search-input {
+    margin-left: auto;
+    padding: 6px 12px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 13px;
+    width: 220px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .search-input:focus { border-color: var(--accent); }
+  .search-input::placeholder { color: var(--muted); }
+
+  .stats-bar {
+    padding: 0 24px 14px;
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+
+  .stat {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+  }
+
+  .stat-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+  }
+
+  .stat-val { font-weight: 700; }
+
+  .table-wrap {
+    padding: 0 24px 32px;
+    overflow-x: auto;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+  }
+
+  thead th {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 8px 10px;
+    text-align: left;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    white-space: nowrap;
+  }
+
+  tbody tr { border-bottom: 1px solid var(--border); }
+
+  tbody td {
+    padding: 6px 10px;
+    border-right: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 12px;
+    vertical-align: top;
+    max-width: 240px;
+    word-break: break-word;
+  }
+
+  tbody td:first-child { font-family: inherit; font-weight: 600; white-space: nowrap; }
+
+  tr.row-only-a { background: var(--diff-bg-a); }
+  tr.row-only-b { background: var(--diff-bg-b); }
+
+  .badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 3px;
+    margin-right: 4px;
+  }
+
+  .badge-a { background: rgba(248,81,73,.2); color: var(--only-a); }
+  .badge-b { background: rgba(63,185,80,.2); color: var(--only-b); }
+  .badge-diff { background: rgba(210,153,34,.2); color: var(--diff); }
+
+  td.changed {
+    background: var(--diff-cell);
+  }
+
+  .val-old { color: var(--only-a); text-decoration: line-through; opacity: 0.7; display: block; }
+  .val-new { color: var(--only-b); display: block; }
+
+  .empty {
+    padding: 48px;
+    text-align: center;
+    color: var(--muted);
+  }
+
+  .empty p { margin-top: 8px; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>CSV Jämförelse</h1>
+  <span class="tag">Dark Mode</span>
+</header>
+
+<div class="upload-zone">
+  <div class="file-card" id="card-a">
+    <input type="file" accept=".csv,.txt" id="file-a">
+    <span class="icon">📄</span>
+    <h3>Fil A – Original</h3>
+    <div class="hint">Dra hit eller klicka för att välja</div>
+    <div class="filename" id="name-a"></div>
+  </div>
+  <div class="file-card" id="card-b">
+    <input type="file" accept=".csv,.txt" id="file-b">
+    <span class="icon">📄</span>
+    <h3>Fil B – Ny version</h3>
+    <div class="hint">Dra hit eller klicka för att välja</div>
+    <div class="filename" id="name-b"></div>
+  </div>
+</div>
+
+<div class="controls">
+  <button class="btn btn-primary" id="btn-compare" disabled>Jämför filer</button>
+  <button class="btn btn-ghost" id="btn-reset">Rensa</button>
+</div>
+
+<div id="results" style="display:none">
+  <div class="stats-bar" id="stats-bar"></div>
+
+  <div class="filter-bar">
+    <label>Visa:</label>
+    <span class="chip active-all" data-filter="all">Alla</span>
+    <span class="chip" data-filter="only-a">Endast i A</span>
+    <span class="chip" data-filter="only-b">Endast i B</span>
+    <span class="chip" data-filter="diff">Ändrade</span>
+    <span class="chip" data-filter="same">Identiska</span>
+    <input class="search-input" id="search" type="text" placeholder="Sök namn / beskrivning…">
+  </div>
+
+  <div class="table-wrap">
+    <div id="table-container"></div>
+  </div>
+</div>
+
+<script>
+const COLS = ['name','device','address','datatype','rawmin','rawmax','engmin','engmax','unit','format','description','alarmoptions','trendoptions'];
+const KEY_COL = 'name';
+const COMPARE_COLS = ['device','address','datatype','unit','description','alarmoptions','trendoptions'];
+
+let dataA = [], dataB = [], allRows = [];
+let activeFilter = 'all', searchTerm = '';
+
+function parseCSV(text) {
+  const lines = text.replace(/^\uFEFF/, '').trim().split(/\r?\n/);
+  if (!lines.length) return [];
+  const headers = lines[0].split(';').map(h => h.trim().toLowerCase());
+  return lines.slice(1).filter(l => l.trim()).map(line => {
+    const vals = line.split(';');
+    const obj = {};
+    headers.forEach((h, i) => obj[h] = (vals[i] || '').trim());
+    return obj;
+  });
+}
+
+function readFile(input, cardId, nameId, cb) {
+  const file = input.files[0];
+  if (!file) return;
+  document.getElementById(nameId).textContent = file.name;
+  document.getElementById(cardId).classList.add('loaded');
+  const reader = new FileReader();
+  reader.onload = e => cb(parseCSV(e.target.result));
+  reader.readAsText(file, 'UTF-8');
+}
+
+document.getElementById('file-a').addEventListener('change', e =>
+  readFile(e.target, 'card-a', 'name-a', d => { dataA = d; checkReady(); }));
+
+document.getElementById('file-b').addEventListener('change', e =>
+  readFile(e.target, 'card-b', 'name-b', d => { dataB = d; checkReady(); }));
+
+['card-a','card-b'].forEach(id => {
+  const card = document.getElementById(id);
+  card.addEventListener('dragover', e => { e.preventDefault(); card.classList.add('dragover'); });
+  card.addEventListener('dragleave', () => card.classList.remove('dragover'));
+  card.addEventListener('drop', e => {
+    e.preventDefault(); card.classList.remove('dragover');
+    const inp = card.querySelector('input');
+    inp.files = e.dataTransfer.files;
+    inp.dispatchEvent(new Event('change'));
+  });
+});
+
+function checkReady() {
+  document.getElementById('btn-compare').disabled = !(dataA.length && dataB.length);
+}
+
+document.getElementById('btn-compare').addEventListener('click', compare);
+document.getElementById('btn-reset').addEventListener('click', () => location.reload());
+
+document.querySelectorAll('.chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    document.querySelectorAll('.chip').forEach(c => c.className = 'chip');
+    activeFilter = chip.dataset.filter;
+    chip.classList.add('chip', 'active-' + activeFilter);
+    render();
+  });
+});
+
+document.getElementById('search').addEventListener('input', e => {
+  searchTerm = e.target.value.toLowerCase();
+  render();
+});
+
+function compare() {
+  const mapA = {}, mapB = {};
+  dataA.forEach(r => mapA[r[KEY_COL]] = r);
+  dataB.forEach(r => mapB[r[KEY_COL]] = r);
+
+  const keys = [...new Set([...Object.keys(mapA), ...Object.keys(mapB)])].sort();
+
+  allRows = keys.map(key => {
+    const a = mapA[key], b = mapB[key];
+    if (a && !b) return { key, type: 'only-a', a, b: null };
+    if (!a && b) return { key, type: 'only-b', a: null, b };
+    const diffs = COMPARE_COLS.filter(c => (a[c] || '') !== (b[c] || ''));
+    return { key, type: diffs.length ? 'diff' : 'same', a, b, diffs };
+  });
+
+  document.getElementById('results').style.display = '';
+  renderStats();
+  render();
+}
+
+function renderStats() {
+  const counts = { 'only-a': 0, 'only-b': 0, diff: 0, same: 0 };
+  allRows.forEach(r => counts[r.type]++);
+  const total = allRows.length;
+
+  document.getElementById('stats-bar').innerHTML = `
+    <div class="stat"><div class="stat-dot" style="background:var(--muted)"></div><span class="stat-val">${total}</span> totalt</div>
+    <div class="stat"><div class="stat-dot" style="background:var(--only-a)"></div><span class="stat-val">${counts['only-a']}</span> saknas i B</div>
+    <div class="stat"><div class="stat-dot" style="background:var(--only-b)"></div><span class="stat-val">${counts['only-b']}</span> nya i B</div>
+    <div class="stat"><div class="stat-dot" style="background:var(--diff)"></div><span class="stat-val">${counts['diff']}</span> ändrade</div>
+    <div class="stat"><div class="stat-dot" style="background:#3fb95060"></div><span class="stat-val">${counts['same']}</span> identiska</div>
+  `;
+}
+
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function render() {
+  let rows = allRows;
+  if (activeFilter !== 'all') rows = rows.filter(r => r.type === activeFilter);
+  if (searchTerm) rows = rows.filter(r => {
+    const haystack = (r.key + ' ' + (r.a?.description || '') + ' ' + (r.b?.description || '')).toLowerCase();
+    return haystack.includes(searchTerm);
+  });
+
+  if (!rows.length) {
+    document.getElementById('table-container').innerHTML = `
+      <div class="empty"><span style="font-size:32px">🔍</span><p>Inga rader matchar filtret.</p></div>`;
+    return;
+  }
+
+  const showBoth = activeFilter === 'all' || activeFilter === 'diff' || activeFilter === 'same';
+  const colsToShow = showBoth ? COMPARE_COLS : COLS;
+
+  let html = `<table><thead><tr>
+    <th>Nyckel (name)</th>
+    <th>Status</th>`;
+
+  colsToShow.forEach(c => { html += `<th>${c}</th>`; });
+  html += `</tr></thead><tbody>`;
+
+  rows.forEach(r => {
+    const rowClass = r.type !== 'same' ? ` class="row-${r.type}"` : '';
+    html += `<tr${rowClass}>`;
+
+    // Key cell
+    html += `<td>${esc(r.key)}</td>`;
+
+    // Status badge
+    const badges = { 'only-a': '<span class="badge badge-a">Endast A</span>',
+                     'only-b': '<span class="badge badge-b">Ny i B</span>',
+                     'diff':   '<span class="badge badge-diff">Ändrad</span>',
+                     'same':   '<span style="color:var(--muted);font-size:11px">✓</span>' };
+    html += `<td>${badges[r.type]}</td>`;
+
+    colsToShow.forEach(col => {
+      if (r.type === 'only-a') {
+        html += `<td>${esc(r.a[col])}</td>`;
+      } else if (r.type === 'only-b') {
+        html += `<td>${esc(r.b[col])}</td>`;
+      } else {
+        const changed = r.diffs && r.diffs.includes(col);
+        const aVal = r.a[col] || '';
+        const bVal = r.b[col] || '';
+        if (changed) {
+          html += `<td class="changed"><span class="val-old">${esc(aVal)}</span><span class="val-new">${esc(bVal)}</span></td>`;
+        } else {
+          html += `<td>${esc(bVal)}</td>`;
+        }
+      }
+    });
+
+    html += `</tr>`;
+  });
+
+  html += `</tbody></table>`;
+  document.getElementById('table-container').innerHTML = html;
+}
+</script>
+</body>
+</html>

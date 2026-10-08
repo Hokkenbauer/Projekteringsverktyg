@@ -164,6 +164,7 @@ app.MapKontrollEndpoints();
 app.MapDriftkortEndpoints();
 app.MapGemensamKatalogEndpoints();
 app.MapDokumentEndpoints();
+app.MapVerktygEndpoints();
 app.MapHub<ProjektHub>("/hubs/projekt");
 
 // Alla andra adresser hör till webbappen (React sköter sin egen navigering).

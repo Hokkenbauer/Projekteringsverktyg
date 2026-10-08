@@ -22,6 +22,8 @@ public static class GemensamKatalogEndpoints
         ["projekteringsstod"] = "Projekteringsstöd",
         ["tekniskbeskrivning"] = "Frågor till teknisk beskrivning",
         ["byggvaror"] = "Byggvarudatabasen",
+        // Resursplaneringen (gemensam för alla projekt). Tom tills någon sparat; verktyget har då sin inbäddade planering.
+        ["resursplanering"] = "Resursplaneringen",
     };
 
     public const int MaxLangd = 20_000_000;

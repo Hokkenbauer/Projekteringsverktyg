@@ -10,6 +10,9 @@ import { AttGoraVy } from "../att-gora/AttGoraVy";
 import { AnslutningsVy } from "../driftsattning/AnslutningsVy";
 import { ProjektfilerVy } from "../filer/ProjektfilerVy";
 import { ServicerapportVy } from "../service/ServicerapportVy";
+import { ResursplaneringVy } from "../verktyg/ResursplaneringVy";
+import { SupportVy } from "../verktyg/SupportVy";
+import { VerktygVy } from "../verktyg/VerktygVy";
 import { ListVy, type VisadRad } from "../listor/ListVy";
 import { PlaceringsritningVy } from "../ritning/PlaceringsritningVy";
 import { RitbordVy } from "../ritning/RitbordVy";
@@ -699,6 +702,9 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
             lasläge={!skrivbar} uppdaterad={dokumentVersion.anslutning ?? 0} visaMeddelande={visaMeddelande}
           />
         )}
+        {flik === "resursplanering" && <ResursplaneringVy kanSpara={!!mig.rattigheter.hanteraMallar} />}
+        {flik === "html-verktyg" && <VerktygVy kanHantera={!!mig.rattigheter.hanteraMallar} visaMeddelande={visaMeddelande} />}
+        {flik === "support" && <SupportVy kanHantera={!!mig.rattigheter.hanteraMallar} visaMeddelande={visaMeddelande} />}
         {flik === "projektfiler" && <ProjektfilerVy projektId={projektId} lasläge={!skrivbar} uppdaterad={filVersion} visaMeddelande={visaMeddelande} />}
         {vald && !vald.flik.klar && (
           <>

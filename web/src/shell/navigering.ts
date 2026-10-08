@@ -109,8 +109,9 @@ export const NAVIGERING: Grupp[] = [
   {
     namn: "Verktyg",
     flikar: [
-      { id: "html-verktyg", namn: "HTML-verktyg", fas: 6 },
-      { id: "support", namn: "Support", fas: 6 },
+      { id: "resursplanering", namn: "Resursplanering", fas: 6, klar: true },
+      { id: "html-verktyg", namn: "HTML-verktyg", fas: 6, klar: true },
+      { id: "support", namn: "Support", fas: 6, klar: true },
     ],
   },
 ];

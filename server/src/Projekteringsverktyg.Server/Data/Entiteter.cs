@@ -302,3 +302,27 @@ public class ProjektDokument
     public DateTimeOffset Andrad { get; set; } = DateTimeOffset.UtcNow;
     public string AndradAv { get; set; } = "";
 }
+
+/// <summary>Uppladdat HTML-verktyg (gemensamt för alla).</summary>
+public class Verktyg
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public string Namn { get; set; } = "";
+    public string Html { get; set; } = "";
+    public long Storlek { get; set; }
+    public DateTimeOffset Uppladdad { get; set; } = DateTimeOffset.UtcNow;
+    public string UppladdadAv { get; set; } = "";
+}
+
+/// <summary>Fil i supportbiblioteket (manualer m.m., gemensamt för alla).</summary>
+public class SupportFil
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public string Namn { get; set; } = "";
+    public string Kategori { get; set; } = "";
+    public long Storlek { get; set; }
+    public string Typ { get; set; } = "application/pdf";
+    public string BlobNamn { get; set; } = "";
+    public DateTimeOffset Uppladdad { get; set; } = DateTimeOffset.UtcNow;
+    public string UppladdadAv { get; set; } = "";
+}

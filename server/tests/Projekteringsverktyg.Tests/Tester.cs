@@ -337,7 +337,7 @@ public class KalkylTester
     [Fact]
     public void Nya_kataloger_finns_inbaddade()
     {
-        foreach (var namn in Projekteringsverktyg.Server.DokumentApi.GemensamKatalogEndpoints.Namn.Keys)
+        foreach (var namn in Projekteringsverktyg.Server.DokumentApi.GemensamKatalogEndpoints.Namn.Keys.Where(n => n != "resursplanering"))
             Assert.False(string.IsNullOrEmpty(Projekteringsverktyg.Server.DokumentApi.GemensamKatalogEndpoints.Grund(namn)), namn);
     }
 }
@@ -354,4 +354,15 @@ public class KopplingTester
         Assert.Equal("Pump", data["komponenttyp"]);
         Assert.True(def.Kolumn("beteckning")!.Redigerbar);
     }
+}
+
+public class SupportTester
+{
+    [Theory]
+    [InlineData("Beckhoff_cx9020_hwen.pdf", "Beckhoff")]
+    [InlineData("ABB A43_A44.pdf", "ABB")]
+    [InlineData("WILO Modbus RTU.pdf", "WILO")]
+    [InlineData("1.pdf", "Övrigt")]
+    public void Kategori_gissas_fran_filnamnet(string fil, string kategori) =>
+        Assert.Equal(kategori, Projekteringsverktyg.Server.DokumentApi.VerktygEndpoints.Kategori(fil));
 }

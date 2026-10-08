@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TC3-Compare</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface2: #1c2330;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-muted: #7d8590;
+    --accent: #388bfd;
+    --accent-dim: #1f3461;
+    --add: #2ea043;
+    --add-bg: #0a2a14;
+    --add-line: #143620;
+    --del: #f85149;
+    --del-bg: #2a0a0a;
+    --del-line: #3d1414;
+    --mod: #d29922;
+    --mod-bg: #2a1f00;
+    --same: #7d8590;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-size: 14px;
+    min-height: 100vh;
+  }
+
+  /* ── HEADER ── */
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  header h1 { font-size: 16px; font-weight: 600; letter-spacing: .02em; }
+  header span { color: var(--text-muted); font-size: 13px; }
+
+  /* ── UPLOAD AREA ── */
+  #upload-section {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    padding: 24px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  .drop-zone {
+    background: var(--surface);
+    border: 2px dashed var(--border);
+    border-radius: 8px;
+    padding: 32px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .2s, background .2s;
+    position: relative;
+  }
+  .drop-zone:hover, .drop-zone.drag-over {
+    border-color: var(--accent);
+    background: var(--accent-dim);
+  }
+  .drop-zone.loaded {
+    border-color: var(--add);
+    border-style: solid;
+  }
+  .drop-zone input[type=file] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+  }
+  .drop-zone .drop-label { font-size: 13px; color: var(--text-muted); margin-top: 6px; }
+  .drop-zone .drop-name { font-weight: 600; color: var(--text); font-size: 14px; }
+  .drop-zone .drop-count { color: var(--text-muted); font-size: 12px; margin-top: 4px; }
+
+  #compare-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 0 24px 24px;
+  }
+
+  button#compare-btn {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 10px 28px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity .2s;
+  }
+  button#compare-btn:disabled { opacity: .4; cursor: not-allowed; }
+  button#compare-btn:not(:disabled):hover { opacity: .85; }
+
+  /* ── RESULTS ── */
+  #results { display: none; padding: 0 24px 40px; max-width: 1400px; margin: 0 auto; }
+
+  .results-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 0 12px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .results-header h2 { font-size: 15px; font-weight: 600; }
+
+  .stats-bar {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .stat { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+  .stat-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .stat-dot.add { background: var(--add); }
+  .stat-dot.del { background: var(--del); }
+  .stat-dot.mod { background: var(--mod); }
+  .stat-dot.same { background: var(--same); }
+
+  /* ── FILTER BAR ── */
+  .filter-bar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .filter-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .filter-btn.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+  .filter-btn:hover { border-color: var(--text-muted); }
+
+  .search-input {
+    margin-left: auto;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 5px 10px;
+    font-size: 13px;
+    width: 220px;
+    outline: none;
+  }
+  .search-input:focus { border-color: var(--accent); }
+  .search-input::placeholder { color: var(--text-muted); }
+
+  /* ── FILE LIST TABLE ── */
+  .file-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    margin-bottom: 24px;
+  }
+  .file-table th {
+    text-align: left;
+    color: var(--text-muted);
+    font-weight: 500;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  .file-table td {
+    padding: 5px 10px;
+    border-bottom: 1px solid var(--surface2);
+    vertical-align: middle;
+  }
+  .file-table tr:hover td { background: var(--surface2); }
+  .file-table tr.status-added td { background: var(--add-bg); }
+  .file-table tr.status-removed td { background: var(--del-bg); }
+  .file-table tr.status-modified td { background: var(--mod-bg); }
+
+  .file-path { font-family: 'Cascadia Code', 'Consolas', monospace; word-break: break-all; }
+  .file-path .root { color: var(--text-muted); }
+
+  .badge {
+    display: inline-block;
+    border-radius: 4px;
+    padding: 1px 7px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+  }
+  .badge.added   { background: var(--add-bg); color: var(--add); border: 1px solid #1f4a28; }
+  .badge.removed { background: var(--del-bg); color: var(--del); border: 1px solid #4a1f1f; }
+  .badge.modified { background: var(--mod-bg); color: var(--mod); border: 1px solid #4a3800; }
+  .badge.identical { background: var(--surface2); color: var(--same); border: 1px solid var(--border); }
+
+  .type-tag {
+    display: inline-block;
+    border-radius: 3px;
+    padding: 1px 6px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    font-family: monospace;
+  }
+  .type-tag.TcPOU  { background: var(--surface2); color: var(--text-muted); }
+  .type-tag.TcGVL  { background: var(--surface2); color: var(--text-muted); }
+  .type-tag.TcDUT  { background: var(--surface2); color: var(--text-muted); }
+  .type-tag.tsproj { background: var(--surface2); color: var(--text-muted); }
+  .type-tag.other  { background: var(--surface2); color: var(--text-muted); }
+
+  .diff-toggle {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--accent);
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 11px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .diff-toggle:hover { background: var(--accent-dim); }
+
+  /* ── INLINE DIFF ── */
+  .diff-panel {
+    display: none;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin: 4px 0 8px;
+    overflow: hidden;
+  }
+  .diff-panel.open { display: block; }
+
+  .diff-header {
+    display: flex;
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+  }
+  .diff-header-col {
+    flex: 1;
+    padding: 6px 12px;
+    color: var(--text-muted);
+    font-family: monospace;
+  }
+  .diff-header-col:first-child { border-right: 1px solid var(--border); }
+
+  .diff-body {
+    font-family: 'Cascadia Code', 'Consolas', monospace;
+    font-size: 12px;
+    overflow-x: auto;
+    overflow-y: auto;
+    max-height: 600px;
+  }
+
+  /* Table layout: columns expand to fit content, outer div scrolls */
+  .diff-body-inner {
+    display: table;
+    min-width: 100%;
+    border-collapse: collapse;
+  }
+
+  .diff-chunk { display: table-row-group; }
+  .diff-chunk-sep { display: table-row; }
+  .diff-chunk-sep > span {
+    display: table-cell;
+    background: #1a2236;
+    color: var(--text-muted);
+    padding: 2px 12px;
+    font-size: 11px;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .diff-row { display: table-row; }
+  .diff-row:hover .diff-code,
+  .diff-row:hover .diff-ln { filter: brightness(1.12); }
+
+  .diff-ln {
+    display: table-cell;
+    color: var(--text-muted);
+    padding: 1px 8px;
+    text-align: right;
+    user-select: none;
+    font-size: 11px;
+    opacity: .6;
+    width: 48px;
+    white-space: nowrap;
+    vertical-align: top;
+  }
+  .diff-code {
+    display: table-cell;
+    padding: 1px 40px 1px 8px;
+    white-space: pre;
+    vertical-align: top;
+  }
+
+  .diff-row.add .diff-code { background: var(--add-line); color: #aff5b4; }
+  .diff-row.add .diff-ln   { background: var(--add-bg); }
+  .diff-row.del .diff-code { background: var(--del-line); color: #ffa198; }
+  .diff-row.del .diff-ln   { background: var(--del-bg); }
+  .diff-row.ctx .diff-code { color: var(--text); }
+
+  .diff-row.add .diff-code.empty,
+  .diff-row.del .diff-code.empty { background: transparent; }
+
+  /* changed chars highlight */
+  .ins-char { background: #1a5c25; border-radius: 2px; }
+  .del-char { background: #6b1a1a; border-radius: 2px; }
+
+  /* ── LOADING ── */
+  #loading {
+    display: none;
+    text-align: center;
+    padding: 40px;
+    color: var(--text-muted);
+  }
+  .spinner {
+    display: inline-block;
+    width: 28px; height: 28px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+    margin-bottom: 12px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── EMPTY STATE ── */
+  .empty-state {
+    text-align: center;
+    padding: 60px 24px;
+    color: var(--text-muted);
+  }
+
+  /* ── SCROLLBAR ── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--surface); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>TC3-Compare</h1>
+  <span>TwinCAT 3 TNZIP jämförelseverktyg</span>
+</header>
+
+<div id="upload-section">
+  <div class="drop-zone" id="zone-a" ondragover="handleDrag(event,'a')" ondragleave="handleDragLeave('a')" ondrop="handleDrop(event,'a')">
+    <input type="file" id="file-a" accept=".tnzip" onchange="handleFile('a')">
+    <div id="name-a" class="drop-name">Bas (Original)</div>
+    <div id="count-a" class="drop-label">Dra hit eller klicka — .tnzip</div>
+  </div>
+  <div class="drop-zone" id="zone-b" ondragover="handleDrag(event,'b')" ondragleave="handleDragLeave('b')" ondrop="handleDrop(event,'b')">
+    <input type="file" id="file-b" accept=".tnzip" onchange="handleFile('b')">
+    <div id="name-b" class="drop-name">Ny (Reviderad)</div>
+    <div id="count-b" class="drop-label">Dra hit eller klicka — .tnzip</div>
+  </div>
+</div>
+
+<div id="compare-bar">
+  <button id="compare-btn" disabled onclick="runCompare()">Jämför filer</button>
+</div>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <div>Analyserar projekt…</div>
+</div>
+
+<div id="results">
+  <div class="results-header">
+    <h2 id="results-title">Diff-resultat</h2>
+    <div class="stats-bar" id="stats-bar"></div>
+  </div>
+  <div class="filter-bar" id="filter-bar">
+    <button class="filter-btn active" data-filter="all" onclick="setFilter('all',this)">Alla</button>
+    <button class="filter-btn" data-filter="modified" onclick="setFilter('modified',this)">Ändrade</button>
+    <button class="filter-btn" data-filter="added" onclick="setFilter('added',this)">Tillagda</button>
+    <button class="filter-btn" data-filter="removed" onclick="setFilter('removed',this)">Borttagna</button>
+    <button class="filter-btn" data-filter="identical" onclick="setFilter('identical',this)">Identiska</button>
+    <input class="search-input" id="search-input" placeholder="Sök filnamn…" oninput="applySearch(this.value)">
+  </div>
+  <div id="table-container"></div>
+</div>
+
+<script>
+// ────────────────────────────────────────────────
+//  STATE
+// ────────────────────────────────────────────────
+const state = { a: null, b: null };
+let currentFilter = 'all';
+let allRows = [];
+
+// ────────────────────────────────────────────────
+//  DROP / FILE HANDLING
+// ────────────────────────────────────────────────
+function handleDrag(e, id) {
+  e.preventDefault();
+  document.getElementById('zone-' + id).classList.add('drag-over');
+}
+function handleDragLeave(id) {
+  document.getElementById('zone-' + id).classList.remove('drag-over');
+}
+function handleDrop(e, id) {
+  e.preventDefault();
+  handleDragLeave(id);
+  const file = e.dataTransfer.files[0];
+  if (file) loadZip(id, file);
+}
+function handleFile(id) {
+  const file = document.getElementById('file-' + id).files[0];
+  if (file) loadZip(id, file);
+}
+
+async function loadZip(id, file) {
+  try {
+    const zip = await JSZip.loadAsync(file);
+    const files = {};
+    const tasks = [];
+    zip.forEach((path, entry) => {
+      if (!entry.dir) {
+        tasks.push(entry.async('string').then(content => { files[path] = content; }));
+      }
+    });
+    await Promise.all(tasks);
+    state[id] = { name: file.name, files };
+    const zone = document.getElementById('zone-' + id);
+    zone.classList.add('loaded');
+    document.getElementById('name-' + id).textContent = file.name;
+    document.getElementById('count-' + id).textContent = Object.keys(files).length + ' filer inlästa';
+    checkReady();
+  } catch(e) {
+    alert('Kunde inte läsa filen: ' + e.message);
+  }
+}
+
+function checkReady() {
+  document.getElementById('compare-btn').disabled = !(state.a && state.b);
+}
+
+// ────────────────────────────────────────────────
+//  COMPARE
+// ────────────────────────────────────────────────
+function runCompare() {
+  document.getElementById('loading').style.display = 'block';
+  document.getElementById('results').style.display = 'none';
+  setTimeout(() => {
+    try { doCompare(); }
+    catch(e) { alert('Fel vid jämförelse: ' + e.message); console.error(e); }
+    document.getElementById('loading').style.display = 'none';
+  }, 30);
+}
+
+function doCompare() {
+  const a = state.a.files;
+  const b = state.b.files;
+
+  // normalise paths: strip leading zip root dir (first segment)
+  const normA = normalisePaths(a);
+  const normB = normalisePaths(b);
+
+  const keysA = new Set(Object.keys(normA));
+  const keysB = new Set(Object.keys(normB));
+  const all = new Set([...keysA, ...keysB]);
+
+  const rows = [];
+  for (const k of [...all].sort()) {
+    const inA = keysA.has(k);
+    const inB = keysB.has(k);
+    let status;
+    if (inA && inB) {
+      status = normA[k] === normB[k] ? 'identical' : 'modified';
+    } else if (inA) {
+      status = 'removed';
+    } else {
+      status = 'added';
+    }
+    rows.push({ path: k, status, contentA: normA[k] || '', contentB: normB[k] || '' });
+  }
+
+  allRows = rows;
+  renderResults(rows);
+}
+
+function normalisePaths(files) {
+  // strip the first path segment (project root folder) to normalise across versions
+  const out = {};
+  for (const [p, v] of Object.entries(files)) {
+    const parts = p.split('/');
+    const norm = parts.length > 1 ? parts.slice(1).join('/') : p;
+    out[norm] = v;
+  }
+  return out;
+}
+
+// ────────────────────────────────────────────────
+//  RENDER
+// ────────────────────────────────────────────────
+function renderResults(rows) {
+  const counts = { added: 0, removed: 0, modified: 0, identical: 0 };
+  rows.forEach(r => counts[r.status]++);
+
+  // Stats bar
+  document.getElementById('stats-bar').innerHTML = `
+    <div class="stat"><div class="stat-dot add"></div>${counts.added} tillagda</div>
+    <div class="stat"><div class="stat-dot del"></div>${counts.removed} borttagna</div>
+    <div class="stat"><div class="stat-dot mod"></div>${counts.modified} ändrade</div>
+    <div class="stat"><div class="stat-dot same"></div>${counts.identical} identiska</div>
+  `;
+
+  document.getElementById('results-title').textContent =
+    `${state.a.name}  →  ${state.b.name}`;
+
+  renderTable(rows, currentFilter, '');
+  document.getElementById('results').style.display = 'block';
+}
+
+function renderTable(rows, filter, search) {
+  let filtered = rows;
+  if (filter !== 'all') filtered = filtered.filter(r => r.status === filter);
+  if (search) {
+    const q = search.toLowerCase();
+    filtered = filtered.filter(r => r.path.toLowerCase().includes(q));
+  }
+
+  if (filtered.length === 0) {
+    document.getElementById('table-container').innerHTML =
+      '<div class="empty-state">Inga filer matchar filtret.</div>';
+    return;
+  }
+
+  let html = `<table class="file-table">
+    <thead><tr>
+      <th>Filtyp</th>
+      <th>Sökväg</th>
+      <th>Status</th>
+      <th>Åtgärd</th>
+    </tr></thead><tbody>`;
+
+  filtered.forEach((row, i) => {
+    const ext = row.path.split('.').pop();
+    const fname = row.path.split('/').pop();
+    const dir = row.path.split('/').slice(0, -1).join('/');
+    const typeClass = ['TcPOU','TcGVL','TcDUT','tsproj'].includes(ext) ? ext : 'other';
+    const idx = allRows.indexOf(row);
+
+    html += `<tr class="status-${row.status}" data-idx="${idx}">
+      <td><span class="type-tag ${typeClass}">${ext.toUpperCase()}</span></td>
+      <td class="file-path"><span class="root">${dir ? dir + '/' : ''}</span>${fname}</td>
+      <td><span class="badge ${row.status}">${statusLabel(row.status)}</span></td>
+      <td>`;
+
+    if (row.status === 'modified') {
+      html += `<button class="diff-toggle" onclick="toggleDiff(${idx}, this)">Visa diff</button>`;
+    } else if (row.status === 'added' || row.status === 'removed') {
+      html += `<button class="diff-toggle" onclick="toggleDiff(${idx}, this)">Visa innehåll</button>`;
+    }
+    html += `</td></tr>`;
+
+    // diff panel row
+    html += `<tr class="diff-row-container" id="diff-tr-${idx}" style="display:none">
+      <td colspan="4" style="padding:0">
+        <div class="diff-panel open" id="diff-panel-${idx}"></div>
+      </td>
+    </tr>`;
+  });
+
+  html += '</tbody></table>';
+  document.getElementById('table-container').innerHTML = html;
+}
+
+function statusLabel(s) {
+  return { added: 'Tillagd', removed: 'Borttagen', modified: 'Ändrad', identical: 'Identisk' }[s];
+}
+
+// ────────────────────────────────────────────────
+//  DIFF TOGGLE
+// ────────────────────────────────────────────────
+function toggleDiff(idx, btn) {
+  const tr = document.getElementById('diff-tr-' + idx);
+  const panel = document.getElementById('diff-panel-' + idx);
+  const visible = tr.style.display !== 'none';
+
+  if (visible) {
+    tr.style.display = 'none';
+    btn.textContent = btn.textContent.replace('Dölj', 'Visa');
+    return;
+  }
+
+  tr.style.display = '';
+  btn.textContent = btn.textContent.replace('Visa', 'Dölj');
+
+  if (!panel.dataset.rendered) {
+    const row = allRows[idx];
+    panel.innerHTML = buildDiffHTML(row);
+    panel.dataset.rendered = '1';
+  }
+}
+
+// ────────────────────────────────────────────────
+//  DIFF ALGORITHM  (Myers-style line diff)
+// ────────────────────────────────────────────────
+function buildDiffHTML(row) {
+  const linesA = row.contentA.split('\n');
+  const linesB = row.contentB.split('\n');
+
+  const nameA = state.a.name + ' / ' + row.path;
+  const nameB = state.b.name + ' / ' + row.path;
+
+  if (row.status === 'added') {
+    return buildOnePane(nameB, linesB, 'add');
+  }
+  if (row.status === 'removed') {
+    return buildOnePane(nameA, linesA, 'del');
+  }
+
+  // Side-by-side diff
+  const hunks = computeDiff(linesA, linesB);
+  let html = `<div class="diff-header">
+    <div class="diff-header-col">− ${escH(nameA)}</div>
+    <div class="diff-header-col">+ ${escH(nameB)}</div>
+  </div><div class="diff-body"><div class="diff-body-inner">`;
+
+  for (const hunk of hunks) {
+    if (hunk.type === 'sep') {
+      html += `<div class="diff-chunk-sep"><span colspan="4">@@ … @@</span></div>`;
+      continue;
+    }
+    for (const pair of hunk.pairs) {
+      const { left, right } = pair;
+      if (left && right && left.type === 'del' && right.type === 'add') {
+        // modified line — highlight chars
+        const [leftHL, rightHL] = highlightLineDiff(left.text, right.text);
+        html += `<div class="diff-row mod">
+          <span class="diff-ln">${left.n}</span><span class="diff-code">${leftHL}</span>
+          <span class="diff-ln">${right.n}</span><span class="diff-code">${rightHL}</span>
+        </div>`;
+      } else {
+        const l = left  ? `<span class="diff-ln">${left.n}</span><span class="diff-code ${left.type}">${escH(left.text)}</span>`
+                        : `<span class="diff-ln"></span><span class="diff-code empty"></span>`;
+        const r = right ? `<span class="diff-ln">${right.n}</span><span class="diff-code ${right.type}">${escH(right.text)}</span>`
+                        : `<span class="diff-ln"></span><span class="diff-code empty"></span>`;
+        const cls = left ? left.type : right.type;
+        html += `<div class="diff-row ${cls}">${l}${r}</div>`;
+      }
+    }
+  }
+
+  html += '</div></div>';
+  return html;
+}
+
+function buildOnePane(name, lines, cls) {
+  let html = `<div class="diff-header">
+    <div class="diff-header-col" style="flex:unset;width:100%">${cls === 'add' ? '+' : '−'} ${escH(name)}</div>
+  </div><div class="diff-body"><div class="diff-body-inner">`;
+  lines.forEach((l, i) => {
+    html += `<div class="diff-row ${cls}"><span class="diff-ln">${i+1}</span><span class="diff-code ${cls}">${escH(l)}</span></div>`;
+  });
+  html += '</div></div>';
+  return html;
+}
+
+// LCS-based diff  (patience-lite: fast enough for TwinCAT files)
+function computeDiff(a, b) {
+  const ops = lcs_diff(a, b);
+  // Group into hunks with 3 context lines
+  const CTX = 3;
+  const SEP_MIN = 6;
+  const regions = [];
+  let i = 0;
+  while (i < ops.length) {
+    if (ops[i].type !== 'eq') {
+      const start = Math.max(0, i - CTX);
+      let end = i;
+      while (end < ops.length && (ops[end].type !== 'eq' || end - i < CTX)) end++;
+      end = Math.min(ops.length, end + CTX);
+      regions.push({ start, end });
+      i = end;
+    } else i++;
+  }
+
+  if (regions.length === 0) return [];
+
+  // Merge overlapping regions
+  const merged = [regions[0]];
+  for (let j = 1; j < regions.length; j++) {
+    const prev = merged[merged.length - 1];
+    if (regions[j].start - prev.end < SEP_MIN) {
+      prev.end = Math.max(prev.end, regions[j].end);
+    } else {
+      merged.push(regions[j]);
+    }
+  }
+
+  // Build output hunks
+  const hunks = [];
+  for (let k = 0; k < merged.length; k++) {
+    if (k > 0) hunks.push({ type: 'sep' });
+    const { start, end } = merged[k];
+    const slice = ops.slice(start, end);
+
+    // Pair del/add for same-line highlight
+    const pairs = [];
+    let di = 0;
+    while (di < slice.length) {
+      const op = slice[di];
+      if (op.type === 'del' && di + 1 < slice.length && slice[di+1].type === 'add') {
+        pairs.push({ left: { type:'del', n: op.an, text: op.text },
+                     right: { type:'add', n: slice[di+1].bn, text: slice[di+1].text } });
+        di += 2;
+      } else if (op.type === 'del') {
+        pairs.push({ left: { type:'del', n: op.an, text: op.text }, right: null });
+        di++;
+      } else if (op.type === 'add') {
+        pairs.push({ left: null, right: { type:'add', n: op.bn, text: op.text } });
+        di++;
+      } else {
+        pairs.push({ left: { type:'ctx', n: op.an, text: op.text },
+                     right: { type:'ctx', n: op.bn, text: op.text } });
+        di++;
+      }
+    }
+    hunks.push({ type: 'hunk', pairs });
+  }
+  return hunks;
+}
+
+function lcs_diff(a, b) {
+  // Standard DP diff (O(N*M) — acceptable for file sizes here)
+  const m = a.length, n = b.length;
+  // For very large files, fall back to simple diff
+  if (m * n > 2_000_000) return simpleDiff(a, b);
+
+  const dp = Array.from({ length: m + 1 }, () => new Int32Array(n + 1));
+  for (let i = m - 1; i >= 0; i--)
+    for (let j = n - 1; j >= 0; j--)
+      dp[i][j] = a[i] === b[j] ? dp[i+1][j+1] + 1 : Math.max(dp[i+1][j], dp[i][j+1]);
+
+  const ops = [];
+  let i = 0, j = 0;
+  while (i < m || j < n) {
+    if (i < m && j < n && a[i] === b[j]) {
+      ops.push({ type: 'eq', an: i+1, bn: j+1, text: a[i] }); i++; j++;
+    } else if (j < n && (i >= m || dp[i][j+1] >= dp[i+1][j])) {
+      ops.push({ type: 'add', an: null, bn: j+1, text: b[j] }); j++;
+    } else {
+      ops.push({ type: 'del', an: i+1, bn: null, text: a[i] }); i++;
+    }
+  }
+  return ops;
+}
+
+function simpleDiff(a, b) {
+  // Fallback for huge files: mark all as changed
+  const ops = [];
+  a.forEach((l,i) => ops.push({ type:'del', an: i+1, bn: null, text: l }));
+  b.forEach((l,i) => ops.push({ type:'add', an: null, bn: i+1, text: l }));
+  return ops;
+}
+
+// Character-level highlight between two changed lines
+function highlightLineDiff(left, right) {
+  const la = left.split(''), lb = right.split('');
+  if (la.length * lb.length > 100000) {
+    return [escH(left), escH(right)];
+  }
+  const m = la.length, n = lb.length;
+  const dp = Array.from({ length: m+1 }, () => new Int32Array(n+1));
+  for (let i = m-1; i >= 0; i--)
+    for (let j = n-1; j >= 0; j--)
+      dp[i][j] = la[i]===lb[j] ? dp[i+1][j+1]+1 : Math.max(dp[i+1][j],dp[i][j+1]);
+
+  let i=0,j=0;
+  let outL='', outR='';
+  while(i<m||j<n){
+    if(i<m&&j<n&&la[i]===lb[j]){outL+=escH(la[i]);outR+=escH(lb[j]);i++;j++;}
+    else if(j<n&&(i>=m||dp[i][j+1]>=dp[i+1][j])){outR+=`<span class="ins-char">${escH(lb[j])}</span>`;j++;}
+    else{outL+=`<span class="del-char">${escH(la[i])}</span>`;i++;}
+  }
+  return [outL, outR];
+}
+
+function escH(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ────────────────────────────────────────────────
+//  FILTER / SEARCH
+// ────────────────────────────────────────────────
+function setFilter(f, btn) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const q = document.getElementById('search-input').value;
+  renderTable(allRows, f, q);
+}
+
+function applySearch(q) {
+  renderTable(allRows, currentFilter, q);
+}
+</script>
+</body>
+</html>
