@@ -4,7 +4,7 @@ import { api, ApiFel, laddaNer, skicka } from "../../lib/api";
 import { anslutTillProjekt } from "../../lib/synk";
 import type { Anteckningar, AttGora, Kataloger, Skap, Komponent, KomponentHandelse, ListaHandelse, ListDef, ListRad, Logg, Mig, Narvarande, Projekt } from "../../lib/typer";
 import { skrivUt } from "../../lib/utskrift";
-import { NAVIGERING, hittaFlik } from "../../shell/navigering";
+import { NAVIGERING, hittaFlik, type Flik } from "../../shell/navigering";
 import { AnteckningarVy } from "../att-gora/AnteckningarVy";
 import { AttGoraVy } from "../att-gora/AttGoraVy";
 import { AnslutningsVy } from "../driftsattning/AnslutningsVy";
@@ -33,6 +33,18 @@ import { RiskVy } from "../risk/RiskVy";
 import { ProjektStatusVy } from "../status/ProjektStatusVy";
 import { MedlemmarVy } from "./MedlemmarVy";
 import { LoggVy, Oversikt } from "./Oversikt";
+
+/** Delar gruppens flikar i följd: mappar (undergrupp) samlas där mappens första flik står, övriga flikar som de är. */
+function delaUpp(flikar: Flik[]): { mapp?: string; flikar: Flik[] }[] {
+  const ut: { mapp?: string; flikar: Flik[] }[] = [];
+  for (const f of flikar) {
+    const finns = f.undergrupp ? ut.find((d) => d.mapp === f.undergrupp) : undefined;
+    if (finns) finns.flikar.push(f);
+    else if (f.undergrupp) ut.push({ mapp: f.undergrupp, flikar: [f] });
+    else ut.push({ flikar: [f] });
+  }
+  return ut;
+}
 
 const FARGER = ["#2B6CB0", "#B7791F", "#2F855A", "#9B2C6E", "#6B46C1", "#C05621", "#2C7A7B"];
 export const fargFor = (id: string) => FARGER[[...id].reduce((s, c) => s + c.charCodeAt(0), 0) % FARGER.length];
@@ -495,12 +507,29 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
               </button>
               {oppen && (
                 <div className="flikar">
-                  {g.flikar.map((f) => (
-                    <button key={f.id} className={`flik ${f.klar ? "" : "planerad"} ${flik === f.id ? "aktiv" : ""}`} onClick={() => onFlik(f.id)}>
-                      {f.namn}
-                      {!f.klar && <span className="fas">Fas {f.fas}</span>}
-                    </button>
-                  ))}
+                  {delaUpp(g.flikar).map((del) => {
+                    const flikKnapp = (f: Flik) => (
+                      <button key={f.id} className={`flik ${del.mapp ? "i-mapp" : ""} ${f.klar ? "" : "planerad"} ${flik === f.id ? "aktiv" : ""}`} onClick={() => onFlik(f.id)}>
+                        {f.namn}
+                        {!f.klar && <span className="fas">Fas {f.fas}</span>}
+                      </button>
+                    );
+                    if (!del.mapp) return del.flikar.map(flikKnapp);
+                    const nyckel = `${g.namn}/${del.mapp}`;
+                    const mappOppen = oppnaGrupper.has(nyckel) || del.flikar.some((f) => f.id === flik);
+                    return (
+                      <div key={nyckel} className={`undergrupp ${mappOppen ? "oppen" : ""}`}>
+                        <button
+                          className="undergrupp-knapp" aria-expanded={mappOppen}
+                          onClick={() => setOppnaGrupper((s) => { const n = new Set(s); if (mappOppen) n.delete(nyckel); else n.add(nyckel); return n; })}
+                        >
+                          <svg className="chevron" viewBox="0 0 10 10" aria-hidden="true"><path d="M3 1l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.6" /></svg>
+                          {del.mapp}
+                        </button>
+                        {mappOppen && del.flikar.map(flikKnapp)}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
