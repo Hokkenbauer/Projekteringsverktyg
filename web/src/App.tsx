@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, sattTokenKalla, skicka } from "./lib/api";
-import { devAnvandare, loggaIn, sattDevAnvandare, type AppConfig, type Inloggning } from "./lib/inloggning";
+import { devAnvandare, loggaIn, loggaInIgen, sattDevAnvandare, type AppConfig, type Inloggning } from "./lib/inloggning";
 import type { Mig, TemaNamn } from "./lib/typer";
 import { Arbetsyta } from "./features/projekt/Arbetsyta";
 import { ProjektLista } from "./features/projekt/ProjektLista";
@@ -73,7 +73,12 @@ export function App() {
   const hamtaToken = useCallback(() => inloggning!.hamtaToken(), [inloggning]);
 
   if (fel) {
-    return <div className="laddar"><p className="felruta">Appen kunde inte starta: {fel}</p></div>;
+    return (
+      <div className="laddar">
+        <p className="felruta">Appen kunde inte starta: {fel}</p>
+        {config?.auth && <button className="knapp primar" onClick={loggaInIgen}>Logga in igen</button>}
+      </div>
+    );
   }
   if (!config || !inloggning || !mig) {
     return <div className="laddar"><p className="dampad">Startar…</p></div>;

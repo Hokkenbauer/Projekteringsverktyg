@@ -1,5 +1,5 @@
 import {
-  InteractionRequiredAuthError,
+  AuthError,
   PublicClientApplication,
   type AccountInfo,
 } from "@azure/msal-browser";
@@ -56,6 +56,9 @@ export async function loggaIn(config: AppConfig): Promise<Inloggning | null> {
       redirectUri: window.location.origin,
     },
     cache: { cacheLocation: "localStorage" },
+    // Den tysta förnyelsen i bakgrunden ger upp snabbare, så att vi i stället kan skicka
+    // användaren till inloggningen (Brave, VPN m.m. kan stoppa den tysta varianten).
+    system: { iframeBridgeTimeout: 6000 },
   });
   await pca.initialize();
 
@@ -75,8 +78,15 @@ export async function loggaIn(config: AppConfig): Promise<Inloggning | null> {
         const r = await pca.acquireTokenSilent({ scopes: [scope], account: konto! });
         return r.accessToken;
       } catch (e) {
-        if (e instanceof InteractionRequiredAuthError) {
+        // Inloggningen har gått ut (efter ungefär ett dygn) och kunde inte förnyas tyst. Skicka
+        // användaren till Microsofts inloggning i stället för att visa ett fel. Nätverksfel visas som fel.
+        if (e instanceof AuthError && !arNatverksfel(e) && !nyssOmdirigerad()) {
+          markeraOmdirigering();
           await pca.acquireTokenRedirect({ scopes: [scope], account: konto });
+          return new Promise<string>(() => { /* sidan lämnas för inloggningen */ });
+        }
+        if (e instanceof AuthError && e.errorCode === "timed_out") {
+          throw new Error("Inloggningen hos Microsoft svarade inte i tid. Är du ansluten via VPN? Prova att koppla ner den, eller klicka på Logga in igen.");
         }
         throw e;
       }
@@ -85,4 +95,28 @@ export async function loggaIn(config: AppConfig): Promise<Inloggning | null> {
       void pca.logoutRedirect({ account: konto });
     },
   };
+}
+
+const OMDIRIGERAD = "pv-inloggning-omdirigerad";
+
+function arNatverksfel(e: AuthError): boolean {
+  return /network|endpoints_resolution|no_network/i.test(e.errorCode ?? "");
+}
+
+/** Skydd mot en evig loop av omdirigeringar om något är fel med inloggningen. */
+function nyssOmdirigerad(): boolean {
+  try { return Date.now() - Number(sessionStorage.getItem(OMDIRIGERAD) || 0) < 30_000; } catch { return false; }
+}
+
+function markeraOmdirigering() {
+  try { sessionStorage.setItem(OMDIRIGERAD, String(Date.now())); } catch { /* ignoreras */ }
+}
+
+/** Tömmer den sparade inloggningen och laddar om, så att man loggar in från början. */
+export function loggaInIgen() {
+  try {
+    for (const k of Object.keys(localStorage)) if (k.startsWith("msal.") || k.includes("login.windows.net") || k.includes("login.microsoftonline.com")) localStorage.removeItem(k);
+    sessionStorage.removeItem(OMDIRIGERAD);
+  } catch { /* ignoreras */ }
+  location.reload();
 }
