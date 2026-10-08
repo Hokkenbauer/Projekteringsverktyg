@@ -7,7 +7,9 @@ import { skrivUt } from "../../lib/utskrift";
 import { NAVIGERING, hittaFlik } from "../../shell/navigering";
 import { AnteckningarVy } from "../att-gora/AnteckningarVy";
 import { AttGoraVy } from "../att-gora/AttGoraVy";
+import { AnslutningsVy } from "../driftsattning/AnslutningsVy";
 import { ProjektfilerVy } from "../filer/ProjektfilerVy";
+import { ServicerapportVy } from "../service/ServicerapportVy";
 import { ListVy, type VisadRad } from "../listor/ListVy";
 import { PlaceringsritningVy } from "../ritning/PlaceringsritningVy";
 import { RitbordVy } from "../ritning/RitbordVy";
@@ -685,6 +687,18 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
             lasläge={!skrivbar} visaMeddelande={visaMeddelande}
           />
         ) : <p className="dampad">Hämtar…</p>)}
+        {flik === "servicerapport" && vald && (
+          <ServicerapportVy
+            projektId={projektId} projekt={projekt} minNamn={mig.namn} grupp={vald.grupp.namn} rubrik={vald.flik.namn}
+            lasläge={!skrivbar} uppdaterad={dokumentVersion.servicerapport ?? 0} visaMeddelande={visaMeddelande}
+          />
+        )}
+        {flik === "anslutningsinformation" && vald && (
+          <AnslutningsVy
+            projektId={projektId} grupp={vald.grupp.namn} rubrik={vald.flik.namn} far={!!mig.rattigheter.seAnslutningsinformation}
+            lasläge={!skrivbar} uppdaterad={dokumentVersion.anslutning ?? 0} visaMeddelande={visaMeddelande}
+          />
+        )}
         {flik === "projektfiler" && <ProjektfilerVy projektId={projektId} lasläge={!skrivbar} uppdaterad={filVersion} visaMeddelande={visaMeddelande} />}
         {vald && !vald.flik.klar && (
           <>

@@ -68,7 +68,7 @@ export const NAVIGERING: Grupp[] = [
       { id: "ip-lista", namn: "IP-lista", fas: 3, klar: true, lista: "iplista" },
       { id: "matplan", namn: "Mätplan", fas: 3, klar: true, lista: "matplan" },
       { id: "kontroller", namn: "Projektspecifika kontroller", fas: 3, klar: true, kontroll: "projekt" },
-      { id: "anslutningsinformation", namn: "Anslutningsinformation", fas: 3 },
+      { id: "anslutningsinformation", namn: "Anslutningsinformation", fas: 3, klar: true },
     ],
   },
   {
@@ -100,7 +100,7 @@ export const NAVIGERING: Grupp[] = [
   {
     namn: "Service",
     flikar: [
-      { id: "servicerapport", namn: "Servicerapport", fas: 6 },
+      { id: "servicerapport", namn: "Servicerapport", fas: 6, klar: true },
       { id: "planerade-tillfallen", namn: "Planerade tillfällen", fas: 6, klar: true, lista: "planerade" },
       { id: "serviceinformation", namn: "Serviceinformation", fas: 6, klar: true, text: "serviceinformation" },
       { id: "servicekontroller", namn: "Kontroller (service)", fas: 6, klar: true, kontroll: "service" },

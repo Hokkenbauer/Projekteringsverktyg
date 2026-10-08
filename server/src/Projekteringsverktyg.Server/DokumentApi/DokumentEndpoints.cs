@@ -23,7 +23,16 @@ public static class DokumentEndpoints
     {
         ["funktionstext"] = "funktionstexten",
         ["servicerapport"] = "servicerapporten",
+        ["anslutning"] = "anslutningsinformationen för",
     };
+
+    /// <summary>Känsliga typer (användarnamn och lösenord) som bara Admin, Projektledare och System ser.</summary>
+    public static readonly HashSet<string> Kansliga = ["anslutning"];
+
+    private static async Task<IResult?> KollaKanslig(string typ, ClaimsPrincipal user, Behorighet beh) =>
+        Kansliga.Contains(typ) && !await beh.HarRoll(user, Roller.Admin, Roller.Projektledare, Roller.System)
+            ? Results.Problem(statusCode: 403, title: "Bara Admin, Projektledare och System ser anslutningsinformationen.")
+            : null;
 
     public const int MaxLangd = 10_000_000;
 
@@ -33,13 +42,17 @@ public static class DokumentEndpoints
     {
         var g = app.MapGroup("/api/projekt/{projektId:guid}/dokument").AddEndpointFilter<ProjektAtkomst>();
 
-        g.MapGet("/", async (Guid projektId, string typ, PvDbContext db) =>
-            (await db.Dokument.AsNoTracking().Where(d => d.ProjektId == projektId && d.Typ == typ)
+        g.MapGet("/", async (Guid projektId, string typ, ClaimsPrincipal user, PvDbContext db, Behorighet beh) =>
+        {
+            if (await KollaKanslig(typ, user, beh) is { } nej) return nej;
+            return Results.Ok((await db.Dokument.AsNoTracking().Where(d => d.ProjektId == projektId && d.Typ == typ)
                 .OrderBy(d => d.Ordning).ThenBy(d => d.Skapad).ToListAsync()).Select(Dto));
+        });
 
-        g.MapPost("/", async (Guid projektId, NyttDokument ny, ClaimsPrincipal user, PvDbContext db, IHubContext<ProjektHub> hub) =>
+        g.MapPost("/", async (Guid projektId, NyttDokument ny, ClaimsPrincipal user, PvDbContext db, IHubContext<ProjektHub> hub, Behorighet beh) =>
         {
             if (!Typer.TryGetValue(ny.Typ ?? "", out var vad)) return Fel("Okänd dokumenttyp.");
+            if (await KollaKanslig(ny.Typ!, user, beh) is { } nej) return nej;
             if (!await db.Projekt.AnyAsync(p => p.Id == projektId)) return Results.NotFound();
             var data = ny.Data ?? "";
             if (data.Length > MaxLangd) return Fel("Dokumentet är för stort.");
@@ -58,11 +71,12 @@ public static class DokumentEndpoints
             return Results.Ok(Dto(d));
         });
 
-        g.MapPut("/{id:guid}", async (Guid projektId, Guid id, DokumentSpara spara, ClaimsPrincipal user, PvDbContext db, IHubContext<ProjektHub> hub) =>
+        g.MapPut("/{id:guid}", async (Guid projektId, Guid id, DokumentSpara spara, ClaimsPrincipal user, PvDbContext db, IHubContext<ProjektHub> hub, Behorighet beh) =>
         {
             var d = await db.Dokument.FirstOrDefaultAsync(x => x.Id == id && x.ProjektId == projektId);
             if (d is null) return Results.NotFound();
-            if (d.Version != spara.Version) return Results.Conflict(new { meddelande = "Dokumentet har ändrats av någon annan.", dokument = Dto(d) });
+            if (await KollaKanslig(d.Typ, user, beh) is { } nej) return nej;
+            if (d.Version != spara.Version) return Results.Conflict(new { meddelande = "Dokumentet har ändrats av någon annan." });
             if (spara.Data is { Length: > MaxLangd }) return Fel("Dokumentet är för stort.");
             var av = Anvandare.Fran(user);
             var vad = Typer.GetValueOrDefault(d.Typ, "dokumentet");
@@ -91,10 +105,11 @@ public static class DokumentEndpoints
             return Results.Ok(Dto(d));
         });
 
-        g.MapDelete("/{id:guid}", async (Guid projektId, Guid id, ClaimsPrincipal user, PvDbContext db, IHubContext<ProjektHub> hub) =>
+        g.MapDelete("/{id:guid}", async (Guid projektId, Guid id, ClaimsPrincipal user, PvDbContext db, IHubContext<ProjektHub> hub, Behorighet beh) =>
         {
             var d = await db.Dokument.FirstOrDefaultAsync(x => x.Id == id && x.ProjektId == projektId);
             if (d is null) return Results.NotFound();
+            if (await KollaKanslig(d.Typ, user, beh) is { } nej) return nej;
             var av = Anvandare.Fran(user);
             db.Dokument.Remove(d);
             Andringslogg.Logga(db, projektId, av, "Dokument", d.Id, $"tog bort {Typer.GetValueOrDefault(d.Typ, "dokumentet")} {d.Namn}");
@@ -106,8 +121,10 @@ public static class DokumentEndpoints
         return app;
     }
 
+    // Känsliga dokument skickas inte ut i livesynken (alla i projektet får den); bara att något ändrats.
     private static Task Skicka(IHubContext<ProjektHub> hub, Guid projektId, ProjektDokument d, string typ, Anvandare av) =>
-        hub.Clients.Group(ProjektHub.Grupp(projektId)).SendAsync("ListaAndrad", new ListaHandelse($"dokument:{d.Typ}", typ, Dto(d), av.Id, av.Namn));
+        hub.Clients.Group(ProjektHub.Grupp(projektId)).SendAsync("ListaAndrad", new ListaHandelse($"dokument:{d.Typ}", typ,
+            Kansliga.Contains(d.Typ) ? new { d.Id, d.Typ } : Dto(d), av.Id, av.Namn));
 
     private static IResult Fel(string text) =>
         Results.ValidationProblem(new Dictionary<string, string[]> { ["dokument"] = [text] });

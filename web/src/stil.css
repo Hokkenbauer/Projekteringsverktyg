@@ -422,3 +422,6 @@ table.valbar tbody tr:hover { background: var(--yta-2); }
 .slinga { display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; border: 1px solid var(--linje); border-radius: var(--r); background: var(--yta-2); font-size: 13px; }
 .slinga.varning { border-color: var(--fara); }
 .slinga .fel { color: var(--fara); }
+.riskfalt select, .formtabell select { background: var(--yta-2); border: 1px solid var(--linje); border-radius: var(--r); padding: 7px 9px; color: var(--text); font: inherit; font-size: 13.5px; width: 100%; }
+.losenrad { display: flex; gap: 4px; align-items: center; }
+.losenrad input { flex: 1; min-width: 120px; }
