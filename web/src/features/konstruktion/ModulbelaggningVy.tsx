@@ -4,7 +4,7 @@ import type { Komponent, Korttyp, ModulKort, Modulbelaggning, Projekt, Skap } fr
 import { Dialog } from "../../shell/Dialog";
 
 const MAX_MA = 2000;
-const tal = (v: number) => v.toLocaleString("sv-SE", { maximumFractionDigits: 3 });
+const tal = (v: number | undefined) => (Number.isFinite(v) ? v! : 0).toLocaleString("sv-SE", { maximumFractionDigits: 3 });
 const nyttId = () => Math.random().toString(36).slice(2, 10);
 
 export function lasModuler(json: string): Modulbelaggning {
@@ -12,7 +12,11 @@ export function lasModuler(json: string): Modulbelaggning {
     const m = JSON.parse(json || "{}") as Partial<Modulbelaggning>;
     return {
       cpu1: m.cpu1 ?? "",
-      kort: (m.kort ?? []).map((k) => ({ ...k, id: k.id || nyttId(), kanaler: k.kanaler ?? [] })),
+      kort: (m.kort ?? []).map((k) => ({
+        ...k, id: k.id || nyttId(), beskrivning: k.beskrivning ?? "", farg: k.farg || "#FFFFFF",
+        antalKanaler: Number(k.antalKanaler) || 0, breddMm: Number(k.breddMm) || 0, stromMa: Number(k.stromMa) || 0,
+        kanaler: k.kanaler ?? [],
+      })),
     };
   } catch {
     return { cpu1: "", kort: [] };

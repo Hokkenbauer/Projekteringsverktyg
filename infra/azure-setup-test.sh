@@ -102,7 +102,7 @@ resource db 'Microsoft.DBforPostgreSQL/flexibleServers@2024-08-01' = {
     administratorLogin: dbAdmin
     administratorLoginPassword: dbLosenord
     storage: { storageSizeGB: 32, autoGrow: 'Enabled' }
-    backup: { backupRetentionDays: 7, geoRedundantBackup: 'Disabled' }
+    backup: { backupRetentionDays: 35, geoRedundantBackup: 'Disabled' }
     highAvailability: { mode: 'Disabled' }
     network: { publicNetworkAccess: 'Enabled' }
   }
