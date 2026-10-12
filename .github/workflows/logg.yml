@@ -27,4 +27,12 @@ jobs:
           for f in $(ls -t $(find logg -type f -name '*.log') 2>/dev/null | head -6); do
             echo "===== $f"
             grep -n -i -A25 "exception\|fail:" "$f" | tail -n 200 || true
+            # Som annoteringar också, så att felen syns i körningens sammanfattning.
+            grep -i -A14 "exception\|fail:" "$f" | tail -n 120 | cut -c1-400 | split -l 30 - del_ || true
+            for d in del_*; do
+              [ -f "$d" ] || continue
+              text=$(sed 's/%/%25/g' "$d" | awk 'BEGIN{ORS="%0A"} {print}')
+              echo "::warning title=$(basename "$f") $d::$text"
+              rm -f "$d"
+            done
           done
