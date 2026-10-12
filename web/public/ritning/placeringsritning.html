@@ -115,7 +115,7 @@ main{flex:1;position:relative;min-width:0;background:var(--canvas)}
 #pdfCanvas{position:absolute;inset:0;width:100%;height:100%;display:block}
 #overlay{position:absolute;inset:0;width:100%;height:100%}
 #overlay text{font-family:var(--mono);paint-order:stroke;stroke:var(--ol);stroke-width:3px;stroke-linejoin:round;fill:var(--cc);font-weight:600}
-.roomShape{fill:color-mix(in srgb, var(--accent2) 6%, transparent);stroke:var(--accent2);stroke-width:1.4px;vector-effect:non-scaling-stroke}
+.roomShape{fill:color-mix(in srgb, var(--rc,var(--accent2)) 8%, transparent);stroke:var(--rc,var(--accent2));stroke-width:var(--rw,1.4px);vector-effect:non-scaling-stroke}
 .cableLine{fill:none;stroke-width:2.4px;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke;cursor:pointer;opacity:.92}
 .cableLine.sel{stroke-width:4px;opacity:1;filter:drop-shadow(0 0 2px #fff)}
 .junctionPt{fill:#8b939d;stroke:var(--input);stroke-width:1.4px;vector-effect:non-scaling-stroke;cursor:pointer}
@@ -123,7 +123,7 @@ main{flex:1;position:relative;min-width:0;background:var(--canvas)}
 .roomShape.sel{stroke:var(--accent);fill:color-mix(in srgb, var(--accent) 13%, transparent)}
 .roomShape.hit{stroke:var(--hit);fill:color-mix(in srgb, var(--hit) 14%, transparent)}
 .roomShape.done{stroke:var(--done);fill:color-mix(in srgb, var(--done) 12%, transparent);stroke-width:2px}
-.roomLbl{fill:var(--accent2)!important;stroke:var(--canvas)!important}
+.roomLbl{fill:var(--rc,var(--accent2))!important;stroke:var(--canvas)!important}
 .roomLbl.done{fill:var(--done)!important}
 .comp{cursor:pointer}
 .comp .sym{fill:var(--cc);stroke:var(--ol);stroke-width:1.3}
@@ -147,6 +147,9 @@ main{flex:1;position:relative;min-width:0;background:var(--canvas)}
 .toolgrp .lab{font-size:9.5px;color:var(--txt3);padding:0 4px;text-transform:uppercase;letter-spacing:.1em}
 .sw-btn{width:22px;height:22px;padding:0;border-radius:4px;border:1px solid var(--line2)}
 .sw-btn.on{outline:2px solid var(--accent);outline-offset:1px}
+.sw-egen{position:relative;display:inline-block;cursor:pointer;background:conic-gradient(#e63946,#f2d64b,#37c26a,#3b82f6,#9333ea,#e63946)}
+.sw-egen input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.sw-text{width:auto;padding:0 7px;font-size:11px;color:var(--txt)}
 #layersPanel{flex-direction:column;align-items:stretch;width:284px;padding:0;overflow:hidden}
 #instLayersPanel{flex-direction:column;align-items:stretch;width:284px;padding:0;max-height:220px;overflow-y:auto}
 .lhead{display:flex;align-items:center;gap:6px;padding:6px 8px;border-bottom:1px solid var(--line)}
@@ -268,7 +271,7 @@ button.ikon.on{background:var(--sel);border-color:var(--accent);color:var(--txt)
 .pop.open>button{background:var(--sel);border-color:var(--accent)}
 .poprad{display:flex;align-items:center;gap:8px;padding:5px 2px}
 .poprad .lab{width:92px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--txt3)}
-.farger{display:flex;gap:4px;flex-wrap:wrap;max-width:230px}
+.farger{display:flex;gap:4px;flex-wrap:wrap;max-width:300px}
 .panel-i-pop{display:flex;flex-direction:column;width:290px;margin:-8px}
 .meny{flex-direction:column;gap:2px;min-width:280px}
 .pop.open>.popruta.meny{display:flex}
@@ -339,6 +342,8 @@ body.ljust .comp text, body.ljust #overlay text{font-weight:700}
           <div class="poprad"><span class="lab">Bakgrund</span><span id="bgBtns" class="farger"></span></div>
           <div class="poprad"><span class="lab">Linjer</span><span id="inkBtns" class="farger"></span></div>
           <div class="poprad"><span class="lab">Komponenter</span><span id="compBtns" class="farger"></span></div>
+          <div class="poprad"><span class="lab">Rum</span><span id="roomBtns" class="farger"></span></div>
+          <div class="poprad"><span class="lab">Rumslinje</span><span id="roomWBtns" class="farger"></span></div>
         </div></div>
       <div class="pop"><button data-pop title="PDF-bakgrunder på planet: synlighet, ordning och läge">▤<span class="etikett"> Bakgrunder</span> ▾</button>
         <div class="popruta"><div id="layersPanel" class="panel-i-pop"></div></div></div>
@@ -505,10 +510,18 @@ const DEFAULT_TYPES=[
  {id:'t_komponent',code:'KO',name:'Komponent',shape:'circle',attrs:[],models:[],hidden:false}
 ];
 const BG_PRESETS=[{k:'white',c:'#ffffff',n:'Vit'},{k:'gray',c:'#8b939d',n:'Grå'},{k:'navy',c:'#0e1c2c',n:'Mörkblå'},{k:'black',c:'#000000',n:'Svart'}];
-const INK_PRESETS=[{k:'white',c:'#ffffff',n:'Vit'},{k:'gray',c:'#b6bec8',n:'Grå'},{k:'black',c:'#000000',n:'Svart'}];
+const INK_PRESETS=[{k:'white',c:'#ffffff',n:'Vit'},{k:'lightgray',c:'#d9dee4',n:'Ljusgrå'},{k:'gray',c:'#b6bec8',n:'Grå'},{k:'darkgray',c:'#5b636d',n:'Mörkgrå'},{k:'black',c:'#000000',n:'Svart'},
+  {k:'cream',c:'#f3e9c6',n:'Krämvit'},{k:'yellow',c:'#f2d64b',n:'Gul'},{k:'amber',c:'#f0a63a',n:'Bärnsten'},{k:'orange',c:'#f97316',n:'Orange'},{k:'red',c:'#e63946',n:'Röd'},
+  {k:'pink',c:'#f472b6',n:'Rosa'},{k:'purple',c:'#a78bfa',n:'Lila'},{k:'blue',c:'#3b82f6',n:'Blå'},{k:'lightblue',c:'#8ecbff',n:'Ljusblå'},{k:'cyan',c:'#5eead4',n:'Turkos'},
+  {k:'green',c:'#4ade80',n:'Grön'},{k:'lime',c:'#bef264',n:'Limegrön'},{k:'darkblue',c:'#1e3a8a',n:'Mörkblå'},{k:'brown',c:'#8b5a2b',n:'Brun'}];
+const ROOM_PRESETS=[{k:'steel',c:'#4d9fc4',n:'Stålblå (standard)'},{k:'white',c:'#ffffff',n:'Vit'},{k:'black',c:'#000000',n:'Svart'},{k:'yellow',c:'#f2d64b',n:'Gul'},
+  {k:'orange',c:'#f97316',n:'Orange'},{k:'red',c:'#e63946',n:'Röd'},{k:'pink',c:'#ec4899',n:'Rosa'},{k:'purple',c:'#9333ea',n:'Lila'},{k:'blue',c:'#3b82f6',n:'Blå'},
+  {k:'cyan',c:'#14b8a6',n:'Turkos'},{k:'green',c:'#37c26a',n:'Grön'},{k:'lime',c:'#a3e635',n:'Limegrön'}];
+const ROOM_WIDTHS=[{k:1.4,n:'Tunn'},{k:2.5,n:'Normal'},{k:4,n:'Tjock'}];
 const COMP_PRESETS=[{k:'white',c:'#ffffff',n:'Vit'},{k:'black',c:'#000000',n:'Svart'},{k:'red',c:'#e63946',n:'Röd'},{k:'blue',c:'#3b82f6',n:'Blå'},{k:'green',c:'#37c26a',n:'Grön'},{k:'yellow',c:'#f2c53d',n:'Gul'},{k:'pink',c:'#ec4899',n:'Rosa'},{k:'turquoise',c:'#14b8a6',n:'Turkos'},{k:'darkgreen',c:'#14532d',n:'Mörkgrön'},{k:'darkblue',c:'#1e3a8a',n:'Mörkblå'},{k:'purple',c:'#9333ea',n:'Lila'},{k:'orange',c:'#f97316',n:'Orange'}];
 const DONE_COLOR='#37c26a';
-const pick=(arr,k,d)=>(arr.find(x=>x.k===k)||arr[d]).c;
+/** Färg ur en lista, eller en egen färg (#rrggbb) som valts med färgväljaren. */
+const pick=(arr,k,d)=>(typeof k==='string'&&/^#[0-9a-f]{6}$/i.test(k))?k:(arr.find(x=>x.k===k)||arr[d]).c;
 
 function newFloor(name){return {id:uid('f'),name,layers:[],ref:null,rooms:[],components:[],hidden:false,instLayers:[],cables:[],junctionPoints:[]};}
 function newProject(){
@@ -1051,6 +1064,8 @@ function overlayColors(){
   const [r,g,b]=hexRGB(cc);
   svg.style.setProperty('--cc',cc);
   svg.style.setProperty('--ol',(r*77+g*151+b*28)/256>140?'#0b0e12':'#f2f6fa');
+  svg.style.setProperty('--rc',pick(ROOM_PRESETS,P.settings.room,0));
+  svg.style.setProperty('--rw',(+P.settings.roomW||1.4)+'px');
 }
 function buildOverlay(){
   const f=curFloor();
@@ -2494,8 +2509,9 @@ async function renderPlanCanvas(floor,box,scale,opts){
     oc.beginPath();
     r.points.forEach((p,i)=>{const x=W2(p[0]),y=H2(p[1]);i?oc.lineTo(x,y):oc.moveTo(x,y);});
     oc.closePath();
-    oc.strokeStyle=r.done?DONE_COLOR:'#4d9fc4';oc.lineWidth=Math.max(1,1.4*scale/2);
-    oc.fillStyle=r.done?'rgba(55,194,106,.10)':'rgba(77,159,196,.05)';
+    const rc=pick(ROOM_PRESETS,P.settings.room,0),[rr,rg,rb]=hexRGB(rc);
+    oc.strokeStyle=r.done?DONE_COLOR:rc;oc.lineWidth=Math.max(1,(+P.settings.roomW||1.4)*scale/2);
+    oc.fillStyle=r.done?'rgba(55,194,106,.10)':`rgba(${rr},${rg},${rb},.06)`;
     oc.fill();oc.stroke();
     if(opts.roomLabels!==false){
       const c=centroid(r.points),lbl=r.name+(r.done?' ✓':'');
@@ -2991,7 +3007,7 @@ function renderSettings(){
   $('#sCsv').onclick=()=>$('#fileCsv').click();
   $('#sSym').oninput=e=>{P.settings.symScale=+e.target.value;buildOverlay();};
   $('#sLbl').onchange=e=>{P.settings.showLabels=e.target.checked;buildOverlay();};
-  $$('#settingsView [data-bg],#settingsView [data-ink],#settingsView [data-comp]').forEach(b=>b.onclick=()=>{
+  $$('#settingsView .sw-btn[data-bg],#settingsView .sw-btn[data-ink],#settingsView .sw-btn[data-comp]').forEach(b=>b.onclick=()=>{
     if(b.dataset.bg)P.settings.bg=b.dataset.bg;
     if(b.dataset.ink)P.settings.ink=b.dataset.ink;
     if(b.dataset.comp)P.settings.comp=b.dataset.comp;
@@ -3196,15 +3212,34 @@ $('#addBuilding').onclick=()=>{
   const b={id:uid('b'),name:'Byggnad '+String.fromCharCode(65+P.buildings.length),hidden:false,floors:[newFloor('Plan 1')]};
   P.buildings.push(b);refresh();openFloor(b.floors[0].id);
 };
+/** Färgknappar plus en egen färg (färgväljare) sist i raden. */
+function fargRad(lista,nyckel,valt){
+  const egen=typeof valt==='string'&&valt.startsWith('#');
+  return lista.map(p=>`<button class="sw-btn${valt===p.k?' on':''}" data-farg="${nyckel}" data-v="${p.k}" title="${p.n}" style="background:${p.c}"></button>`).join('')+
+    `<label class="sw-btn sw-egen${egen?' on':''}" title="Egen färg" style="${egen?'background:'+valt:''}"><input type="color" data-farg-egen="${nyckel}" value="${egen?valt:'#ffffff'}"></label>`;
+}
 function renderColorBtns(){
-  $('#bgBtns').innerHTML=BG_PRESETS.map(p=>`<button class="sw-btn${P.settings.bg===p.k?' on':''}" data-bg="${p.k}" title="${p.n}" style="background:${p.c}"></button>`).join('');
-  $('#inkBtns').innerHTML=INK_PRESETS.map(p=>`<button class="sw-btn${P.settings.ink===p.k?' on':''}" data-ink="${p.k}" title="${p.n}" style="background:${p.c}"></button>`).join('');
-  $('#compBtns').innerHTML=COMP_PRESETS.map(p=>`<button class="sw-btn${P.settings.comp===p.k?' on':''}" data-comp="${p.k}" title="${p.n}" style="background:${p.c}"></button>`).join('');
+  const st=P.settings;
+  $('#bgBtns').innerHTML=fargRad(BG_PRESETS,'bg',st.bg);
+  $('#inkBtns').innerHTML=fargRad(INK_PRESETS,'ink',st.ink);
+  $('#compBtns').innerHTML=fargRad(COMP_PRESETS,'comp',st.comp);
+  $('#roomBtns').innerHTML=fargRad(ROOM_PRESETS,'room',st.room||'steel');
+  $('#roomWBtns').innerHTML=ROOM_WIDTHS.map(w=>`<button class="sw-btn sw-text${(+st.roomW||1.4)===w.k?' on':''}" data-roomw="${w.k}" title="${w.n}">${w.n}</button>`).join('');
+}
+function sattFarg(nyckel,v){
+  P.settings[nyckel]=v;
+  renderColorBtns();
+  if(nyckel==='bg'||nyckel==='ink')applyAllColors();
+  buildOverlay();draw();
 }
 document.addEventListener('click',e=>{
-  const b=e.target.closest('[data-bg]'),i=e.target.closest('[data-ink]'),c=e.target.closest('[data-comp]');
-  if(b)P.settings.bg=b.dataset.bg;else if(i)P.settings.ink=i.dataset.ink;else if(c)P.settings.comp=c.dataset.comp;else return;
-  renderColorBtns();applyAllColors();buildOverlay();
+  const f=e.target.closest('.sw-btn[data-farg]'),w=e.target.closest('.sw-btn[data-roomw]');
+  if(f)sattFarg(f.dataset.farg,isNaN(+f.dataset.v)?f.dataset.v:+f.dataset.v);
+  else if(w){P.settings.roomW=+w.dataset.roomw;renderColorBtns();buildOverlay();}
+});
+document.addEventListener('change',e=>{
+  const i=e.target.closest('[data-farg-egen]');
+  if(i)sattFarg(i.dataset.fargEgen,i.value);
 });
 function importPdf(){
   if(!curFloor()){alert('Välj ett plan först.');return;}
