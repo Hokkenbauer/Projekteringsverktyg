@@ -726,25 +726,121 @@ function flash(msg){
   clearTimeout(flashT);
   flashT=setTimeout(()=>{busyEl.textContent='Renderar…';busyEl.style.display=busyN?'block':'none';},1600);
 }
+/* ---- PDF-filernas bytes ----
+   En projektfil (fileId) ändras aldrig: en ny version får ett nytt Id. Därför kan filen sparas
+   i webbläsaren (IndexedDB) och återanvändas: nästa gång ritningen öppnas, när någon annan sparat
+   och när man byter plan behöver PDF:en inte hämtas från servern igen. */
+const pdfBytes=new Map();        // fileId → Uint8Array, lever så länge sidan är öppen
+const pdfHamtar=new Map();       // fileId → pågående hämtning (samma fil hämtas bara en gång)
+const PDF_LAGRING_MAX=800*1024*1024;
+let pdfDbLofte=null;
+function pdfDb(){
+  if(pdfDbLofte)return pdfDbLofte;
+  pdfDbLofte=new Promise(res=>{
+    try{
+      const r=indexedDB.open('pv-pdf',2);
+      r.onupgradeneeded=()=>{const d=r.result;
+        if(!d.objectStoreNames.contains('data'))d.createObjectStore('data');
+        if(!d.objectStoreNames.contains('meta'))d.createObjectStore('meta',{keyPath:'id'});
+        if(!d.objectStoreNames.contains('bild'))d.createObjectStore('bild');};
+      r.onsuccess=()=>res(r.result);r.onerror=()=>res(null);r.onblocked=()=>res(null);
+    }catch(_){res(null);}
+  });
+  return pdfDbLofte;
+}
+async function pdfDbHamta(id){
+  const db=await pdfDb();if(!db)return null;
+  return new Promise(res=>{
+    try{
+      const t=db.transaction(['data','meta'],'readwrite'),g=t.objectStore('data').get(id);
+      g.onsuccess=()=>{const v=g.result;if(v)t.objectStore('meta').put({id,storlek:v.byteLength,anvand:Date.now()});res(v?new Uint8Array(v):null);};
+      g.onerror=()=>res(null);
+    }catch(_){res(null);}
+  });
+}
+async function pdfDbSpara(id,bytes){
+  const db=await pdfDb();if(!db)return;
+  try{
+    await new Promise(res=>{
+      const t=db.transaction(['data','meta'],'readwrite');
+      t.objectStore('data').put(bytes.slice().buffer,id);
+      t.objectStore('meta').put({id,storlek:bytes.byteLength,anvand:Date.now()});
+      t.oncomplete=res;t.onerror=res;t.onabort=res;
+    });
+    // Gallra: de minst nyligen använda filerna tas bort när lagringen blir för stor.
+    const meta=await new Promise(res=>{const g=db.transaction('meta').objectStore('meta').getAll();g.onsuccess=()=>res(g.result||[]);g.onerror=()=>res([]);});
+    let sum=meta.reduce((a,m)=>a+m.storlek,0);
+    if(sum<=PDF_LAGRING_MAX)return;
+    const t=db.transaction(['data','meta'],'readwrite');
+    meta.sort((a,b)=>a.anvand-b.anvand).forEach(m=>{if(sum>PDF_LAGRING_MAX&&m.id!==id){
+      if(m.id.startsWith('bild|'))t.objectStore('bild').delete(m.id.slice(5));else t.objectStore('data').delete(m.id);
+      t.objectStore('meta').delete(m.id);sum-=m.storlek;}});
+  }catch(_){}
+}
+/* Färdigritad bakgrund (gråskala, komprimerad) sparas också, så att ritningen syns direkt nästa gång
+   i stället för att pdf.js ritar om hela PDF:en. Skärpan fylls på när man zoomar in. */
+const kanKomprimera=typeof CompressionStream==='function';
+async function komprimera(u8){return new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer());}
+async function packaUpp(u8){return new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());}
+async function bildHamta(nyckel){
+  if(!kanKomprimera)return null;
+  const db=await pdfDb();if(!db||!db.objectStoreNames.contains('bild'))return null;
+  const v=await new Promise(res=>{try{const t=db.transaction(['bild','meta'],'readwrite'),g=t.objectStore('bild').get(nyckel);
+    g.onsuccess=()=>{const v=g.result;if(v)t.objectStore('meta').put({id:'bild|'+nyckel,storlek:v.gz.byteLength,anvand:Date.now()});res(v||null);};g.onerror=()=>res(null);}catch(_){res(null);}});
+  if(!v)return null;
+  try{return {w:v.w,h:v.h,scale:v.scale,lum:new Uint8ClampedArray((await packaUpp(new Uint8Array(v.gz))).buffer)};}catch(_){return null;}
+}
+async function bildSpara(nyckel,w,h,scale,lum){
+  if(!kanKomprimera)return;
+  try{
+    const gz=await komprimera(new Uint8Array(lum.buffer,lum.byteOffset,lum.byteLength));
+    const db=await pdfDb();if(!db||!db.objectStoreNames.contains('bild'))return;
+    const t=db.transaction(['bild','meta'],'readwrite');
+    t.objectStore('bild').put({w,h,scale,gz:gz.buffer},nyckel);
+    t.objectStore('meta').put({id:'bild|'+nyckel,storlek:gz.byteLength,anvand:Date.now()});
+  }catch(_){}
+}
+async function pdfData(layer){
+  if(layer.fileId){
+    const id=layer.fileId;
+    if(pdfBytes.has(id))return pdfBytes.get(id);
+    if(!pdfHamtar.has(id))pdfHamtar.set(id,(async()=>{
+      let b=await pdfDbHamta(id);
+      if(!b){
+        const vard=pvVard();
+        if(vard)b=new Uint8Array(await vard.hamtaPdf(id));
+        else if(layer.b64)b=b64ToBytes(layer.b64);
+        else throw new Error('PDF-filen finns i projektet men kan inte hämtas här.');
+        pdfDbSpara(id,b);
+      }
+      pdfBytes.set(id,b);return b;
+    })().finally(()=>pdfHamtar.delete(id)));
+    return pdfHamtar.get(id);
+  }
+  if(layer.b64)return b64ToBytes(layer.b64);
+  throw new Error('PDF-filen saknas.');
+}
+const nyckelFor=l=>(l.fileId||l.id)+'|'+(l.page||1);
 async function ensureDoc(layer){
   let e=cache.get(layer.id);
-  if(e&&e.doc)return e;
+  if(e&&e.doc&&e.nyckel===nyckelFor(layer))return e;
+  if(e&&e.laddar)return e.laddar;
   busy(true);
-  try{
-    if(!layer.b64&&layer.fileId){
-      const vard=pvVard();
-      if(!vard)throw new Error('PDF-filen finns i projektet men kan inte hämtas här.');
-      const buf=await vard.hamtaPdf(layer.fileId);
-      layer.b64=bytesToB64(new Uint8Array(buf));
-    }
-    const doc=await pdfjsLib.getDocument({data:b64ToBytes(layer.b64)}).promise;
-    const page=await doc.getPage(clamp(layer.page||1,1,doc.numPages));
-    const vp=page.getViewport({scale:1});
-    layer.pages=doc.numPages;
-    e={layerId:layer.id,doc,page,pageW:vp.width,pageH:vp.height,bitmap:null,lum:null,img:null,ctx:null,renderScale:0,busy:false,pending:null,detail:null,task:null};
-    cache.set(layer.id,e);return e;
-  }catch(err){alert('Kunde inte läsa "'+layer.name+'": '+err.message);return null;}
-  finally{busy(false);}
+  const laddar=(async()=>{
+    try{
+      const bytes=await pdfData(layer);
+      // pdf.js tar över bufferten, så den får en kopia (originalet ligger kvar i minnet).
+      const doc=await pdfjsLib.getDocument({data:bytes.slice()}).promise;
+      const page=await doc.getPage(clamp(layer.page||1,1,doc.numPages));
+      const vp=page.getViewport({scale:1});
+      layer.pages=doc.numPages;
+      const ny={layerId:layer.id,nyckel:nyckelFor(layer),doc,page,pageW:vp.width,pageH:vp.height,bitmap:null,lum:null,img:null,ctx:null,renderScale:0,busy:false,pending:null,detail:null,task:null};
+      cache.set(layer.id,ny);return ny;
+    }catch(err){cache.delete(layer.id);alert('Kunde inte läsa "'+layer.name+'": '+err.message);return null;}
+    finally{busy(false);}
+  })();
+  cache.set(layer.id,{laddar});
+  return laddar;
 }
 function toLum(img){const d=img.data,n=img.width*img.height,l=new Uint8ClampedArray(n);
   for(let i=0,p=0;i<n;i++,p+=4)l[i]=(d[p]*77+d[p+1]*151+d[p+2]*28)>>8;return l;}
@@ -777,6 +873,16 @@ async function renderBase(e,wanted){
   if(e.bitmap&&Math.abs(s-e.renderScale)/e.renderScale<0.1)return;
   e.busy=true;busy(true);
   try{
+    const lager=lagerMedId(e.layerId),fil=lager&&lager.fileId?e.nyckel:null;
+    if(!e.bitmap&&fil){
+      const b=await bildHamta(fil);
+      if(b&&b.scale>=s*0.6){
+        const c=document.createElement('canvas');c.width=b.w;c.height=b.h;
+        const cx=c.getContext('2d',{willReadFrequently:true});
+        e.img=cx.createImageData(b.w,b.h);e.lum=b.lum;e.bitmap=c;e.ctx=cx;e.renderScale=b.scale;
+        applyColors(e);return;
+      }
+    }
     const vp=e.page.getViewport({scale:s});
     const c=document.createElement('canvas');
     c.width=Math.max(1,Math.ceil(vp.width));c.height=Math.max(1,Math.ceil(vp.height));
@@ -786,6 +892,7 @@ async function renderBase(e,wanted){
     e.img=cx.getImageData(0,0,c.width,c.height);e.lum=toLum(e.img);
     e.bitmap=c;e.ctx=cx;e.renderScale=s;
     applyColors(e);
+    if(fil)bildSpara(fil,c.width,c.height,s,e.lum);
   }catch(err){console.warn(err);}
   finally{e.busy=false;busy(false);const q=e.pending;e.pending=null;if(q)await renderBase(e,q);else draw();}
 }
@@ -861,7 +968,15 @@ async function renderDetails(){
     const want=view.scale*l.k*dpr;
     if(want<=e.renderScale*1.02){if(e.detail){e.detail=null;draw();}continue;}
     const a=s2w(0,0),b=s2w(cw,ch);
-    const padX=(b.x-a.x)*0.15,padY=(b.y-a.y)*0.15;
+    // Täcker den skarpa bilden vi redan har det som syns nu, i tillräcklig skärpa? Då behövs ingen ny rendering
+    // (att rendera om en tung ritning tar tid, även när man bara panorerar lite).
+    if(e.detail&&e.detail.floorId===ui.floorId&&e.detail.want>=want*0.85&&e.detail.want<=want*3){
+      const syns=[[a.x,a.y],[b.x,a.y],[a.x,b.y],[b.x,b.y]].map(([x,y])=>tillLager(l,x,y));
+      const d=e.detail,inX=h=>h.x>=d.x0-1||d.x0<=0.5, inX1=h=>h.x<=d.x1+1||d.x1>=e.pageW-0.5;
+      const inY=h=>h.y>=d.y0-1||d.y0<=0.5, inY1=h=>h.y<=d.y1+1||d.y1>=e.pageH-0.5;
+      if(syns.every(h=>inX(h)&&inX1(h)&&inY(h)&&inY1(h)))continue;
+    }
+    const padX=(b.x-a.x)*0.3,padY=(b.y-a.y)*0.3;
     const hornen=[[a.x-padX,a.y-padY],[b.x+padX,a.y-padY],[a.x-padX,b.y+padY],[b.x+padX,b.y+padY]].map(([x,y])=>tillLager(l,x,y));
     let x0=Math.min(...hornen.map(h=>h.x)), x1=Math.max(...hornen.map(h=>h.x));
     let y0=Math.min(...hornen.map(h=>h.y)), y1=Math.max(...hornen.map(h=>h.y));
@@ -883,7 +998,7 @@ async function renderDetails(){
       if(token!==detailToken)continue;
       const o={canvas:c,ctx:cx,img:cx.getImageData(0,0,c.width,c.height),layerId:l.id};
       o.lum=toLum(o.img);applyColors(o,l);
-      e.detail=Object.assign(o,{x0,y0,x1,y1,floorId:ui.floorId});
+      e.detail=Object.assign(o,{x0,y0,x1,y1,sc,want,floorId:ui.floorId});
       draw();
     }catch(err){if(err&&err.name!=='RenderingCancelledException')console.warn(err);}
     finally{busy(false);}
@@ -2533,7 +2648,7 @@ async function renderPlanCanvas(floor,box,scale,opts){
   oc.fillStyle=pick(BG_PRESETS,P.settings.bg,2);oc.fillRect(0,0,W,H);
   for(const l of floor.layers){
     if(!l.visible||l.opacity<=0.01||l.export===false)continue;
-    const e=cache.get(l.id)||await ensureDoc(l);
+    const e=await ensureDoc(l);
     if(!e)continue;
     const tmp=document.createElement('canvas');tmp.width=W;tmp.height=H;
     const tc=tmp.getContext('2d',{willReadFrequently:true});
@@ -3163,11 +3278,10 @@ function setView(v){
   else resize();
 }
 async function loadStack(f){
+  // Alla bakgrunder hämtas samtidigt i stället för en i taget.
+  const poster=await Promise.all(f.layers.map(l=>ensureDoc(l)));
   const ny=[];
-  for(const l of f.layers){
-    const e=await ensureDoc(l);
-    if(e)ny.push({layer:l,entry:e});
-  }
+  f.layers.forEach((l,i)=>{if(poster[i])ny.push({layer:l,entry:poster[i]});});
   // Ett annat plan hann öppnas under tiden: rör inte det som visas nu.
   if(f!==curFloor())return false;
   stack=ny;
@@ -3197,11 +3311,10 @@ async function openFloor(id){
   if(!stack.length){fitView();buildOverlay();drawEmpty();draw();return;}
   $('#empty').innerHTML='';
   fitView();
-  for(const s of stack){
-    if(tur!==oppnaTur)return;
-    if(!s.layer.visible||s.entry.bitmap)continue;
-    await renderBase(s.entry,view.scale*s.layer.k*dpr*2);
-  }
+  // Rum och komponenter visas direkt, medan bakgrunderna ritas.
+  buildOverlay();draw();
+  // Alla tända bakgrunder renderas samtidigt: medan en ritas tolkar pdf.js nästa i bakgrunden.
+  await Promise.all(stack.filter(s=>s.layer.visible&&!s.entry.bitmap).map(s=>renderBase(s.entry,view.scale*s.layer.k*dpr*2)));
   if(tur!==oppnaTur)return;
   drawEmpty();fitView();buildOverlay();draw();
 }
@@ -3308,7 +3421,14 @@ $('#filePdf').onchange=async e=>{
   }catch(err){alert('Import misslyckades: '+err.message);}
   finally{busy(false);}
 };
-function saveProject(){download(new Blob([JSON.stringify(P,(k,v)=>k.charAt(0)==='_'?undefined:v)],{type:'application/json'}),fileBase()+'.sro.json');}
+async function saveProject(){
+  // Bakgrunder från servern ligger bara som fileId: lägg in själva PDF:en i filen så att den går att öppna var som helst.
+  const kopia=JSON.parse(JSON.stringify(P,(k,v)=>k.charAt(0)==='_'?undefined:v));
+  for(const b of kopia.buildings)for(const f of b.floors)for(const l of f.layers){
+    if(!l.b64&&l.fileId){try{l.b64=bytesToB64(await pdfData(l));}catch(_){}}
+  }
+  download(new Blob([JSON.stringify(kopia)],{type:'application/json'}),fileBase()+'.sro.json');
+}
 $('#btnSave').onclick=saveProject;
 $('#btnOpen').onclick=()=>$('#fileProj').click();
 $('#fileProj').onchange=async e=>{
@@ -3656,7 +3776,11 @@ async function pvLaddaRitning(json, namn, behallVy){
       if(document.body.classList.contains('ljust'))P.settings=Object.assign(P.settings,{bg:'white',ink:'black',comp:'blue'});
     }
     if(namn)P.name=namn;
-    cache.clear();stack=[];ref=null;ui.adjust=null;ui.typeSel=null;
+    // Behåll inlästa och renderade bakgrunder som finns kvar oförändrade (samma fil och sida).
+    const kvar=new Map();eachFloor(f=>f.layers.forEach(l=>kvar.set(l.id,nyckelFor(l))));
+    [...cache.keys()].forEach(id=>{const e=cache.get(id);if(!e.doc||kvar.get(id)!==e.nyckel)cache.delete(id);});
+    cache.forEach(e=>{applyColors(e);if(e.detail)applyColors(e.detail);});
+    stack=[];ref=null;ui.adjust=null;ui.typeSel=null;
     if(!behallVy)ui.sel=null;
     ui.floorId=null;
     boot(true);
@@ -3677,7 +3801,11 @@ async function pvLaddaUppBakgrunder(){
   const att=[];eachFloor(f=>f.layers.forEach(l=>{if(l.b64&&!l.fileId&&!l._laddar)att.push(l);}));
   for(const l of att){
     l._laddar=true;pvUppladdning++;pvStatus('Laddar upp '+l.name+'…');
-    try{l.fileId=await vard.laddaUppPdf(l.name,l.b64);}
+    try{
+      l.fileId=await vard.laddaUppPdf(l.name,l.b64);
+      const b=b64ToBytes(l.b64);pdfBytes.set(l.fileId,b);pdfDbSpara(l.fileId,b);
+      const e=cache.get(l.id);if(e&&e.doc)e.nyckel=nyckelFor(l);
+    }
     catch(err){l._laddar=false;pvStatus('Uppladdning misslyckades');pvUppladdning--;throw err;}
     l._laddar=false;pvUppladdning--;
   }
