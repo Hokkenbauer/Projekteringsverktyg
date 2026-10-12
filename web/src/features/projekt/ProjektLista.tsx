@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api, skicka } from "../../lib/api";
 import type { Projekt } from "../../lib/typer";
 
@@ -7,6 +7,25 @@ export function ProjektLista({ onOppna, kanSkapa }: { onOppna: (id: string) => v
   const [fel, setFel] = useState<string | null>(null);
   const [nytt, setNytt] = useState({ namn: "", nummer: "", kund: "" });
   const [sparar, setSparar] = useState(false);
+  const [importerar, setImporterar] = useState(false);
+  const [importerat, setImporterat] = useState<{ projekt: Projekt; rapport: string[]; varningar: string[] } | null>(null);
+  const importFil = useRef<HTMLInputElement>(null);
+
+  const importera = async (fil: File) => {
+    const form = new FormData();
+    form.append("fil", fil, fil.name);
+    setImporterar(true);
+    setFel(null);
+    try {
+      const svar = await api<{ projekt: Projekt; rapport: string[]; varningar: string[] }>("/api/projekt/import", { method: "POST", body: form });
+      setImporterat(svar);
+      setProjekt((l) => [svar.projekt, ...(l ?? [])]);
+    } catch (err) {
+      setFel(`Importen misslyckades: ${(err as Error).message}`);
+    } finally {
+      setImporterar(false);
+    }
+  };
 
   useEffect(() => {
     api<Projekt[]>("/api/projekt").then(setProjekt).catch((e) => setFel(String(e.message ?? e)));
@@ -30,7 +49,7 @@ export function ProjektLista({ onOppna, kanSkapa }: { onOppna: (id: string) => v
     <main className="startsida">
       <div className="brodsmula">Projekteringsverktyg</div>
       <h1>Projekt</h1>
-      {fel && <p className="felruta">Det gick inte att hämta projekten: {fel}</p>}
+      {fel && <p className="felruta">{fel.startsWith("Importen") ? fel : `Det gick inte att hämta projekten: ${fel}`}</p>}
 
       {kanSkapa && <section className="panel">
         <h2>Nytt projekt</h2>
@@ -40,6 +59,27 @@ export function ProjektLista({ onOppna, kanSkapa }: { onOppna: (id: string) => v
           <label>Kund<input value={nytt.kund} onChange={(e) => setNytt({ ...nytt, kund: e.target.value })} /></label>
           <button className="knapp primar" disabled={sparar || !nytt.namn.trim()}>{sparar ? "Skapar…" : "Skapa projekt"}</button>
         </form>
+      </section>}
+
+      {kanSkapa && <section className="panel">
+        <h2>Importera från dagens program</h2>
+        <p className="dampad">
+          Välj projektfilen (.projxml) från ProjektVerktyg 2.2. Ett nytt projekt skapas med komponenter, listor, kontroller,
+          apparatskåp, modulbeläggning, texter och övrigt. Placeringsritningen (.sro.json) läser du in efteråt under
+          Placeringsritningar → Mer → Importera ritning från dagens program; komponenterna kopplas då ihop på beteckningen.
+        </p>
+        <button className="knapp primar" disabled={importerar} onClick={() => importFil.current?.click()}>
+          {importerar ? "Importerar…" : "Välj projektfil (.projxml)…"}
+        </button>
+        <input ref={importFil} type="file" accept=".projxml,.xml" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void importera(f); }} />
+        {importerat && (
+          <div className="importrapport">
+            <p><b>{importerat.projekt.namn}</b> är importerat.</p>
+            <ul>{importerat.rapport.map((r) => <li key={r}>{r}</li>)}</ul>
+            {importerat.varningar.length > 0 && <ul className="varningar">{importerat.varningar.map((r) => <li key={r}>{r}</li>)}</ul>}
+            <button className="knapp primar" onClick={() => onOppna(importerat.projekt.id)}>Öppna projektet</button>
+          </div>
+        )}
       </section>}
 
       <section className="panel">

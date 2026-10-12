@@ -366,3 +366,64 @@ public class SupportTester
     public void Kategori_gissas_fran_filnamnet(string fil, string kategori) =>
         Assert.Equal(kategori, Projekteringsverktyg.Server.DokumentApi.VerktygEndpoints.Kategori(fil));
 }
+
+public class ImportTester
+{
+    private const string Fil = """
+<?xml version="1.0" encoding="utf-8"?>
+<ProjektFil xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" Version="1.0">
+  <Metadata><Projektnamn>Karlsängskolan</Projektnamn><Projektnummer>P005</Projektnummer><Kund>Bravida</Kund><Ansvarig>HE</Ansvarig></Metadata>
+  <Anteckningar>Kom ihåg kanalisation</Anteckningar>
+  <AttGoraLista><Rad><Text>Beställ skåp</Text></Rad><Rad><Text></Text></Rad></AttGoraLista>
+  <Komponenter>
+    <Komponent Id="9c8600f03ff040c49c42e398b8fc6372"><Beteckning>VS01-GT11</Beteckning><Komponenttyp>Givare</Komponenttyp><Signaltyp>AI</Signaltyp></Komponent>
+    <Komponent Id="aaaa00f03ff040c49c42e398b8fc6372"><Beteckning>VS01-P1</Beteckning><Komponenttyp>Pump</Komponenttyp><Signaltyp>Modbus RTU</Signaltyp></Komponent>
+  </Komponenter>
+  <Skyltlista><Rad KomponentId="9c8600f03ff040c49c42e398b8fc6372"><Textfarg>Svart</Textfarg><Skyltfarg>Gul</Skyltfarg></Rad></Skyltlista>
+  <Egenkontroll><Rad KomponentId="9c8600f03ff040c49c42e398b8fc6372"><Kontrollerad>true</Kontrollerad><KontrolleradDatum>2026-09-14T00:00:00</KontrolleradDatum><Sign>HE</Sign></Rad></Egenkontroll>
+  <ProjektStatus><Rad UppgiftId="d89fe047a2ec4abf86b13323f8d2cafb"><Klart>true</Klart></Rad><Rad UppgiftId="okand"><Klart>false</Klart></Rad></ProjektStatus>
+  <Riskbedomning><Rad><TypAvRisk>Arbetsmiljö</TypAvRisk><UpptagenRisk>Fall</UpptagenRisk><Sannolikhet>2</Sannolikhet><Konsekvens>3</Konsekvens></Rad></Riskbedomning>
+  <Apparatskap><Skap><Namn>AS01</Namn><Beteckning>AS01</Beteckning><FargDI>Röd</FargDI><Komponenter><Komponent Namn="DIN-PC"><Vald>true</Vald><Information>CX9020</Information></Komponent></Komponenter><Apparatskapsmatt>1000x800</Apparatskapsmatt></Skap></Apparatskap>
+  <Kraftberakning><Skap><Namn>AS01</Namn><Rader><Rad><Beteckning>VS01-P1</Beteckning><L1>1.5</L1><L2 xsi:nil="true" /><L3 xsi:nil="true" /></Rad></Rader></Skap></Kraftberakning>
+  <Modulbelaggning><Skap><Namn>AS01</Namn><Cpu1Beskrivning>CX9020</Cpu1Beskrivning><Kort><Kort Id="x"><Beskrivning>KL3208</Beskrivning><AntalKanaler>8</AntalKanaler><Farg>#92D050</Farg><BreddMm>12</BreddMm><StromMa>85</StromMa>
+    <Kanaler><Kanal><KomponentId>9c8600f03ff040c49c42e398b8fc6372</KomponentId><Information>Fram</Information></Kanal><Kanal /></Kanaler></Kort></Kort></Skap></Modulbelaggning>
+  <ModbusRTU><Enhet><Namn>GW1</Namn><IPAdress>10.0.0.5</IPAdress><Laster><Last><Beteckning>VS01-P1</Beteckning><Id>10</Id><KomponentId>aaaa00f03ff040c49c42e398b8fc6372</KomponentId></Last></Laster></Enhet></ModbusRTU>
+  <Funktionstexter><Funktionstext Namn="VS01"><Text>Pumpen går</Text></Funktionstext></Funktionstexter>
+  <Andringslogg><Rad><Tidpunkt>2026-09-14T08:20:48+02:00</Tidpunkt><Anvandare>HE</Anvandare><Handelse>Sparade projekt</Handelse></Rad></Andringslogg>
+</ProjektFil>
+""";
+
+    [Fact]
+    public void Projektfil_fran_dagens_program_blir_ett_projekt()
+    {
+        var rubriker = new Dictionary<Guid, string> { [Guid.NewGuid()] = "Förprojektering" };
+        var r = Projekteringsverktyg.Server.ImportApi.GammaltProjekt.Las(System.Xml.Linq.XDocument.Parse(Fil.Trim()), "Test", rubriker, "{\"kategorier\":[]}");
+        Assert.Equal("Karlsängskolan", r.Projekt.Namn);
+        Assert.Equal(2, r.Komponenter.Count);
+        var gt11 = r.Komponenter.Single(k => k.Beteckning == "VS01-GT11");
+        var p1 = r.Komponenter.Single(k => k.Beteckning == "VS01-P1");
+        Assert.NotEqual(Guid.Parse("9c8600f03ff040c49c42e398b8fc6372"), gt11.Id);
+        Assert.Contains(r.ListRader, x => x.Lista == "skyltlista" && x.KomponentId == gt11.Id && x.Data.Contains("Gul"));
+        Assert.Contains(r.ListRader, x => x.Lista == "egenkontroll" && x.Data.Contains("2026-09-14") && x.Data.Contains("\"kontrollerad\":\"true\""));
+        Assert.Contains(r.ListRader, x => x.Lista == "risk-produktion" && x.Data.Contains("Fall"));
+        Assert.Contains(r.ListRader, x => x.Lista == "modbus" && x.Data.Contains(p1.Id.ToString()) && x.Data.Contains("GW1"));
+        Assert.Contains(r.ListRader, x => x.Lista == "modbusrtu" && x.Data.Contains("10.0.0.5"));
+        var skap = Assert.Single(r.Skap);
+        Assert.Contains(gt11.Id.ToString(), skap.Moduler);
+        Assert.Contains("DIN-PC", skap.Data);
+        Assert.Contains(r.ListRader, x => x.Lista == $"kraft-{skap.Id}" && x.Data.Contains("1.5") && !x.Data.Contains("l2"));
+        Assert.Single(r.AttGora);
+        Assert.Single(r.Status);
+        Assert.Single(r.Varningar);
+        Assert.Single(r.Dokument, d => d.Typ == "funktionstext" && d.Namn == "VS01");
+        Assert.Single(r.Logg);
+    }
+
+    [Fact]
+    public void Annan_fil_ger_begripligt_fel()
+    {
+        var fel = Assert.Throws<InvalidDataException>(() => Projekteringsverktyg.Server.ImportApi.GammaltProjekt.Las(
+            System.Xml.Linq.XDocument.Parse("<Annat />"), "Test", new Dictionary<Guid, string>(), ""));
+        Assert.Contains(".projxml", fel.Message);
+    }
+}

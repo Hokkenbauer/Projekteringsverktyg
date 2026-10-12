@@ -433,3 +433,7 @@ a.knapp { text-decoration: none; color: inherit; display: inline-flex; align-ite
 .undergrupp-knapp:hover { background: var(--yta-2); }
 .undergrupp.oppen .chevron { transform: rotate(90deg); }
 .flik.i-mapp { padding-left: 49px; }
+.importrapport { margin-top: 12px; padding: 12px 14px; border: 1px solid var(--linje); border-radius: var(--r); background: var(--yta-2); }
+.importrapport ul { margin: 6px 0 10px; padding-left: 20px; font-size: 13px; }
+.importrapport .varningar { color: var(--varning); }
+.startsida .panel + .panel { margin-top: 16px; }
