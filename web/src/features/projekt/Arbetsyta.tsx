@@ -64,6 +64,8 @@ type Props = {
 export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka, visaMeddelande }: Props) {
   const [projekt, setProjekt] = useState<Projekt | null>(null);
   const [komponenter, setKomponenter] = useState<Komponent[]>([]);
+  /** Komponenterna är hämtade från servern. Ritningen får inte öppnas förr: en tom lista skulle tolkas som att allt tagits bort. */
+  const [komponenterHamtade, setKomponenterHamtade] = useState(false);
   const [logg, setLogg] = useState<Logg[]>([]);
   const [loggVersion, setLoggVersion] = useState(0);
   const [statusVersion, setStatusVersion] = useState(0);
@@ -108,6 +110,7 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
       ]);
       setProjekt(p);
       setKomponenter(k);
+      setKomponenterHamtade(true);
       setAttGora(a);
       setAnteckningar(t);
       setListdefinitioner(d);
@@ -633,7 +636,8 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
             onSkrivUt={(t) => skrivUt(vald.flik.namn, projekt, { typ: "text", text: t })}
           />
         ) : <p className="dampad">Hämtar…</p>)}
-        {flik === "placeringsritningar" && (
+        {flik === "placeringsritningar" && !komponenterHamtade && <p className="dampad">Hämtar komponenter…</p>}
+        {flik === "placeringsritningar" && komponenterHamtade && (
           <PlaceringsritningVy
             projektId={projektId}
             projekt={projekt}

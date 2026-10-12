@@ -3581,7 +3581,15 @@ function pvSync(itemsJson){
   // (t.ex. via "Ta bort valda rader"), inte bara här i ritverktyget.
   // Rör ALDRIG komponenter UTAN pvId (helt lokala, eller väntar på svar
   // från en nyss skickad createComponent).
-  eachFloor(f=>{
+  // Skydd: en tom eller ofullständig lista (t.ex. medan sidan laddas) får aldrig radera
+  // utplacerade komponenter. Riktiga borttagningar sker en eller några i taget.
+  let medId=0,saknas=0,saknasPlacerade=0;
+  eachFloor(f=>f.components.forEach(c=>{if(!c.pvId)return;medId++;
+    if(!incomingIds.has(c.pvId)){saknas++;if(c.x!=null)saknasPlacerade++;}}));
+  const misstankt=!items.length||(saknasPlacerade>=3&&saknas>medId*0.25);
+  if(misstankt&&saknas){
+    console.warn('pvSync: '+saknas+' komponenter saknas i listan, tas inte bort (skydd mot ofullständig lista).');
+  }else eachFloor(f=>{
     const nya=f.components.filter(c=>!c.pvId||incomingIds.has(c.pvId));
     if(nya.length!==f.components.length){
       if(ui.sel&&ui.sel.kind==='comp'&&!nya.some(c=>c.id===ui.sel.id))ui.sel=null;
