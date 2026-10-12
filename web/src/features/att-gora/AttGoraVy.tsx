@@ -1,12 +1,13 @@
 import { DataGrid, type Blink, type Kolumn } from "../../grid/DataGrid";
 import type { AttGora } from "../../lib/typer";
 
-export type AttGoraFalt = "text" | "klar" | "pagaende";
+export type AttGoraFalt = "text" | "klar" | "pagaende" | "kommentar";
 
 const KOLUMNER: Kolumn<AttGora>[] = [
   { nyckel: "pagaende", rubrik: "Pågående", typ: "kryss" },
   { nyckel: "klar", rubrik: "Åtgärdad", typ: "kryss" },
   { nyckel: "text", rubrik: "Att göra", typ: "text", bredd: 400 },
+  { nyckel: "kommentar", rubrik: "Kommentar", typ: "text", fyll: true, bredd: 260 },
 ];
 
 type Props = {
@@ -31,7 +32,7 @@ export function AttGoraVy({ rader, blinkar, onAndra, onNy, onTaBort, onFlytta, l
         {onPopUt && <div className="knappar"><button className="knapp" onClick={onPopUt} title="Öppna listan i ett eget fönster som följer med mellan flikarna">⧉ Pop-ut</button></div>}
       </div>
       <p className="ingress">
-        Projektets att göra-lista. Bocka i Pågående när någon har börjat och Åtgärdad när saken är gjord.
+        Projektets att göra-lista. Bocka i Pågående när någon har börjat och Åtgärdad när saken är gjord. Skriv gärna i Kommentar vad som gjorts.
         Dra i ⠿ eller använd pilarna för att ändra ordningen. Kryssrutan före texten markerar rader, t.ex. för att ta bort dem.
       </p>
       <DataGrid

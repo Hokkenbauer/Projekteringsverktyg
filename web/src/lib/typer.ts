@@ -94,6 +94,7 @@ export type AttGora = {
   text: string;
   klar: boolean;
   pagaende: boolean;
+  kommentar: string;
   ordning: number;
   version: number;
   andrad: string;

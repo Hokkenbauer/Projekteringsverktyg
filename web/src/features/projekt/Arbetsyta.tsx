@@ -264,7 +264,7 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
   const andraAttGora = async (rad: AttGora, falt: AttGoraFalt, varde: string) => {
     const fore = rad;
     const bool = varde === "true";
-    laggAttGora(falt === "text" ? { ...rad, text: varde } : falt === "klar" ? { ...rad, klar: bool, pagaende: bool ? false : rad.pagaende } : { ...rad, pagaende: bool });
+    laggAttGora(falt === "text" ? { ...rad, text: varde } : falt === "kommentar" ? { ...rad, kommentar: varde } : falt === "klar" ? { ...rad, klar: bool, pagaende: bool ? false : rad.pagaende } : { ...rad, pagaende: bool });
     try {
       laggAttGora(await api<AttGora>(`/api/projekt/${projektId}/att-gora/${rad.id}`, {
         method: "PATCH", body: skicka({ falt, varde, version: rad.version }),

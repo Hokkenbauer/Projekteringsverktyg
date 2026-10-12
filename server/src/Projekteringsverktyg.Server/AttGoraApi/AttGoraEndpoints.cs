@@ -8,9 +8,9 @@ using Projekteringsverktyg.Server.Synk;
 
 namespace Projekteringsverktyg.Server.AttGoraApi;
 
-public sealed record AttGoraDto(Guid Id, Guid ProjektId, string Text, bool Klar, bool Pagaende, int Ordning, int Version, DateTimeOffset Andrad, string AndradAv)
+public sealed record AttGoraDto(Guid Id, Guid ProjektId, string Text, bool Klar, bool Pagaende, string Kommentar, int Ordning, int Version, DateTimeOffset Andrad, string AndradAv)
 {
-    public static AttGoraDto Fran(AttGoraPost a) => new(a.Id, a.ProjektId, a.Text, a.Klar, a.Pagaende, a.Ordning, a.Version, a.Andrad, a.AndradAv);
+    public static AttGoraDto Fran(AttGoraPost a) => new(a.Id, a.ProjektId, a.Text, a.Klar, a.Pagaende, a.Kommentar, a.Ordning, a.Version, a.Andrad, a.AndradAv);
 }
 
 public sealed record NyAttGora(string? Text);
@@ -71,6 +71,12 @@ public static class AttGoraEndpoints
                     efter = post.Klar ? "Klar" : "Ej klar";
                     beskrivning = post.Klar ? $"bockade av \"{Kort(post.Text)}\" i Att göra" : $"öppnade \"{Kort(post.Text)}\" igen i Att göra";
                     if (post.Klar) post.Pagaende = false;
+                    break;
+                case "kommentar":
+                    fore = post.Kommentar;
+                    post.Kommentar = (andring.Varde ?? "").Trim();
+                    efter = post.Kommentar;
+                    beskrivning = $"skrev en kommentar på \"{Kort(post.Text)}\" i Att göra";
                     break;
                 case "pagaende":
                     fore = post.Pagaende ? "Pågående" : "Ej pågående";

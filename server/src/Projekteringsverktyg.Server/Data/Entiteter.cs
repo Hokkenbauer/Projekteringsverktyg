@@ -27,6 +27,7 @@ public class AttGoraPost
     public string Text { get; set; } = "";
     public bool Klar { get; set; }
     public bool Pagaende { get; set; }
+    public string Kommentar { get; set; } = "";
     public int Ordning { get; set; }
     public int Version { get; set; } = 1;
     public DateTimeOffset Andrad { get; set; } = DateTimeOffset.UtcNow;
