@@ -1301,7 +1301,7 @@ function drawHandles(){
   const hg=svg.querySelector('#hg');if(!hg)return;hg.innerHTML='';
   if(!ui.sel)return;
   if(ui.sel.kind==='room'){
-    const r=findRoom(ui.sel.id);if(!r||r.floor.id!==ui.floorId||r.room.hidden)return;
+    const r=findRoom(ui.sel.id);if(!r||r.floor.id!==ui.floorId||r.room.hidden||r.room.locked)return;
     const pts=r.room.points;
     let h='';
     pts.forEach((p,i)=>{const q=w2s(p[0],p[1]);
@@ -1447,6 +1447,8 @@ wrap.addEventListener('pointerdown',e=>{
     drag={mode:'newrect',room,start:p};wrap.setPointerCapture(e.pointerId);return;}
   const rg=e.target.closest('[data-room]');
   if(rg){const rr=findRoom(rg.dataset.room).room;select({kind:'room',id:rr.id});
+    // Låst rum: markeras men flyttas inte. Att dra i det panorerar i stället.
+    if(rr.locked){drag={mode:'pan',mx,my,tx:view.tx,ty:view.ty};wrap.setPointerCapture(e.pointerId);return;}
     drag={mode:'room',room:rr,start:s2w(mx,my),o:deep(rr.points),
       withComps:curFloor().components.filter(c=>c.roomId===rr.id&&c.x!=null).map(c=>({c,x:c.x,y:c.y}))};
     wrap.setPointerCapture(e.pointerId);return;}
@@ -1963,8 +1965,8 @@ function renderTree(){
         const inR=sortera(q&&!traff(r.name)?alla.filter(kompTraff):alla,c=>c.tag);
         if(q&&!traff(r.name)&&!inR.length)return;
         const nd=alla.filter(c=>c.done).length;
-        h+=node('room',r.id,ic('room'),(r.placerad?'✓ ':'')+r.name,alla.length+' st'+(alla.length?' · '+nd+' klara':''),isHitName(r.name)||(!!q&&traff(r.name)),r.hidden||f.hidden||b.hidden,r.done||r.placerad,
-          eyeBtn(r.hidden)+doneBtn(r.done)+`<button class="ghost" data-act="copy">${ic('copy')}</button><button class="ghost" data-act="ren">${ic('pen')}</button><button class="ghost" data-act="del">${ic('trash')}</button>`,rc,false,r.hidden);
+        h+=node('room',r.id,ic('room'),(r.placerad?'✓ ':'')+(r.locked?'🔒 ':'')+r.name,alla.length+' st'+(alla.length?' · '+nd+' klara':''),isHitName(r.name)||(!!q&&traff(r.name)),r.hidden||f.hidden||b.hidden,r.done||r.placerad,
+          eyeBtn(r.hidden)+doneBtn(r.done)+`<button class="ghost" data-act="las" title="${r.locked?'Lås upp rummet':'Lås rummet'}">${r.locked?'🔒':'🔓'}</button><button class="ghost" data-act="copy">${ic('copy')}</button><button class="ghost" data-act="ren">${ic('pen')}</button><button class="ghost" data-act="del">${ic('trash')}</button>`,rc,false,r.hidden);
         if(rc)return;
         h+='<div class="kids">'+inR.map(c=>compNode(c,f,b)).join('')+'</div>';
       });
@@ -2029,6 +2031,7 @@ function treeAction(act,kind,id){
   if(act==='done'){toggleDone(kind,id);return;}
   if(act==='copy'){copyNode(kind,id);return;}
   if(act==='unplace'){tillAttPlacera(id);return;}
+  if(act==='las'&&kind==='room'){const r=findRoom(id).room;r.locked=!r.locked;refresh();return;}
   if(act==='addFloor'){const b=P.buildings.find(x=>x.id===id);const f=newFloor('Plan '+(b.floors.length+1));b.floors.push(f);refresh();openFloor(f.id);return;}
   if(act==='ren'){
     const o=objOf(kind,id),k=kind==='comp'?'tag':'name';
@@ -2275,9 +2278,12 @@ function renderInspector(){
       <div class="kv"><b>Klarmarkerade</b><span>${inR.filter(c=>c.done).length} st</span></div>
       <div class="kv"><b>Brytpunkter</b><span>${r.room.points.length}</span></div>
       <div class="kv"><b>Plan</b><span>${esc(r.floor.name)}</span></div></div>
+      <div class="field row"><button id="iLas" title="Ett låst rum går inte att flytta eller ändra form på av misstag">${r.room.locked?'🔒 Låst – lås upp':'🔓 Lås rummet'}</button><button id="iLasAlla" title="Lås eller lås upp alla rum på planet">${r.floor.rooms.every(x=>x.locked)?'Lås upp alla':'Lås alla'}</button></div>
       <div class="field row"><button id="iCopy">Kopiera</button><button id="iDel" style="color:var(--danger)">Ta bort rum</button></div>
-      <div class="hint" style="padding:8px 11px">Dra i hörnen för att ändra form. Ringarna mellan hörnen lägger till en brytpunkt, Alt-klick på ett hörn tar bort det.</div>`;
+      <div class="hint" style="padding:8px 11px">${r.room.locked?'Rummet är låst. Lås upp det för att flytta det eller ändra formen.':''} Dra i hörnen för att ändra form. Ringarna mellan hörnen lägger till en brytpunkt, Alt-klick på ett hörn tar bort det.</div>`;
     $('#iDone').onchange=()=>toggleDone('room',id);
+    $('#iLas').onclick=()=>{r.room.locked=!r.room.locked;refresh();flash(r.room.locked?'"'+r.room.name+'" är låst':'"'+r.room.name+'" är upplåst');};
+    $('#iLasAlla').onclick=()=>{const las=!r.floor.rooms.every(x=>x.locked);r.floor.rooms.forEach(x=>x.locked=las);refresh();flash(las?'Alla rum på planet är låsta':'Alla rum på planet är upplåsta');};
     $('#iPlacerad').onclick=()=>{r.room.placerad=!r.room.placerad;refresh();flash(r.room.placerad?'"'+r.room.name+'": placeringen är klar':'"'+r.room.name+'" är öppnat igen');};
     $('#iName').onchange=e=>{r.room.name=e.target.value;refresh();};
     $('#iCopy').onclick=()=>copyNode('room',id);
