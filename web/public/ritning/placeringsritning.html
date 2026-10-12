@@ -161,6 +161,9 @@ main{flex:1;position:relative;min-width:0;background:var(--canvas)}
 .lrow .l2 input[type=range]{flex:1;width:auto;padding:0;height:16px}
 .lrow .lpct{font-family:var(--mono);font-size:10.5px;color:var(--txt3);width:36px;text-align:right}
 .lrow .l3{display:grid;grid-template-columns:repeat(3,1fr) auto;gap:5px;margin-top:6px;align-items:end}
+.lrow .lexp{font-size:10px;padding:2px 6px;white-space:nowrap}
+.lrow .lexp:not(.act){opacity:.6}
+.passaknapp{white-space:nowrap}
 .lrow .l3 label{font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--txt3)}
 .lrow .l3 input{padding:3px 5px;font-family:var(--mono);font-size:11px}
 .lempty{padding:10px;color:var(--txt3);font-size:11px;text-align:center}
@@ -762,6 +765,65 @@ async function renderBase(e,wanted){
   }catch(err){console.warn(err);}
   finally{e.busy=false;busy(false);const q=e.pending;e.pending=null;if(q)await renderBase(e,q);else draw();}
 }
+/** Världskoordinat → lagrets egna (sidans) koordinater, med skala och vridning. */
+function tillLager(l,x,y){
+  const dx=(x-l.ox)/l.k, dy=(y-l.oy)/l.k, r=-(l.rot||0);
+  return {x:dx*Math.cos(r)-dy*Math.sin(r), y:dx*Math.sin(r)+dy*Math.cos(r)};
+}
+/** Opacitet medan man passar in: lagret som passas in syns tydligt när man pekar i det, annars grundritningen. */
+function lagerOpacitet(l){
+  const q=ui.passa;if(!q)return l.opacity;
+  const iLagret=q.pts.length%2===0;
+  if(l.id===q.layerId)return iLagret?1:0.18;
+  return iLagret?0.18:Math.max(l.opacity,0.6);
+}
+
+/* ---- Passa in en bakgrund mot grundritningen med två punktpar ----
+   Punkt 1 i bakgrunden, samma punkt i grundritningen, punkt 2 i bakgrunden, samma punkt i grundritningen.
+   Ger skala, vridning och läge så att de två punkterna hamnar exakt rätt. */
+const PASSA_TEXT=['Klicka på punkt 1 i den ritning du passar in (t.ex. ett hushörn).','Klicka på samma punkt 1 i grundritningen.',
+  'Klicka på punkt 2 i ritningen du passar in, gärna långt från punkt 1.','Klicka på samma punkt 2 i grundritningen.'];
+function startaPassa(l){
+  ui.passa={layerId:l.id,pts:[]};
+  if(!l.visible)l.visible=true;
+  $('#planWrap').classList.add('adjusting');
+  passaInfo();draw();
+}
+function passaInfo(){
+  const q=ui.passa;if(!q)return;
+  flash(PASSA_TEXT[q.pts.length]+' Zooma med hjulet, panorera med mittenknappen. Esc avbryter.');
+}
+function avbrytPassa(){ui.passa=null;if(!ui.adjust)$('#planWrap').classList.remove('adjusting');draw();flash('Inpassningen avbröts');}
+function passaKlick(p){
+  const q=ui.passa;q.pts.push(p);
+  if(q.pts.length<4){passaInfo();draw();return;}
+  const f=curFloor(),l=f.layers.find(x=>x.id===q.layerId);
+  const [a1,b1,a2,b2]=q.pts;ui.passa=null;
+  if(!ui.adjust)$('#planWrap').classList.remove('adjusting');
+  if(!l){draw();return;}
+  const u1=tillLager(l,a1.x,a1.y),u2=tillLager(l,a2.x,a2.y);
+  const du={x:u2.x-u1.x,y:u2.y-u1.y},db={x:b2.x-b1.x,y:b2.y-b1.y};
+  const lu=Math.hypot(du.x,du.y),lb=Math.hypot(db.x,db.y);
+  if(lu<1e-6||lb<1e-6){flash('Punkterna ligger för nära varandra. Försök igen med punkter långt ifrån varandra.');draw();return;}
+  let rot=Math.atan2(db.y,db.x)-Math.atan2(du.y,du.x);
+  rot=Math.atan2(Math.sin(rot),Math.cos(rot));
+  if(Math.abs(rot)<0.15*Math.PI/180)rot=0;   // under 0,15° räknas som rakt
+  const k=lb/lu,c=Math.cos(rot),s=Math.sin(rot);
+  const o=(u,b)=>({x:b.x-k*(u.x*c-u.y*s),y:b.y-k*(u.x*s+u.y*c)});
+  const o1=o(u1,b1),o2=o(u2,b2);
+  l.k=k;l.rot=rot;l.ox=(o1.x+o2.x)/2;l.oy=(o1.y+o2.y)/2;
+  renderLayers();scheduleDetail();draw();
+  flash('"'+l.name+'" är inpassad: skala '+(k*100).toFixed(1)+' %'+(rot?', vriden '+(rot*180/Math.PI).toFixed(2)+'°':'')+'. Kontrollera gärna en tredje punkt.');
+}
+function ritaPassaPunkter(){
+  const q=ui.passa;if(!q)return;
+  q.pts.forEach((p,i)=>{
+    const s=w2s(p.x,p.y);ctx.strokeStyle=i%2===0?'#f6c445':'#2ec4b6';ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(s.x-9,s.y);ctx.lineTo(s.x+9,s.y);ctx.moveTo(s.x,s.y-9);ctx.lineTo(s.x,s.y+9);ctx.stroke();
+    ctx.fillStyle=ctx.strokeStyle;ctx.font='bold 12px sans-serif';ctx.fillText(String(Math.floor(i/2)+1),s.x+6,s.y-6);
+  });
+}
+
 let detailT=null,detailToken=0;
 function scheduleDetail(){clearTimeout(detailT);detailT=setTimeout(renderDetails,190);}
 async function renderDetails(){
@@ -774,8 +836,9 @@ async function renderDetails(){
     if(want<=e.renderScale*1.02){if(e.detail){e.detail=null;draw();}continue;}
     const a=s2w(0,0),b=s2w(cw,ch);
     const padX=(b.x-a.x)*0.15,padY=(b.y-a.y)*0.15;
-    let x0=(a.x-padX-l.ox)/l.k, x1=(b.x+padX-l.ox)/l.k;
-    let y0=(a.y-padY-l.oy)/l.k, y1=(b.y+padY-l.oy)/l.k;
+    const hornen=[[a.x-padX,a.y-padY],[b.x+padX,a.y-padY],[a.x-padX,b.y+padY],[b.x+padX,b.y+padY]].map(([x,y])=>tillLager(l,x,y));
+    let x0=Math.min(...hornen.map(h=>h.x)), x1=Math.max(...hornen.map(h=>h.x));
+    let y0=Math.min(...hornen.map(h=>h.y)), y1=Math.max(...hornen.map(h=>h.y));
     x0=Math.max(0,x0);y0=Math.max(0,y0);x1=Math.min(e.pageW,x1);y1=Math.min(e.pageH,y1);
     if(x1-x0<1||y1-y0<1){e.detail=null;continue;}
     let sc=Math.min(want,24);
@@ -812,20 +875,24 @@ function draw(){
   ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--canvas').trim()||'#090b0e';ctx.fillRect(0,0,cw,ch);
   ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
   stack.forEach(({layer:l,entry:e})=>{
-    if(!l.visible||l.opacity<=0.01||!e.bitmap)return;
-    ctx.globalAlpha=l.opacity;
-    const p=w2s(l.ox,l.oy);
-    ctx.drawImage(e.bitmap,p.x,p.y,e.pageW*l.k*view.scale,e.pageH*l.k*view.scale);
+    const op=lagerOpacitet(l);
+    if(!l.visible||op<=0.01||!e.bitmap)return;
+    ctx.globalAlpha=op;
+    const p=w2s(l.ox,l.oy),ks=l.k*view.scale;
+    ctx.save();ctx.translate(p.x,p.y);if(l.rot)ctx.rotate(l.rot);
+    ctx.drawImage(e.bitmap,0,0,e.pageW*ks,e.pageH*ks);
     if(e.detail&&e.detail.floorId===ui.floorId){
-      const d=e.detail,q=w2s(l.ox+d.x0*l.k,l.oy+d.y0*l.k);
-      ctx.drawImage(d.canvas,q.x,q.y,(d.x1-d.x0)*l.k*view.scale,(d.y1-d.y0)*l.k*view.scale);
+      const d=e.detail;
+      ctx.drawImage(d.canvas,d.x0*ks,d.y0*ks,(d.x1-d.x0)*ks,(d.y1-d.y0)*ks);
     }
     if(ui.adjust===l.id){
       ctx.globalAlpha=1;ctx.strokeStyle='#2ec4b6';ctx.setLineDash([7,5]);ctx.lineWidth=1.5;
-      ctx.strokeRect(p.x,p.y,e.pageW*l.k*view.scale,e.pageH*l.k*view.scale);ctx.setLineDash([]);
+      ctx.strokeRect(0,0,e.pageW*ks,e.pageH*ks);ctx.setLineDash([]);
     }
+    ctx.restore();
   });
   ctx.globalAlpha=1;
+  ritaPassaPunkter();
   updateTransform();hud();
 }
 function worldBox(){
@@ -898,6 +965,7 @@ function renderLayers(){
       <div class="l1">
         <button class="ghost${l.visible?'':' act'}" data-l="eye" title="${l.visible?'Släck':'Tänd'} · Shift för endast denna">${ic(l.visible?'eye':'eyeOff')}</button>
         <span class="lname" data-l="ren" title="${esc(l.name)}">${esc(l.name)}</span>
+        <button class="ghost lexp${l.export===false?'':' act'}" data-l="export" title="${l.export===false?'Följer inte med i export och utskrift. Klicka för att ta med.':'Följer med i export och utskrift. Klicka för att utesluta.'}">${l.export===false?'Ej i export':'Export'}</button>
         <button class="ghost${adj?' act':''}" data-l="adjust" title="Justera lagrets läge">${ic('move')}</button>
         <button class="ghost" data-l="up" title="Flytta upp">${ic('up')}</button>
         <button class="ghost" data-l="down" title="Flytta ned">${ic('down')}</button>
@@ -909,6 +977,9 @@ function renderLayers(){
         <div><label>Y</label><input type="number" data-l="oy" value="${Math.round(l.oy)}" step="1"></div>
         <div><label>Skala %</label><input type="number" data-l="k" value="${(l.k*100).toFixed(1)}" step="0.5"></div>
         <button data-l="reset">Noll</button></div>
+        <div class="l3" style="grid-template-columns:1fr auto">
+          <div><label>Vridning °</label><input type="number" data-l="rot" value="${((l.rot||0)*180/Math.PI).toFixed(2)}" step="0.1"></div>
+          <button data-l="passa" class="passaknapp" title="Klicka två punkter i den här ritningen och samma två punkter i grundritningen">Passa in med 2 punkter</button></div>
         ${l.pages>1?`<div class="l3" style="grid-template-columns:1fr"><div><label>Sida av ${l.pages}</label><input type="number" data-l="page" value="${l.page}" min="1" max="${l.pages}"></div></div>`:''}`:''}
     </div>`;
   }).join('');
@@ -947,7 +1018,10 @@ $('#layersPanel').addEventListener('click',async e=>{
     f.layers.splice(i,1);cache.delete(id);
     if(ui.adjust===id){ui.adjust=null;$('#planWrap').classList.remove('adjusting');}
     await loadStack(f);renderLayers();buildOverlay();drawEmpty();draw();refresh();
-  }else if(act==='reset'){l.ox=0;l.oy=0;l.k=1;renderLayers();scheduleDetail();draw();}
+  }else if(act==='reset'){l.ox=0;l.oy=0;l.k=1;l.rot=0;renderLayers();scheduleDetail();draw();}
+  else if(act==='export'){l.export=l.export===false?true:false;renderLayers();
+    flash(l.export===false?'"'+l.name+'" följer inte med i export och utskrift':'"'+l.name+'" följer med i export och utskrift');}
+  else if(act==='passa')startaPassa(l);
 });
 $('#layersPanel').addEventListener('input',e=>{
   const row=e.target.closest('[data-layer]');if(!row||e.target.dataset.l!=='op')return;
@@ -963,6 +1037,7 @@ $('#layersPanel').addEventListener('change',async e=>{
   if(k==='ox')l.ox=+e.target.value;
   else if(k==='oy')l.oy=+e.target.value;
   else if(k==='k')l.k=Math.max(0.05,+e.target.value/100);
+  else if(k==='rot')l.rot=(+e.target.value||0)*Math.PI/180;
   else if(k==='page'){l.page=clamp(+e.target.value,1,l.pages);cache.delete(l.id);await loadStack(f);renderLayers();}
   else return;
   scheduleDetail();draw();
@@ -1102,6 +1177,7 @@ wrap.addEventListener('pointerdown',e=>{
     if(e.button===2&&ui.tool==='cable'&&ui.poly){e.preventDefault();cableFinish();return;}
     drag={mode:'pan',mx,my,tx:view.tx,ty:view.ty};wrap.setPointerCapture(e.pointerId);e.preventDefault();return;}
   if(e.button!==0)return;
+  if(ui.passa){passaKlick(s2w(mx,my));return;}
   if(ui.adjust){
     const l=curFloor().layers.find(x=>x.id===ui.adjust);
     if(l){drag={mode:'layer',layer:l,start:s2w(mx,my),o:{ox:l.ox,oy:l.oy}};wrap.setPointerCapture(e.pointerId);return;}
@@ -2398,7 +2474,7 @@ async function renderPlanCanvas(floor,box,scale,opts){
   const oc=out.getContext('2d');
   oc.fillStyle=pick(BG_PRESETS,P.settings.bg,2);oc.fillRect(0,0,W,H);
   for(const l of floor.layers){
-    if(!l.visible||l.opacity<=0.01)continue;
+    if(!l.visible||l.opacity<=0.01||l.export===false)continue;
     const e=cache.get(l.id)||await ensureDoc(l);
     if(!e)continue;
     const tmp=document.createElement('canvas');tmp.width=W;tmp.height=H;
@@ -2406,7 +2482,7 @@ async function renderPlanCanvas(floor,box,scale,opts){
     tc.fillStyle='#fff';tc.fillRect(0,0,W,H);
     const vp=e.page.getViewport({scale:scale*l.k});
     await e.page.render({canvasContext:tc,viewport:vp,
-      transform:[1,0,0,1,(l.ox-box.x)*scale,(l.oy-box.y)*scale]}).promise;
+      transform:[Math.cos(l.rot||0),Math.sin(l.rot||0),-Math.sin(l.rot||0),Math.cos(l.rot||0),(l.ox-box.x)*scale,(l.oy-box.y)*scale]}).promise;
     const o={ctx:tc,img:tc.getImageData(0,0,W,H)};o.lum=toLum(o.img);applyColors(o);
     oc.globalAlpha=l.opacity;oc.drawImage(tmp,0,0);oc.globalAlpha=1;
   }
@@ -3142,8 +3218,9 @@ $('#filePdf').onchange=async e=>{
   try{
     for(const file of files){
       const buf=await file.arrayBuffer();
+      // Den första bakgrunden är grundritningen (t.ex. A). Fler (VE, EE …) är stöd och följer inte med i export.
       f.layers.push({id:uid('l'),name:file.name.replace(/\.pdf$/i,''),b64:bytesToB64(new Uint8Array(buf)),
-        page:1,pages:1,visible:true,opacity:1,ox:0,oy:0,k:1});
+        page:1,pages:1,visible:true,opacity:1,ox:0,oy:0,k:1,rot:0,export:f.layers.length===0});
     }
     await loadStack(f);renderLayers();
     for(const s of stack){if(s.layer.visible&&!s.entry.bitmap)await renderBase(s.entry,view.scale*s.layer.k*dpr*2);}
@@ -3202,6 +3279,7 @@ window.addEventListener('keydown',e=>{
       renderLayers();draw();e.preventDefault();return;}
   }
   if(e.key==='Escape'){
+    if(ui.passa){avbrytPassa();return;}
     if(ui.poly){polyCancel();return;}
     setTool('select');select(null);
     if(ui.adjust){ui.adjust=null;$('#planWrap').classList.remove('adjusting');renderLayers();draw();}
