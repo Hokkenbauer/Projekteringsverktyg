@@ -187,6 +187,17 @@ public class Ritning
     public string AndradAv { get; set; } = "";
 }
 
+/// <summary>Tidigare version av ritningen (se 011_ritning_historik.sql).</summary>
+public class RitningHistorik
+{
+    public long Id { get; set; }
+    public Guid ProjektId { get; set; }
+    public int Version { get; set; }
+    public string Data { get; set; } = "";
+    public DateTimeOffset Sparad { get; set; } = DateTimeOffset.UtcNow;
+    public string SparadAv { get; set; } = "";
+}
+
 /// <summary>Färdig uppsättning komponenter som kan läggas till i ett projekt. Rader = JSON-lista med komponentfält.</summary>
 public class KomponentMall
 {

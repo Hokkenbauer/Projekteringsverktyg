@@ -17,6 +17,7 @@ public class PvDbContext(DbContextOptions<PvDbContext> options) : DbContext(opti
     public DbSet<ProjektText> Texter => Set<ProjektText>();
     public DbSet<ProjektFil> Filer => Set<ProjektFil>();
     public DbSet<Ritning> Ritningar => Set<Ritning>();
+    public DbSet<RitningHistorik> RitningHistorik => Set<RitningHistorik>();
     public DbSet<KomponentMall> Komponentmallar => Set<KomponentMall>();
     public DbSet<KontrollMall> Kontrollmallar => Set<KontrollMall>();
     public DbSet<Kontroll> Kontroller => Set<Kontroll>();
@@ -142,6 +143,13 @@ public class PvDbContext(DbContextOptions<PvDbContext> options) : DbContext(opti
             e.ToTable("ritning");
             e.HasKey(r => r.ProjektId);
             e.Property(r => r.Version).IsConcurrencyToken();
+        });
+
+        b.Entity<RitningHistorik>(e =>
+        {
+            e.ToTable("ritning_historik");
+            e.HasKey(r => r.Id);
+            e.Property(r => r.Id).UseSerialColumn();
         });
 
         b.Entity<ProjektFil>(e =>

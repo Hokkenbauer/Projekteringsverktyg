@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { api, ApiFel, hamtaBinar, skicka } from "../../lib/api";
 import { temaForVerktyg as tema } from "./tema";
+import { Dialog } from "../../shell/Dialog";
 import type { Kataloger, Komponent, ListRad, Projekt, ProjektFil } from "../../lib/typer";
 
 type Ritning = { data: string | null; version: number; andrad: string | null; andradAv: string };
+type Historik = { id: number; version: number; sparad: string; sparadAv: string; storlek: number };
 
 /** Funktioner som ritverktyget (i iframen) anropar. Se public/ritning/placeringsritning.html. */
 type Vard = {
@@ -62,6 +64,9 @@ const KOMPONENTFALT = new Set([
 export function PlaceringsritningVy(p: Props) {
   const ram = useRef<HTMLIFrameElement>(null);
   const [helskarm, setHelskarm] = useState(false);
+  const [historik, setHistorik] = useState<Historik[] | null>(null);
+  const [visaHistorik, setVisaHistorik] = useState(false);
+  const [aterstaller, setAterstaller] = useState(false);
   const version = useRef(0);
   const redo = useRef(false);
   // Alltid senaste props, så att värdfunktionerna (som verktyget håller kvar) ser aktuellt läge.
@@ -252,6 +257,34 @@ export function PlaceringsritningVy(p: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [p.uppdaterad]);
 
+  const oppnaHistorik = async () => {
+    setVisaHistorik(true); setHistorik(null);
+    // Det senaste sparas först, så att det också finns i historiken.
+    await verktyg()?.pvSparaNu?.();
+    try { setHistorik(await api<Historik[]>(`/api/projekt/${p.projektId}/ritning/historik`)); }
+    catch (e) { p.visaMeddelande(`Historiken kunde inte hämtas: ${(e as Error).message}`); setVisaHistorik(false); }
+  };
+
+  const aterstall = async (h: Historik) => {
+    const tid = new Date(h.sparad).toLocaleString("sv-SE");
+    if (!window.confirm(`Återställa ritningen till hur den såg ut ${tid}?\n\nDen nuvarande ritningen sparas i historiken först, så det går att ångra.`)) return;
+    setAterstaller(true);
+    try {
+      await verktyg()?.pvSparaNu?.();
+      const gammal = await api<Ritning>(`/api/projekt/${p.projektId}/ritning/historik/${h.id}`);
+      const nu = await api<Ritning>(`/api/projekt/${p.projektId}/ritning`);
+      const r = await api<Ritning>(`/api/projekt/${p.projektId}/ritning?aterstall=true`, {
+        method: "PUT", body: skicka({ data: gammal.data, version: nu.version }),
+      });
+      version.current = r.version;
+      await hamtaOchLadda(true);
+      setVisaHistorik(false);
+      p.visaMeddelande(`Ritningen är återställd till ${tid}.`);
+    } catch (e) {
+      p.visaMeddelande(`Ritningen kunde inte återställas: ${(e as Error).message}`);
+    } finally { setAterstaller(false); }
+  };
+
   return (
     <div className={`ritningsyta ${helskarm ? "helskarm" : ""}`}>
       <div className="ritningshuvud">
@@ -262,12 +295,37 @@ export function PlaceringsritningVy(p: Props) {
         >?</span>
         {p.lasläge && <span className="dampad">Endast läsning</span>}
         <span className="grow" />
+        <button className="knapp" onClick={() => void oppnaHistorik()} title="Tidigare versioner av ritningen">Historik</button>
         <button className="knapp" onClick={() => setHelskarm((h) => !h)}>{helskarm ? "Avsluta helskärm" : "Helskärm"}</button>
       </div>
       <iframe
         ref={ram} className="ritningsram" src={`/ritning/placeringsritning.html?v=${__BYGGE__}`} title="Placeringsritning"
         onLoad={() => { if (!redo.current) (window as unknown as { pvRitningsVard?: Vard }).pvRitningsVard?.redo(); }}
       />
+      <Dialog titel="Ritningens historik" oppen={visaHistorik} onStang={() => { if (!aterstaller) setVisaHistorik(false); }}
+        fot={<button className="knapp" disabled={aterstaller} onClick={() => setVisaHistorik(false)}>Stäng</button>}>
+        <p className="dampad liten">
+          En kopia sparas automatiskt högst var tionde minut medan någon arbetar. Allt från de senaste två dygnen finns kvar,
+          sedan en per dag i 30 dagar. Återställ lägger tillbaka hela ritningen: byggnader, plan, rum, placeringar och kablar.
+        </p>
+        {historik === null ? <p className="dampad">Hämtar…</p>
+          : historik.length === 0 ? <p className="dampad">Ingen historik än. Den första kopian sparas vid nästa ändring.</p>
+          : (
+            <table className="formtabell">
+              <thead><tr><th>Sparad</th><th>Av</th><th>Storlek</th><th /></tr></thead>
+              <tbody>
+                {historik.map((h) => (
+                  <tr key={h.id}>
+                    <td>{new Date(h.sparad).toLocaleString("sv-SE")}</td>
+                    <td>{h.sparadAv}</td>
+                    <td className="dampad">{Math.max(1, Math.round(h.storlek / 1024))} kB</td>
+                    <td>{!p.lasläge && <button className="knapp liten" disabled={aterstaller} onClick={() => void aterstall(h)}>Återställ</button>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+      </Dialog>
     </div>
   );
 }
