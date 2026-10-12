@@ -456,3 +456,15 @@ a.knapp { text-decoration: none; color: inherit; display: inline-flex; align-ite
 .fh-no,.fh-nv,.fh-so,.fh-sv{width:14px;height:14px}
 .fh-no{top:-4px;right:-4px;cursor:nesw-resize}.fh-sv{bottom:-4px;left:-4px;cursor:nesw-resize}
 .fh-nv{top:-4px;left:-4px;cursor:nwse-resize}.fh-so{bottom:-4px;right:-4px;cursor:nwse-resize}
+
+/* Flytta rader i tabeller */
+.grid td.flyttcell{white-space:nowrap;padding:0 4px}
+.flytthandtag{cursor:grab;color:var(--dampad);padding:0 4px;font-size:14px;user-select:none}
+.flytthandtag:active{cursor:grabbing}
+.flyttpilar{display:inline-flex;flex-direction:column;vertical-align:middle;margin-left:2px}
+.flyttpilar button{border:none;background:none;color:var(--dampad);font-size:10px;line-height:11px;padding:0 4px;cursor:pointer}
+.flyttpilar button:hover:not(:disabled){color:var(--accent)}
+.flyttpilar button:disabled{opacity:.25;cursor:default}
+.grid tr.drar{opacity:.45}
+.grid tr.slapp-fore td{box-shadow:inset 0 2px 0 var(--accent)}
+.grid tr.slapp-efter td{box-shadow:inset 0 -2px 0 var(--accent)}

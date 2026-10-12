@@ -284,6 +284,17 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
       visaMeddelande(`Raden kunde inte skapas: ${(e as Error).message}`);
     }
   };
+  const flyttaAttGora = async (ids: string[]) => {
+    const fore = attGora;
+    setAttGora((l) => l.map((x) => ({ ...x, ordning: ids.indexOf(x.id) + 1 || x.ordning })));
+    try {
+      const svar = await api<AttGora[]>(`/api/projekt/${projektId}/att-gora/ordning`, { method: "PUT", body: skicka({ ids }) });
+      setAttGora(svar);
+    } catch (e) {
+      setAttGora(fore);
+      visaMeddelande(`Ordningen kunde inte sparas: ${(e as Error).message}`);
+    }
+  };
   const taBortAttGora = async (ids: string[]) => {
     const res = await Promise.allSettled(ids.map((id) => api(`/api/projekt/${projektId}/att-gora/${id}`, { method: "DELETE" })));
     setAttGora((l) => l.filter((x) => !ids.includes(x.id)));
@@ -577,7 +588,7 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
           />
         )}
         {flik === "andringslogg" && <LoggVy projektId={projektId} komponenter={komponenter} uppdaterad={loggVersion} />}
-        {flik === "att-gora" && <AttGoraVy rader={attGora} blinkar={blinkar} onAndra={andraAttGora} onNy={nyAttGora} onTaBort={taBortAttGora} lasläge={!mig.rattigheter.skriva} onPopUt={attGoraUte ? undefined : () => setAttGoraUte(true)} />}
+        {flik === "att-gora" && <AttGoraVy rader={attGora} blinkar={blinkar} onAndra={andraAttGora} onNy={nyAttGora} onTaBort={taBortAttGora} onFlytta={(ids) => void flyttaAttGora(ids)} lasläge={!mig.rattigheter.skriva} onPopUt={attGoraUte ? undefined : () => setAttGoraUte(true)} />}
         {flik === "projektstatus" && <ProjektStatusVy projektId={projektId} rattigheter={mig.rattigheter} uppdaterad={statusVersion} visaMeddelande={visaMeddelande} />}
         {flik === "medlemmar" && <MedlemmarVy projektId={projektId} rattigheter={mig.rattigheter} visaMeddelande={visaMeddelande} />}
         {flik === "anteckningar" && anteckningar && <AnteckningarVy key={projektId} anteckningar={anteckningar} onSpara={sparaAnteckningar} lasläge={!mig.rattigheter.skriva} />}
@@ -757,7 +768,7 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
       </main>
       {attGoraUte && (
         <FlytandeFonster nyckel="attGora" titel={`Att göra – ${projekt?.namn ?? ""}`} onStang={() => setAttGoraUte(false)}>
-          <AttGoraVy rader={attGora} blinkar={blinkar} onAndra={andraAttGora} onNy={nyAttGora} onTaBort={taBortAttGora} lasläge={!mig.rattigheter.skriva} />
+          <AttGoraVy rader={attGora} blinkar={blinkar} onAndra={andraAttGora} onNy={nyAttGora} onTaBort={taBortAttGora} onFlytta={(ids) => void flyttaAttGora(ids)} lasläge={!mig.rattigheter.skriva} />
         </FlytandeFonster>
       )}
       {infoId && (

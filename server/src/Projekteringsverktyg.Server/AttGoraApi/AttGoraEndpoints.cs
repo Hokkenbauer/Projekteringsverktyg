@@ -15,6 +15,7 @@ public sealed record AttGoraDto(Guid Id, Guid ProjektId, string Text, bool Klar,
 
 public sealed record NyAttGora(string? Text);
 public sealed record AttGoraAndring(string Falt, string? Varde, int Version);
+public sealed record AttGoraOrdning(List<Guid> Ids);
 
 public sealed record AnteckningarDto(string Text, DateTimeOffset? Andrad, string AndradAv);
 public sealed record AnteckningarSpara(string Text);
@@ -92,6 +93,32 @@ public static class AttGoraEndpoints
             var dto = AttGoraDto.Fran(post);
             await hub.Clients.Group(ProjektHub.Grupp(projektId)).SendAsync("ListaAndrad", new ListaHandelse("attGora", "andrad", dto, av.Id, av.Namn));
             return Results.Ok(dto);
+        });
+
+        // Ny ordning på raderna (dra och släpp eller pilar). Rader som inte skickas med hamnar sist i sin gamla ordning.
+        g.MapPut("/ordning", async (Guid projektId, AttGoraOrdning ordning, ClaimsPrincipal user, PvDbContext db, IHubContext<ProjektHub> hub) =>
+        {
+            var poster = await db.AttGora.Where(a => a.ProjektId == projektId).OrderBy(a => a.Ordning).ThenBy(a => a.Andrad).ToListAsync();
+            var plats = new Dictionary<Guid, int>();
+            for (var n = 0; n < ordning.Ids.Count; n++) plats.TryAdd(ordning.Ids[n], n);
+            var sorterade = poster.OrderBy(p => plats.TryGetValue(p.Id, out var plass) ? plass : int.MaxValue).ToList();
+            var av = Anvandare.Fran(user);
+            var andrade = new List<AttGoraPost>();
+            for (var i = 0; i < sorterade.Count; i++)
+            {
+                if (sorterade[i].Ordning == i + 1) continue;
+                sorterade[i].Ordning = i + 1;
+                sorterade[i].Version++;
+                sorterade[i].Andrad = DateTimeOffset.UtcNow;
+                sorterade[i].AndradAv = av.Namn;
+                andrade.Add(sorterade[i]);
+            }
+            if (andrade.Count == 0) return Results.Ok(sorterade.Select(AttGoraDto.Fran));
+            Andringslogg.Logga(db, projektId, av, "AttGora", projektId, "ändrade ordningen i Att göra");
+            await db.SaveChangesAsync();
+            foreach (var a in andrade)
+                await hub.Clients.Group(ProjektHub.Grupp(projektId)).SendAsync("ListaAndrad", new ListaHandelse("attGora", "ordning", AttGoraDto.Fran(a), av.Id, av.Namn));
+            return Results.Ok(sorterade.Select(AttGoraDto.Fran));
         });
 
         g.MapDelete("/{id:guid}", async (Guid projektId, Guid id, ClaimsPrincipal user, PvDbContext db, IHubContext<ProjektHub> hub) =>

@@ -46,10 +46,12 @@ type Props<T extends Rad> = {
   fokusId?: string | null;
   /** Knappar som gäller markerade rader (visas i verktygsraden). */
   markeradeVerktyg?: (ids: string[]) => ReactNode;
+  /** Raderna går att flytta (dra i handtaget eller pilarna). Får hela den nya ordningen som id:n. */
+  onFlytta?: (ids: string[]) => void;
 };
 
 export function DataGrid<T extends Rad>({
-  rader, kolumner, sokPlatshallare, onAndra, onNy: nyIn, onTaBort: taBortIn, blinkar = [], verktyg, lasläge = false, tomText, cellVarning, cellKlass, markeradeVerktyg, onInfo, fokusId,
+  rader, kolumner, sokPlatshallare, onAndra, onNy: nyIn, onTaBort: taBortIn, blinkar = [], verktyg, lasläge = false, tomText, cellVarning, cellKlass, markeradeVerktyg, onInfo, fokusId, onFlytta: flyttaIn,
 }: Props<T>) {
   const ram = useRef<HTMLDivElement>(null);
   const onNy = lasläge ? undefined : nyIn;
@@ -57,6 +59,20 @@ export function DataGrid<T extends Rad>({
   const [sok, setSok] = useState("");
   const [sortering, setSortering] = useState<{ nyckel: string; riktning: 1 | -1 } | null>(null);
   const [markerade, setMarkerade] = useState<Set<string>>(new Set());
+  const [drar, setDrar] = useState<string | null>(null);
+  const [over, setOver] = useState<{ id: string; fore: boolean } | null>(null);
+  // Flytta går bara när listan visas i sin egen ordning (ingen sökning eller sortering).
+  const harFlytta = !!flyttaIn && !lasläge;
+  const kanFlytta = harFlytta && !sok && !sortering;
+  const flytta = (id: string, malIndex: number) => {
+    const ids = rader.map((r) => r.id);
+    const fran = ids.indexOf(id);
+    if (fran < 0) return;
+    ids.splice(fran, 1);
+    const till = Math.max(0, Math.min(ids.length, malIndex > fran ? malIndex - 1 : malIndex));
+    ids.splice(till, 0, id);
+    if (ids.some((x, i) => x !== rader[i]!.id)) flyttaIn?.(ids);
+  };
 
   const synliga = useMemo(() => {
     let lista = rader;
@@ -125,6 +141,9 @@ export function DataGrid<T extends Rad>({
         )}
         {markeradeVerktyg?.([...markerade])}
         {verktyg}
+        {harFlytta && !kanFlytta && (
+          <button className="knapp" onClick={() => { setSok(""); setSortering(null); }} title="Rader kan bara flyttas när listan visas i egen ordning">Visa egen ordning</button>
+        )}
         <span className="antal">
           {synliga.length === rader.length ? `${rader.length} rader` : `${synliga.length} av ${rader.length} rader`}
         </span>
@@ -138,6 +157,7 @@ export function DataGrid<T extends Rad>({
         <table className="grid">
           <thead>
             <tr>
+              {kanFlytta && <th className="smal" aria-label="Flytta" />}
               {onTaBort && <th className="smal" aria-label="Markera" />}
               {onInfo && <th className="smal" aria-label="Information" />}
               {kolumner.map((k) => (
@@ -150,12 +170,46 @@ export function DataGrid<T extends Rad>({
           </thead>
           <tbody>
             {synliga.length === 0 && (
-              <tr><td colSpan={kolumner.length + 2} className="tom">
+              <tr><td colSpan={kolumner.length + 3} className="tom">
                 {rader.length === 0 ? (tomText ?? "Inga rader än. Klicka på Ny rad för att börja.") : "Inga rader matchar sökningen."}
               </td></tr>
             )}
-            {synliga.map((r) => (
-              <tr key={r.id} data-rad={r.id} className={[markerade.has(r.id) ? "markerad" : "", fokusId === r.id ? "fokus" : ""].join(" ").trim() || undefined}>
+            {synliga.map((r, index) => (
+              <tr
+                key={r.id} data-rad={r.id}
+                className={[markerade.has(r.id) ? "markerad" : "", fokusId === r.id ? "fokus" : "", drar === r.id ? "drar" : "",
+                  over?.id === r.id ? (over.fore ? "slapp-fore" : "slapp-efter") : ""].join(" ").trim() || undefined}
+                onDragOver={kanFlytta && drar ? (e) => {
+                  e.preventDefault();
+                  const b = e.currentTarget.getBoundingClientRect();
+                  const fore = e.clientY < b.top + b.height / 2;
+                  if (over?.id !== r.id || over.fore !== fore) setOver({ id: r.id, fore });
+                } : undefined}
+                onDrop={kanFlytta && drar ? (e) => {
+                  e.preventDefault();
+                  if (over) flytta(drar, index + (over.fore ? 0 : 1));
+                  setDrar(null); setOver(null);
+                } : undefined}
+              >
+                {kanFlytta && (
+                  <td className="smal flyttcell">
+                    <span
+                      className="flytthandtag" draggable title="Dra för att flytta raden"
+                      onDragStart={(e) => {
+                        e.dataTransfer.effectAllowed = "move";
+                        e.dataTransfer.setData("text/plain", r.id);
+                        const tr = (e.currentTarget as HTMLElement).closest("tr");
+                        if (tr) e.dataTransfer.setDragImage(tr, 16, 16);
+                        setDrar(r.id);
+                      }}
+                      onDragEnd={() => { setDrar(null); setOver(null); }}
+                    >⠿</span>
+                    <span className="flyttpilar">
+                      <button title="Flytta upp" aria-label="Flytta upp" disabled={index === 0} onClick={() => flytta(r.id, index - 1)}>▲</button>
+                      <button title="Flytta ned" aria-label="Flytta ned" disabled={index === synliga.length - 1} onClick={() => flytta(r.id, index + 2)}>▼</button>
+                    </span>
+                  </td>
+                )}
                 {onTaBort && (
                   <td className="smal">
                     <input type="checkbox" aria-label="Markera rad" checked={markerade.has(r.id)} onChange={() => vaxla(r.id)} />
