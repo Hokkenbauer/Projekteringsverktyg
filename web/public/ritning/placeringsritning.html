@@ -829,6 +829,8 @@ function passaKlick(p){
   const o=(u,b)=>({x:b.x-k*(u.x*c-u.y*s),y:b.y-k*(u.x*s+u.y*c)});
   const o1=o(u1,b1),o2=o(u2,b2);
   l.k=k;l.rot=rot;l.ox=(o1.x+o2.x)/2;l.oy=(o1.y+o2.y)/2;
+  // Lämna justeringsläget, annars flyttar nästa klick eller drag i planen den nyss inpassade ritningen.
+  ui.adjust=null;$('#planWrap').classList.remove('adjusting');
   renderLayers();scheduleDetail();draw();
   flash('"'+l.name+'" är inpassad: skala '+(k*100).toFixed(1)+' %'+(rot?', vriden '+(rot*180/Math.PI).toFixed(2)+'°':'')+'. Kontrollera gärna en tredje punkt.');
 }
@@ -916,8 +918,12 @@ function worldBox(){
   let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
   stack.forEach(({layer:l,entry:e})=>{
     if(!l.visible)return;
-    x0=Math.min(x0,l.ox);y0=Math.min(y0,l.oy);
-    x1=Math.max(x1,l.ox+e.pageW*l.k);y1=Math.max(y1,l.oy+e.pageH*l.k);
+    // Alla fyra hörnen, så att en vriden bakgrund räknas rätt.
+    const c=Math.cos(l.rot||0),s=Math.sin(l.rot||0),w=e.pageW*l.k,h=e.pageH*l.k;
+    [[0,0],[w,0],[0,h],[w,h]].forEach(([u,v])=>{
+      const x=l.ox+u*c-v*s,y=l.oy+u*s+v*c;
+      x0=Math.min(x0,x);y0=Math.min(y0,y);x1=Math.max(x1,x);y1=Math.max(y1,y);
+    });
   });
   // Räknar även in komponentpositioner – sedan Steg 103 (fri placering,
   // inte längre låst till PDF-sidans/standardytans 0-1-intervall) kan en
