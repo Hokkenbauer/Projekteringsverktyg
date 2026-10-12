@@ -44,8 +44,14 @@ public static class ImportEndpoints
             var namn = form["namn"].ToString().Trim();
             if (namn != "") r.Projekt.Namn = namn;
 
+            // Projektet sparas först: databasen kräver att det finns innan raderna som pekar på det
+            // (EF känner inte till de kopplingarna och kan annars spara i fel ordning). Allt i en transaktion.
+            var medlemId = (await beh.AktuellAsync(user)).Id;
+            await using var tx = await db.Database.BeginTransactionAsync(ct);
             db.Projekt.Add(r.Projekt);
-            db.Medlemmar.Add(new ProjektMedlem { ProjektId = r.Projekt.Id, AnvandarId = (await beh.AktuellAsync(user)).Id, TillagdAv = av.Namn });
+            db.Medlemmar.Add(new ProjektMedlem { ProjektId = r.Projekt.Id, AnvandarId = medlemId, TillagdAv = av.Namn });
+            await db.SaveChangesAsync(ct);
+
             db.Komponenter.AddRange(r.Komponenter);
             db.ListRader.AddRange(r.ListRader);
             db.Texter.AddRange(r.Texter);
@@ -57,6 +63,7 @@ public static class ImportEndpoints
             db.Andringslogg.AddRange(r.Logg.OrderBy(l => l.Tidpunkt));
             Andringslogg.Logga(db, r.Projekt.Id, av, "Projekt", r.Projekt.Id, $"importerade projektet {r.Projekt.Namn} från dagens program ({fil.FileName})");
             await db.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
 
             return Results.Ok(new
             {
