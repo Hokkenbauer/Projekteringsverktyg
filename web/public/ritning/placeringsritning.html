@@ -58,6 +58,8 @@ aside{background:var(--panel);display:flex;flex-direction:column;min-height:0}
 #left{width:304px;min-width:200px;max-width:70vw;border-right:1px solid var(--line);flex:0 0 auto;position:relative}
 #leftDrag{position:absolute;top:0;right:-4px;width:8px;height:100%;cursor:col-resize;z-index:5}
 #leftDrag:hover,#leftDrag.on{background:var(--accent);opacity:.45}
+.lfarg{width:18px;height:18px;padding:0;border:1px solid var(--line2);border-radius:4px;background:none;cursor:pointer;flex:0 0 18px}
+.lfarg::-webkit-color-swatch-wrapper{padding:0}.lfarg::-webkit-color-swatch{border:none;border-radius:3px}
 .node.grp .lbl{font-style:italic;color:var(--txt3)}
 #right{width:280px;border-left:1px solid var(--line);flex:0 0 auto}
 main{flex:1;position:relative;min-width:0;background:var(--canvas)}
@@ -739,7 +741,7 @@ async function ensureDoc(layer){
     const page=await doc.getPage(clamp(layer.page||1,1,doc.numPages));
     const vp=page.getViewport({scale:1});
     layer.pages=doc.numPages;
-    e={doc,page,pageW:vp.width,pageH:vp.height,bitmap:null,lum:null,img:null,ctx:null,renderScale:0,busy:false,pending:null,detail:null,task:null};
+    e={layerId:layer.id,doc,page,pageW:vp.width,pageH:vp.height,bitmap:null,lum:null,img:null,ctx:null,renderScale:0,busy:false,pending:null,detail:null,task:null};
     cache.set(layer.id,e);return e;
   }catch(err){alert('Kunde inte läsa "'+layer.name+'": '+err.message);return null;}
   finally{busy(false);}
@@ -747,13 +749,18 @@ async function ensureDoc(layer){
 function toLum(img){const d=img.data,n=img.width*img.height,l=new Uint8ClampedArray(n);
   for(let i=0,p=0;i<n;i++,p+=4)l[i]=(d[p]*77+d[p+1]*151+d[p+2]*28)>>8;return l;}
 function hexRGB(h){return[parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];}
-function applyColors(o){
+/** Bakgrundens linjefärg: egen färg på lagret, annars den gemensamma ritningsfärgen. */
+function lagerFarg(l){return pick(INK_PRESETS,(l&&l.ink)||P.settings.ink,0);}
+function lagerMedId(id){let hit=null;eachFloor(f=>f.layers.forEach(l=>{if(l.id===id)hit=l;}));return hit;}
+/* Bakgrunderna ritas genomskinliga: papperet blir genomskinligt och bara strecken syns,
+   i lagrets färg. Då syns alla tända bakgrunder samtidigt, oavsett ordning. */
+function applyColors(o,lager){
   if(!o||!o.lum)return;
-  const bg=hexRGB(pick(BG_PRESETS,P.settings.bg,2)), ink=hexRGB(pick(INK_PRESETS,P.settings.ink,0));
+  const ink=hexRGB(lagerFarg(lager!==undefined?lager:lagerMedId(o.layerId)));
   const d=o.img.data,l=o.lum,n=l.length,LO=55,HI=195,sp=HI-LO;
   for(let i=0,p=0;i<n;i++,p+=4){
     let t=(l[i]-LO)/sp;t=t<0?0:t>1?1:t;
-    d[p]=ink[0]+(bg[0]-ink[0])*t;d[p+1]=ink[1]+(bg[1]-ink[1])*t;d[p+2]=ink[2]+(bg[2]-ink[2])*t;d[p+3]=255;
+    d[p]=ink[0];d[p+1]=ink[1];d[p+2]=ink[2];d[p+3]=Math.round(255*(1-t));
   }
   o.ctx.putImageData(o.img,0,0);
 }
@@ -874,8 +881,8 @@ async function renderDetails(){
       const task=e.page.render({canvasContext:cx,viewport:vp,transform:[1,0,0,1,-x0*sc,-y0*sc]});
       e.task=task;await task.promise;e.task=null;
       if(token!==detailToken)continue;
-      const o={canvas:c,ctx:cx,img:cx.getImageData(0,0,c.width,c.height)};
-      o.lum=toLum(o.img);applyColors(o);
+      const o={canvas:c,ctx:cx,img:cx.getImageData(0,0,c.width,c.height),layerId:l.id};
+      o.lum=toLum(o.img);applyColors(o,l);
       e.detail=Object.assign(o,{x0,y0,x1,y1,floorId:ui.floorId});
       draw();
     }catch(err){if(err&&err.name!=='RenderingCancelledException')console.warn(err);}
@@ -893,17 +900,28 @@ function draw(){
   ctx.setTransform(dpr,0,0,dpr,0,0);
   ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--canvas').trim()||'#090b0e';ctx.fillRect(0,0,cw,ch);
   ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
+  // Papperet: ritningsbakgrunden under alla tända bakgrunder. Strecken ritas sedan genomskinligt ovanpå.
+  ctx.fillStyle=pick(BG_PRESETS,P.settings.bg,2);
+  stack.forEach(({layer:l,entry:e})=>{
+    if(!l.visible||lagerOpacitet(l)<=0.01||!e.bitmap)return;
+    const p=w2s(l.ox,l.oy),ks=l.k*view.scale;
+    ctx.save();ctx.translate(p.x,p.y);if(l.rot)ctx.rotate(l.rot);
+    ctx.fillRect(0,0,e.pageW*ks,e.pageH*ks);ctx.restore();
+  });
   stack.forEach(({layer:l,entry:e})=>{
     const op=lagerOpacitet(l);
     if(!l.visible||op<=0.01||!e.bitmap)return;
     ctx.globalAlpha=op;
     const p=w2s(l.ox,l.oy),ks=l.k*view.scale;
     ctx.save();ctx.translate(p.x,p.y);if(l.rot)ctx.rotate(l.rot);
-    ctx.drawImage(e.bitmap,0,0,e.pageW*ks,e.pageH*ks);
-    if(e.detail&&e.detail.floorId===ui.floorId){
-      const d=e.detail;
+    const d=e.detail&&e.detail.floorId===ui.floorId?e.detail:null;
+    if(d){
+      // Den skarpa detaljbilden ersätter den grova: rita inte den grova under den (strecken är genomskinliga).
+      ctx.save();ctx.beginPath();ctx.rect(0,0,e.pageW*ks,e.pageH*ks);
+      ctx.rect(d.x0*ks,d.y0*ks,(d.x1-d.x0)*ks,(d.y1-d.y0)*ks);ctx.clip('evenodd');
+      ctx.drawImage(e.bitmap,0,0,e.pageW*ks,e.pageH*ks);ctx.restore();
       ctx.drawImage(d.canvas,d.x0*ks,d.y0*ks,(d.x1-d.x0)*ks,(d.y1-d.y0)*ks);
-    }
+    }else ctx.drawImage(e.bitmap,0,0,e.pageW*ks,e.pageH*ks);
     if(ui.adjust===l.id){
       ctx.globalAlpha=1;ctx.strokeStyle='#2ec4b6';ctx.setLineDash([7,5]);ctx.lineWidth=1.5;
       ctx.strokeRect(0,0,e.pageW*ks,e.pageH*ks);ctx.setLineDash([]);
@@ -987,6 +1005,7 @@ function renderLayers(){
     return `<div class="lrow${adj?' adj':''}${l.visible?'':' hidden'}" data-layer="${l.id}">
       <div class="l1">
         <button class="ghost${l.visible?'':' act'}" data-l="eye" title="${l.visible?'Släck':'Tänd'} · Shift för endast denna">${ic(l.visible?'eye':'eyeOff')}</button>
+        <input type="color" class="lfarg" data-l="ink" value="${lagerFarg(l)}" title="Linjefärg för ${esc(l.name)}${l.ink?'':' (gemensam ritningsfärg)'}">
         <span class="lname" data-l="ren" title="${esc(l.name)}">${esc(l.name)}</span>
         <button class="ghost lexp${l.export===false?'':' act'}" data-l="export" title="${l.export===false?'Följer inte med i export och utskrift. Klicka för att ta med.':'Följer med i export och utskrift. Klicka för att utesluta.'}">${l.export===false?'Ej i export':'Export'}</button>
         <button class="ghost${adj?' act':''}" data-l="adjust" title="Justera lagrets läge">${ic('move')}</button>
@@ -1061,6 +1080,12 @@ $('#layersPanel').addEventListener('change',async e=>{
   else if(k==='oy')l.oy=+e.target.value;
   else if(k==='k')l.k=Math.max(0.05,+e.target.value/100);
   else if(k==='rot')l.rot=(+e.target.value||0)*Math.PI/180;
+  else if(k==='ink'){
+    const v=e.target.value;
+    if(v.toLowerCase()===pick(INK_PRESETS,P.settings.ink,0).toLowerCase())delete l.ink;else l.ink=v;
+    const c=cache.get(l.id);if(c){applyColors(c,l);if(c.detail)applyColors(c.detail,l);}
+    renderLayers();draw();return;
+  }
   else if(k==='page'){l.page=clamp(+e.target.value,1,l.pages);cache.delete(l.id);await loadStack(f);renderLayers();}
   else return;
   scheduleDetail();draw();
@@ -2516,7 +2541,7 @@ async function renderPlanCanvas(floor,box,scale,opts){
     const vp=e.page.getViewport({scale:scale*l.k});
     await e.page.render({canvasContext:tc,viewport:vp,
       transform:[Math.cos(l.rot||0),Math.sin(l.rot||0),-Math.sin(l.rot||0),Math.cos(l.rot||0),(l.ox-box.x)*scale,(l.oy-box.y)*scale]}).promise;
-    const o={ctx:tc,img:tc.getImageData(0,0,W,H)};o.lum=toLum(o.img);applyColors(o);
+    const o={ctx:tc,img:tc.getImageData(0,0,W,H)};o.lum=toLum(o.img);applyColors(o,l);
     oc.globalAlpha=l.opacity;oc.drawImage(tmp,0,0);oc.globalAlpha=1;
   }
   /* rum */
