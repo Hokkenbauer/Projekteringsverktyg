@@ -12,7 +12,7 @@ type Vard = {
   redo: () => void;
   meddelande: (json: string) => void;
   spara: (data: string) => Promise<"ok" | "konflikt" | "fel" | "lasläge">;
-  laddaUppPdf: (namn: string, b64: string) => Promise<string>;
+  laddaUppPdf: (namn: string, b64: string, lagerId?: string) => Promise<string>;
   hamtaPdf: (fileId: string) => Promise<ArrayBuffer>;
   komponenter: () => { id: string; beteckning: string }[];
   visaKomponent: (id: string) => void;
@@ -58,6 +58,36 @@ type Props = {
  * och nästa gång ritningen öppnas väntar hämtningen in den.
  */
 let sparningVidStang: Promise<void> | null = null;
+/** Pågående uppladdningar av PDF-bakgrunder per lager, så att samma fil inte laddas upp två gånger. */
+const uppladdningar = new Map<string, Promise<string>>();
+
+async function laddaUpp(projektId: string, namn: string, b64: string): Promise<string> {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  const form = new FormData();
+  form.append("mapp", "Handlingar/Ritningar");
+  form.append("filer", new Blob([bytes], { type: "application/pdf" }), /\.pdf$/i.test(namn) ? namn : `${namn}.pdf`);
+  const svar = await api<ProjektFil[]>(`/api/projekt/${projektId}/filer`, { method: "POST", body: form });
+  return svar[0]!.id;
+}
+
+type Lager = { id: string; name: string; b64?: string; fileId?: string };
+type RitningsData = { buildings?: { floors?: { layers?: Lager[] }[] }[] };
+
+/** Laddar upp bakgrunder som bara finns lokalt (b64) och byter dem mot projektfilens Id. */
+async function laddaUppLokala(projektId: string, data: string): Promise<string> {
+  const r = JSON.parse(data) as RitningsData;
+  for (const b of r.buildings ?? []) for (const f of b.floors ?? []) for (const l of f.layers ?? []) {
+    if (!l.b64 || l.fileId) { delete l.b64; continue; }
+    const nyckel = `${projektId}|${l.id}`;
+    let lofte = uppladdningar.get(nyckel);
+    if (!lofte) { lofte = laddaUpp(projektId, l.name, l.b64); uppladdningar.set(nyckel, lofte); }
+    l.fileId = await lofte;
+    delete l.b64;
+  }
+  return JSON.stringify(r);
+}
 
 const KOMPONENTFALT = new Set([
   "beteckning", "system", "komponenttyp", "signaltyp", "placering", "beskrivning", "ovrigt",
@@ -214,15 +244,14 @@ export function PlaceringsritningVy(p: Props) {
           return "fel";
         }
       },
-      laddaUppPdf: async (namn, b64) => {
-        const bin = atob(b64);
-        const bytes = new Uint8Array(bin.length);
-        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-        const form = new FormData();
-        form.append("mapp", "Handlingar/Ritningar");
-        form.append("filer", new Blob([bytes], { type: "application/pdf" }), /\.pdf$/i.test(namn) ? namn : `${namn}.pdf`);
-        const svar = await api<ProjektFil[]>(`/api/projekt/${p.projektId}/filer`, { method: "POST", body: form });
-        return svar[0]!.id;
+      laddaUppPdf: (namn, b64, lagerId) => {
+        const nyckel = lagerId ? `${p.projektId}|${lagerId}` : "";
+        const pagar = nyckel ? uppladdningar.get(nyckel) : undefined;
+        if (pagar) return pagar;
+        const lofte = laddaUpp(p.projektId, namn, b64);
+        if (nyckel) uppladdningar.set(nyckel, lofte);
+        lofte.catch(() => uppladdningar.delete(nyckel));
+        return lofte;
       },
       hamtaPdf: (fileId) => hamtaBinar(`/api/projekt/${p.projektId}/filer/${fileId}/innehall`),
       komponenter: () => props.current.komponenter.map((k) => ({ id: k.id, beteckning: k.beteckning })),
@@ -241,12 +270,13 @@ export function PlaceringsritningVy(p: Props) {
     const { projektId, visaMeddelande } = props.current;
     const url = `/api/projekt/${projektId}/ritning`;
     const fore = version.current;
-    const putta = (v: number) => api<Ritning>(url, { method: "PUT", body: skicka({ data, version: v }) });
-    sparningVidStang = putta(fore).then(() => undefined).catch(async (e) => {
+    let klar = "";
+    const putta = (v: number) => api<Ritning>(url, { method: "PUT", body: skicka({ data: klar, version: v }) });
+    sparningVidStang = laddaUppLokala(projektId, data).then((d) => { klar = d; return putta(fore); }).then(() => undefined).catch(async (e) => {
       // En automatisk sparning kan ha hunnit gå iväg precis innan. Då är servern ett steg före, och det är vår egen.
       if (e instanceof ApiFel && e.status === 409) {
         const nu = await api<Ritning>(url);
-        if (nu.data === data) return;
+        if (nu.data === klar) return;
         if (nu.version === fore + 1) { await putta(nu.version); return; }
       }
       throw e;

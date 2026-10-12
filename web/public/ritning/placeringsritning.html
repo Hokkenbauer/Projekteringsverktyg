@@ -58,6 +58,8 @@ aside{background:var(--panel);display:flex;flex-direction:column;min-height:0}
 #left{width:304px;min-width:200px;max-width:70vw;border-right:1px solid var(--line);flex:0 0 auto;position:relative}
 #leftDrag{position:absolute;top:0;right:-4px;width:8px;height:100%;cursor:col-resize;z-index:5}
 #leftDrag:hover,#leftDrag.on{background:var(--accent);opacity:.45}
+.lsaknas{font-size:11px;color:var(--warn);margin:4px 0 2px;line-height:1.4}
+.lsaknas button{margin-top:4px}
 .lfarg{width:18px;height:18px;padding:0;border:1px solid var(--line2);border-radius:4px;background:none;cursor:pointer;flex:0 0 18px}
 .lfarg::-webkit-color-swatch-wrapper{padding:0}.lfarg::-webkit-color-swatch{border:none;border-radius:3px}
 .node.grp .lbl{font-style:italic;color:var(--txt3)}
@@ -836,7 +838,11 @@ async function ensureDoc(layer){
       layer.pages=doc.numPages;
       const ny={layerId:layer.id,nyckel:nyckelFor(layer),doc,page,pageW:vp.width,pageH:vp.height,bitmap:null,lum:null,img:null,ctx:null,renderScale:0,busy:false,pending:null,detail:null,task:null};
       cache.set(layer.id,ny);return ny;
-    }catch(err){cache.delete(layer.id);alert('Kunde inte läsa "'+layer.name+'": '+err.message);return null;}
+    }catch(err){
+      cache.delete(layer.id);
+      // Lager utan fil (t.ex. om uppladdningen avbröts): visa en knapp för att välja PDF:en igen i lagerlistan.
+      if(!layer.fileId&&!layer.b64){layer._saknas=true;return null;}
+      alert('Kunde inte läsa "'+layer.name+'": '+err.message);return null;}
     finally{busy(false);}
   })();
   cache.set(layer.id,{laddar});
@@ -1128,6 +1134,7 @@ function renderLayers(){
         <button class="ghost" data-l="down" title="Flytta ned">${ic('down')}</button>
         <button class="ghost" data-l="del" title="Ta bort">${ic('trash')}</button>
       </div>
+      ${l._saknas?`<div class="lsaknas">PDF-filen kom aldrig fram till servern. Inpassningen finns kvar. <button data-l="valjfil">Välj PDF:en igen…</button></div>`:''}
       <div class="l2"><input type="range" min="0" max="100" value="${pct}" data-l="op"><span class="lpct">${pct} %</span></div>
       ${adj?`<div class="l3">
         <div><label>X</label><input type="number" data-l="ox" value="${Math.round(l.ox)}" step="1"></div>
@@ -1179,6 +1186,17 @@ $('#layersPanel').addEventListener('click',async e=>{
   else if(act==='export'){l.export=l.export===false?true:false;renderLayers();
     flash(l.export===false?'"'+l.name+'" följer inte med i export och utskrift':'"'+l.name+'" följer med i export och utskrift');}
   else if(act==='passa')startaPassa(l);
+  else if(act==='valjfil'){
+    const inp=document.createElement('input');inp.type='file';inp.accept='.pdf,application/pdf';
+    inp.onchange=async()=>{
+      const fil=inp.files&&inp.files[0];if(!fil)return;
+      l.b64=bytesToB64(new Uint8Array(await fil.arrayBuffer()));delete l.fileId;delete l._saknas;
+      cache.delete(l.id);await loadStack(f);renderLayers();
+      const s=stack.find(x=>x.layer===l);if(s&&l.visible)await renderBase(s.entry,view.scale*l.k*dpr*2);
+      draw();flash('"'+l.name+'" är tillbaka');
+    };
+    inp.click();
+  }
 });
 $('#layersPanel').addEventListener('input',e=>{
   const row=e.target.closest('[data-layer]');if(!row||e.target.dataset.l!=='op')return;
@@ -3802,7 +3820,7 @@ async function pvLaddaUppBakgrunder(){
   for(const l of att){
     l._laddar=true;pvUppladdning++;pvStatus('Laddar upp '+l.name+'…');
     try{
-      l.fileId=await vard.laddaUppPdf(l.name,l.b64);
+      l.fileId=await vard.laddaUppPdf(l.name,l.b64,l.id);
       const b=b64ToBytes(l.b64);pdfBytes.set(l.fileId,b);pdfDbSpara(l.fileId,b);
       const e=cache.get(l.id);if(e&&e.doc)e.nyckel=nyckelFor(l);
     }
@@ -3842,8 +3860,10 @@ window.pvSparaNu=pvSparaNu;
 /** Det som inte hunnit sparas, utan att vänta (webbappen sparar det själv när fliken lämnas). */
 window.pvOsparat=function(){
   if(!pvKopplad)return null;
-  const data=pvFor();
-  return data===pvSenastSparad?null:data;
+  let lokala=false;eachFloor(f=>f.layers.forEach(l=>{if(l.b64&&!l.fileId)lokala=true;}));
+  if(!lokala&&pvFor()===pvSenastSparad)return null;
+  // Bakgrunder som inte hunnit laddas upp följer med som PDF (b64), webbappen laddar upp dem innan den sparar.
+  return JSON.stringify(P,function(k,v){return k.charAt(0)==='_'||(k==='b64'&&this.fileId)?undefined:v;});
 };
 window.pvMarkeraSparad=function(data){pvSenastSparad=data;pvStatus('Sparad');};
 
