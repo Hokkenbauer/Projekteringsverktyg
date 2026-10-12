@@ -437,3 +437,7 @@ a.knapp { text-decoration: none; color: inherit; display: inline-flex; align-ite
 .importrapport ul { margin: 6px 0 10px; padding-left: 20px; font-size: 13px; }
 .importrapport .varningar { color: var(--varning); }
 .startsida .panel + .panel { margin-top: 16px; }
+.projektlista li.medtabort { position: relative; }
+.projektlista li.medtabort > button:last-child { padding-right: 110px; }
+.projektlista .tabortprojekt { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); width: auto; display: inline-block; padding: 5px 10px; z-index: 1; }
+.bekrafta { width: 100%; background: var(--yta-2); border: 1px solid var(--linje); border-radius: var(--r); padding: 8px 10px; color: var(--text); font: inherit; }

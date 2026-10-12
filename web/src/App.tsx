@@ -113,7 +113,7 @@ export function App() {
       {vag.typ === "admin" && mig.rattigheter.hanteraAnvandare ? (
         <AdminVy mig={mig} visaMeddelande={setMeddelande} />
       ) : vag.typ !== "projekt" ? (
-        <ProjektLista kanSkapa={mig.rattigheter.skapaProjekt} onOppna={(id) => { location.hash = `#/p/${id}/oversikt`; }} />
+        <ProjektLista kanSkapa={mig.rattigheter.skapaProjekt} kanTaBort={mig.roll === "Admin"} onOppna={(id) => { location.hash = `#/p/${id}/oversikt`; }} />
       ) : (
         <Arbetsyta
           key={vag.id}

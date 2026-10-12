@@ -79,6 +79,36 @@ public static class ProjektEndpoints
                 new ProjektDto(p.Id, p.Namn, p.Nummer, p.Kund, p.Ansvarig, p.Skapad, p.SkapadAv, 0));
         });
 
+        // Tar bort projektet i sin helhet: allt innehåll, ändringsloggen och projektfilerna. Bara Admin.
+        // Projektets namn måste skickas med som bekräftelse.
+        g.MapDelete("/{id:guid}", async (Guid id, string? bekrafta, ClaimsPrincipal user, Behorighet beh, PvDbContext db,
+            FilApi.IFilLagring lagring, ILoggerFactory loggar, CancellationToken ct) =>
+        {
+            if (!await beh.HarRoll(user, Roller.Admin))
+                return Results.Problem(statusCode: 403, title: "Bara Admin kan ta bort projekt.");
+            var p = await db.Projekt.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, ct);
+            if (p is null) return Results.NotFound();
+            if (!string.Equals((bekrafta ?? "").Trim(), p.Namn.Trim(), StringComparison.CurrentCultureIgnoreCase))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["bekrafta"] = ["Skriv projektets namn exakt för att bekräfta."] });
+
+            var blobbar = await db.Filer.Where(f => f.ProjektId == id).Select(f => f.BlobNamn).ToListAsync(ct);
+            await using (var tx = await db.Database.BeginTransactionAsync(ct))
+            {
+                await db.Andringslogg.Where(a => a.ProjektId == id).ExecuteDeleteAsync(ct);
+                // Övriga tabeller (komponenter, listor, filer, skåp, dokument …) tas bort av databasen (ON DELETE CASCADE).
+                await db.Projekt.Where(x => x.Id == id).ExecuteDeleteAsync(ct);
+                await tx.CommitAsync(ct);
+            }
+            var logg = loggar.CreateLogger("Projekt");
+            logg.LogWarning("Projektet {Namn} ({Id}) togs bort av {Anvandare}", p.Namn, id, Anvandare.Fran(user).Namn);
+            foreach (var b in blobbar)
+            {
+                try { await lagring.TaBortAsync(b, ct); }
+                catch (Exception e) { logg.LogWarning(e, "Filen {Blob} kunde inte tas bort", b); }
+            }
+            return Results.NoContent();
+        });
+
         g.MapGet("/{id:guid}/andringslogg", async (Guid id, int? antal, Guid? entitetId, string? sok, PvDbContext db) =>
         {
             var n = Math.Clamp(antal ?? 100, 1, 2000);

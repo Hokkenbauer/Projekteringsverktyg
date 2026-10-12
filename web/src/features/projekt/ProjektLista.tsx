@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api, skicka } from "../../lib/api";
 import type { Projekt } from "../../lib/typer";
+import { Dialog } from "../../shell/Dialog";
 
-export function ProjektLista({ onOppna, kanSkapa }: { onOppna: (id: string) => void; kanSkapa: boolean }) {
+export function ProjektLista({ onOppna, kanSkapa, kanTaBort }: { onOppna: (id: string) => void; kanSkapa: boolean; kanTaBort: boolean }) {
   const [projekt, setProjekt] = useState<Projekt[] | null>(null);
   const [fel, setFel] = useState<string | null>(null);
   const [nytt, setNytt] = useState({ namn: "", nummer: "", kund: "" });
@@ -10,6 +11,24 @@ export function ProjektLista({ onOppna, kanSkapa }: { onOppna: (id: string) => v
   const [importerar, setImporterar] = useState(false);
   const [importerat, setImporterat] = useState<{ projekt: Projekt; rapport: string[]; varningar: string[] } | null>(null);
   const importFil = useRef<HTMLInputElement>(null);
+  const [taBort, setTaBort] = useState<Projekt | null>(null);
+  const [bekraftelse, setBekraftelse] = useState("");
+  const [tarBort, setTarBort] = useState(false);
+
+  const taBortProjekt = async () => {
+    if (!taBort) return;
+    setTarBort(true);
+    try {
+      await api(`/api/projekt/${taBort.id}?bekrafta=${encodeURIComponent(bekraftelse.trim())}`, { method: "DELETE" });
+      setProjekt((l) => l?.filter((p) => p.id !== taBort.id) ?? l);
+      if (importerat?.projekt.id === taBort.id) setImporterat(null);
+      setTaBort(null);
+    } catch (err) {
+      setFel(`Projektet kunde inte tas bort: ${(err as Error).message}`);
+    } finally {
+      setTarBort(false);
+    }
+  };
 
   const importera = async (fil: File) => {
     const form = new FormData();
@@ -49,7 +68,7 @@ export function ProjektLista({ onOppna, kanSkapa }: { onOppna: (id: string) => v
     <main className="startsida">
       <div className="brodsmula">Projekteringsverktyg</div>
       <h1>Projekt</h1>
-      {fel && <p className="felruta">{fel.startsWith("Importen") ? fel : `Det gick inte att hämta projekten: ${fel}`}</p>}
+      {fel && <p className="felruta">{fel.startsWith("Importen") || fel.startsWith("Projektet kunde") ? fel : `Det gick inte att hämta projekten: ${fel}`}</p>}
 
       {kanSkapa && <section className="panel">
         <h2>Nytt projekt</h2>
@@ -89,7 +108,8 @@ export function ProjektLista({ onOppna, kanSkapa }: { onOppna: (id: string) => v
         {!!projekt?.length && (
           <ul className="projektlista">
             {projekt.map((p) => (
-              <li key={p.id}>
+              <li key={p.id} className={kanTaBort ? "medtabort" : ""}>
+                {kanTaBort && <button className="knapp fara tabortprojekt" title="Ta bort projektet" onClick={() => { setTaBort(p); setBekraftelse(""); }}>Ta bort…</button>}
                 <button onClick={() => onOppna(p.id)}>
                   <b>{p.namn}</b>
                   <span>{[p.nummer, p.kund].filter(Boolean).join(" · ") || "—"}</span>
@@ -100,6 +120,27 @@ export function ProjektLista({ onOppna, kanSkapa }: { onOppna: (id: string) => v
           </ul>
         )}
       </section>
+
+      <Dialog
+        titel="Ta bort projekt" oppen={taBort !== null} onStang={() => { if (!tarBort) setTaBort(null); }}
+        fot={<>
+          <button className="knapp" disabled={tarBort} onClick={() => setTaBort(null)}>Avbryt</button>
+          <button className="knapp fara" disabled={tarBort || bekraftelse.trim().toLowerCase() !== (taBort?.namn ?? "").trim().toLowerCase()} onClick={() => void taBortProjekt()}>
+            {tarBort ? "Tar bort…" : "Ta bort projektet för alltid"}
+          </button>
+        </>}
+      >
+        {taBort && (
+          <>
+            <p>
+              Hela <b>{taBort.namn}</b> tas bort för alla: komponenter, listor, kontroller, ritningar, skåp, dokument,
+              projektfiler och ändringslogg. Det går inte att ångra i appen.
+            </p>
+            <p className="dampad liten">Skriv projektets namn för att bekräfta.</p>
+            <input className="bekrafta" value={bekraftelse} autoFocus placeholder={taBort.namn} onChange={(e) => setBekraftelse(e.target.value)} />
+          </>
+        )}
+      </Dialog>
     </main>
   );
 }
