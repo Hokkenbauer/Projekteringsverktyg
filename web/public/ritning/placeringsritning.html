@@ -3819,22 +3819,33 @@ async function pvKontrollera(){
   await pvSparaNu();
 }
 
+/** Sparar nu. Svarar 'ok', 'oforandrad', 'lasläge', 'konflikt' eller 'fel'. */
 async function pvSparaNu(){
-  const vard=pvVard();if(!vard||!pvKopplad||pvSparar)return;
+  const vard=pvVard();if(!vard||!pvKopplad)return 'fel';
+  // Pågår en sparning redan: vänta in den och spara sedan det som ändrats under tiden.
+  while(pvSparar)await new Promise(r=>setTimeout(r,100));
   pvSparar=true;
   try{
     await pvLaddaUppBakgrunder();
     const data=pvFor();
-    if(data===pvSenastSparad){pvStatus('Sparad');return;}
+    if(data===pvSenastSparad){pvStatus('Sparad');return 'oforandrad';}
     pvStatus('Sparar…');
     const svar=await vard.spara(data);
     if(svar==='ok'){pvSenastSparad=data;pvStatus('Sparad');}
     else if(svar==='lasläge'){pvSenastSparad=data;pvStatus('Endast läsning');}
     else pvStatus(svar==='konflikt'?'Uppdaterad från annan':'Kunde inte spara');
-  }catch(err){pvStatus('Kunde inte spara');}
+    return svar;
+  }catch(err){pvStatus('Kunde inte spara');return 'fel';}
   finally{pvSparar=false;}
 }
 window.pvSparaNu=pvSparaNu;
+/** Det som inte hunnit sparas, utan att vänta (webbappen sparar det själv när fliken lämnas). */
+window.pvOsparat=function(){
+  if(!pvKopplad)return null;
+  const data=pvFor();
+  return data===pvSenastSparad?null:data;
+};
+window.pvMarkeraSparad=function(data){pvSenastSparad=data;pvStatus('Sparad');};
 
 /** Efter import av en .sro.json: koppla ritningens komponenter till projektets Komponenter.
     Samma Id behålls, annars matchas på beteckning, annars skapas en ny komponent. */

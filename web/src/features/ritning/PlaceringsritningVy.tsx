@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { api, ApiFel, hamtaBinar, skicka } from "../../lib/api";
 import { temaForVerktyg as tema } from "./tema";
 import { Dialog } from "../../shell/Dialog";
@@ -24,7 +24,9 @@ type Verktyg = Window & {
   pvSyncCatalogs?: (json: string) => void;
   pvAssignId?: (localId: string, realId: string) => void;
   pvLaddaRitning?: (json: string | null, namn: string, behallVy: boolean) => Promise<void>;
-  pvSparaNu?: () => Promise<void>;
+  pvSparaNu?: () => Promise<"ok" | "oforandrad" | "lasläge" | "konflikt" | "fel">;
+  pvOsparat?: () => string | null;
+  pvMarkeraSparad?: (data: string) => void;
   pvTema?: (t: Record<string, string | boolean>) => void;
   pvVisaKomponent?: (id: string) => Promise<boolean>;
 };
@@ -50,6 +52,12 @@ type Props = {
   /** Öppna Komponentinformation för en komponent som markerats i ritningen. */
   onVisaKomponent: (id: string) => void;
 };
+
+/**
+ * Sparning som pågår när fliken lämnas. Den görs av webbappen (inte ritverktyget, som stängs),
+ * och nästa gång ritningen öppnas väntar hämtningen in den.
+ */
+let sparningVidStang: Promise<void> | null = null;
 
 const KOMPONENTFALT = new Set([
   "beteckning", "system", "komponenttyp", "signaltyp", "placering", "beskrivning", "ovrigt",
@@ -94,6 +102,7 @@ export function PlaceringsritningVy(p: Props) {
     const v = verktyg();
     if (!v?.pvLaddaRitning) return;
     try {
+      if (sparningVidStang) await sparningVidStang;
       const r = await api<Ritning>(`/api/projekt/${p.projektId}/ritning`);
       version.current = r.version;
       v.pvTema?.(tema());
@@ -220,13 +229,44 @@ export function PlaceringsritningVy(p: Props) {
       visaKomponent: (id) => props.current.onVisaKomponent(id),
     };
     (window as unknown as { pvRitningsVard?: Vard }).pvRitningsVard = vard;
-    return () => {
-      // Sparar det sista innan fliken lämnas (verktyget sparar annars varannan sekund).
-      void verktyg()?.pvSparaNu?.();
-      redo.current = false;
-    };
+    return () => { redo.current = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [p.projektId]);
+
+  // När fliken lämnas: spara det som inte hunnit sparas. Görs innan ritverktyget tas bort (därför layout-effekt),
+  // och själva sparningen körs här i webbappen, eftersom ritverktyget stängs.
+  useLayoutEffect(() => () => {
+    const data = verktyg()?.pvOsparat?.();
+    if (!data || props.current.lasläge) return;
+    const { projektId, visaMeddelande } = props.current;
+    const url = `/api/projekt/${projektId}/ritning`;
+    const fore = version.current;
+    const putta = (v: number) => api<Ritning>(url, { method: "PUT", body: skicka({ data, version: v }) });
+    sparningVidStang = putta(fore).then(() => undefined).catch(async (e) => {
+      // En automatisk sparning kan ha hunnit gå iväg precis innan. Då är servern ett steg före, och det är vår egen.
+      if (e instanceof ApiFel && e.status === 409) {
+        const nu = await api<Ritning>(url);
+        if (nu.data === data) return;
+        if (nu.version === fore + 1) { await putta(nu.version); return; }
+      }
+      throw e;
+    }).catch((e) => {
+      visaMeddelande(e instanceof ApiFel && e.status === 409
+        ? "Din sista ändring i ritningen kunde inte sparas: någon annan sparade samtidigt."
+        : `Din sista ändring i ritningen kunde inte sparas: ${(e as Error).message}`);
+    }).finally(() => { sparningVidStang = null; });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const sparaNu = async () => {
+    const svar = await verktyg()?.pvSparaNu?.();
+    p.visaMeddelande(
+      svar === "ok" ? "Ritningen är sparad."
+        : svar === "oforandrad" ? "Allt är redan sparat."
+        : svar === "lasläge" ? "Du har bara läsbehörighet."
+        : svar === "konflikt" ? "Någon annan sparade samtidigt. Deras version visas nu; gör om din senaste ändring."
+        : "Ritningen kunde inte sparas. Försök igen.");
+  };
 
   // Komponenter, egenkontroll och kabellängder speglas in i ritningen en kort stund efter en ändring.
   useEffect(() => {
@@ -295,6 +335,7 @@ export function PlaceringsritningVy(p: Props) {
         >?</span>
         {p.lasläge && <span className="dampad">Endast läsning</span>}
         <span className="grow" />
+        {!p.lasläge && <button className="knapp primar" onClick={() => void sparaNu()} title="Spara ritningen nu (Ctrl+S). Den sparas annars automatiskt varannan sekund.">Spara</button>}
         <button className="knapp" onClick={() => void oppnaHistorik()} title="Tidigare versioner av ritningen">Historik</button>
         <button className="knapp" onClick={() => setHelskarm((h) => !h)}>{helskarm ? "Avsluta helskärm" : "Helskärm"}</button>
       </div>
