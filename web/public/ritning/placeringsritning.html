@@ -55,7 +55,10 @@ h3.sec{font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;color:var(
 .searchwrap .cnt{position:absolute;right:8px;top:6px;font-size:11px;color:var(--txt3)}
 .body{flex:1;display:flex;min-height:0}
 aside{background:var(--panel);display:flex;flex-direction:column;min-height:0}
-#left{width:304px;border-right:1px solid var(--line);flex:0 0 auto}
+#left{width:304px;min-width:200px;max-width:70vw;border-right:1px solid var(--line);flex:0 0 auto;position:relative}
+#leftDrag{position:absolute;top:0;right:-4px;width:8px;height:100%;cursor:col-resize;z-index:5}
+#leftDrag:hover,#leftDrag.on{background:var(--accent);opacity:.45}
+.node.grp .lbl{font-style:italic;color:var(--txt3)}
 #right{width:280px;border-left:1px solid var(--line);flex:0 0 auto}
 main{flex:1;position:relative;min-width:0;background:var(--canvas)}
 .phead{display:flex;align-items:center;gap:6px;padding:7px 10px;font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--txt3);border-bottom:1px solid var(--line);flex:0 0 auto}
@@ -370,6 +373,7 @@ body.ljust .comp text, body.ljust #overlay text{font-weight:700}
 
   <div class="body">
     <aside id="left">
+      <div id="leftDrag" title="Dra för att ändra bredd. Dubbelklicka för standardbredd."></div>
       <div class="phead"><span class="grow">Struktur</span><button class="ghost" id="addBuilding" title="Lägg till byggnad">+ Byggnad</button></div>
       <div class="pbody"><div id="tree"></div></div>
       <div class="phead split">
@@ -1788,8 +1792,16 @@ function renderTree(){
         if(rc)return;
         h+='<div class="kids">'+inR.map(c=>compNode(c,f,b)).join('')+'</div>';
       });
-      const direct=f.components.filter(c=>!c.roomId);
-      if(direct.length)h+='<div class="kids">'+direct.map(c=>compNode(c,f,b)).join('')+'</div>';
+      // Komponenter utan rum visas i egna, namngivna grupper så att de inte
+      // ser ut att höra till det sist ritade rummet.
+      const grupp=(gid,namn,lista)=>{
+        if(!lista.length)return;
+        const gc=ui.collapsed.has(gid);
+        h+=`<div class="node grp" data-kind="grp" data-id="${gid}"><span class="tw" data-tw="1">${gc?'▶':'▼'}</span><span class="lbl">${esc(namn)}</span><span class="sub">${lista.length} st</span></div>`;
+        if(!gc)h+='<div class="kids">'+lista.map(c=>compNode(c,f,b)).join('')+'</div>';
+      };
+      grupp(f.id+':plan','Direkt på plan (inget rum)',f.components.filter(c=>!c.roomId&&c.x!=null));
+      grupp(f.id+':kvar','Ej utplacerade',f.components.filter(c=>!c.roomId&&c.x==null));
       h+='</div>';
     });
     h+='</div>';
@@ -1817,7 +1829,7 @@ const isHitName=n=>!!ui.search&&String(n).toLowerCase().indexOf(ui.search.toLowe
 $('#tree').addEventListener('click',e=>{
   const n=e.target.closest('.node');if(!n)return;
   const kind=n.dataset.kind,id=n.dataset.id,act=e.target.closest('[data-act]');
-  if(e.target.dataset.tw&&kind!=='comp'){ui.collapsed.has(id)?ui.collapsed.delete(id):ui.collapsed.add(id);renderTree();return;}
+  if(kind==='grp'||(e.target.dataset.tw&&kind!=='comp')){ui.collapsed.has(id)?ui.collapsed.delete(id):ui.collapsed.add(id);renderTree();return;}
   if(act){treeAction(act.dataset.act,kind,id);return;}
   if(kind==='floor')openFloor(id);
   else if(kind==='room'){const r=findRoom(id);if(r.floor.id!==ui.floorId)openFloor(r.floor.id);}
@@ -3329,6 +3341,19 @@ window.addEventListener('keydown',e=>{
   if((e.key==='Delete'||e.key==='Backspace')&&ui.sel){treeAction('del',ui.sel.kind,ui.sel.id);e.preventDefault();}
 });
 window.addEventListener('resize',()=>{if(ui.view==='plan')resize();});
+/* Strukturpanelen kan dras bredare/smalare. Bredden kommer ihåg i den här webbläsaren. */
+(function(){
+  const left=$('#left'),h=$('#leftDrag'),NYCKEL='pv.strukturBredd';
+  const satt=w=>{left.style.width=Math.max(200,Math.min(window.innerWidth*0.7,w))+'px';if(ui.view==='plan')resize();};
+  try{const w=+localStorage.getItem(NYCKEL);if(w>0)satt(w);}catch(_){}
+  let start=null;
+  h.addEventListener('pointerdown',e=>{start={x:e.clientX,w:left.getBoundingClientRect().width};h.classList.add('on');h.setPointerCapture(e.pointerId);e.preventDefault();});
+  h.addEventListener('pointermove',e=>{if(start)satt(start.w+e.clientX-start.x);});
+  const slapp=()=>{if(!start)return;start=null;h.classList.remove('on');
+    try{localStorage.setItem(NYCKEL,String(Math.round(left.getBoundingClientRect().width)));}catch(_){}};
+  h.addEventListener('pointerup',slapp);h.addEventListener('pointercancel',slapp);
+  h.addEventListener('dblclick',()=>{left.style.width='';try{localStorage.removeItem(NYCKEL);}catch(_){}if(ui.view==='plan')resize();});
+})();
 
 function boot(keepView){
   $('#brandName').textContent=P.name||'Namnlöst';
