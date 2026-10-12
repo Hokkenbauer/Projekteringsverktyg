@@ -93,6 +93,7 @@ export type AttGora = {
   projektId: string;
   text: string;
   klar: boolean;
+  pagaende: boolean;
   ordning: number;
   version: number;
   andrad: string;

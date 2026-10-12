@@ -1,31 +1,42 @@
 import { DataGrid, type Blink, type Kolumn } from "../../grid/DataGrid";
 import type { AttGora } from "../../lib/typer";
 
+export type AttGoraFalt = "text" | "klar" | "pagaende";
+
 const KOLUMNER: Kolumn<AttGora>[] = [
-  { nyckel: "klar", rubrik: "Klar", typ: "kryss" },
+  { nyckel: "pagaende", rubrik: "Pågående", typ: "kryss" },
+  { nyckel: "klar", rubrik: "Åtgärdad", typ: "kryss" },
   { nyckel: "text", rubrik: "Att göra", typ: "text", bredd: 400 },
 ];
 
 type Props = {
   rader: AttGora[];
   blinkar: Blink[];
-  onAndra: (rad: AttGora, falt: "text" | "klar", varde: string) => void;
+  onAndra: (rad: AttGora, falt: AttGoraFalt, varde: string) => void;
   onNy: () => void;
   onTaBort: (ids: string[]) => void;
   lasläge?: boolean;
+  /** Visas inte när listan redan ligger i ett eget fönster. */
+  onPopUt?: () => void;
 };
 
-export function AttGoraVy({ rader, blinkar, onAndra, onNy, onTaBort, lasläge }: Props) {
+export function AttGoraVy({ rader, blinkar, onAndra, onNy, onTaBort, lasläge, onPopUt }: Props) {
   return (
     <>
       <div className="brodsmula">Att göra</div>
-      <h1>Lista</h1>
-      <p className="ingress">Projektets att göra-lista. Bocka i Klar när en sak är gjord.</p>
+      <div className="rubrikrad">
+        <h1>Lista</h1>
+        {onPopUt && <div className="knappar"><button className="knapp" onClick={onPopUt} title="Öppna listan i ett eget fönster som följer med mellan flikarna">⧉ Pop-ut</button></div>}
+      </div>
+      <p className="ingress">
+        Projektets att göra-lista. Bocka i Pågående när någon har börjat och Åtgärdad när saken är gjord.
+        Rutan längst till vänster markerar rader, t.ex. för att ta bort dem.
+      </p>
       <DataGrid
         rader={rader}
         kolumner={KOLUMNER}
         sokPlatshallare="Sök i att göra"
-        onAndra={(r, nyckel, v) => onAndra(r, nyckel as "text" | "klar", v)}
+        onAndra={(r, nyckel, v) => onAndra(r, nyckel as AttGoraFalt, v)}
         onNy={onNy}
         onTaBort={onTaBort}
         blinkar={blinkar}

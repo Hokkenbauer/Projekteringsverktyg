@@ -60,8 +60,12 @@ aside{background:var(--panel);display:flex;flex-direction:column;min-height:0}
 #leftDrag:hover,#leftDrag.on{background:var(--accent);opacity:.45}
 .lsaknas{font-size:11px;color:var(--warn);margin:4px 0 2px;line-height:1.4}
 .lsaknas button{margin-top:4px}
+.placknapp{width:100%;justify-content:center;padding:8px;font-weight:600;white-space:normal}
+.placknapp.klar{background:var(--done);border-color:var(--done);color:#06210f}
 .lfarg{width:18px;height:18px;padding:0;border:1px solid var(--line2);border-radius:4px;background:none;cursor:pointer;flex:0 0 18px}
 .lfarg::-webkit-color-swatch-wrapper{padding:0}.lfarg::-webkit-color-swatch{border:none;border-radius:3px}
+.treeTools{display:flex;gap:6px;padding:6px 8px;border-bottom:1px solid var(--line)}
+.treeTools input{flex:1 1 auto;min-width:0;width:auto}.treeTools select{flex:0 0 108px;width:108px}
 .node.grp .lbl{font-style:italic;color:var(--txt3)}
 #right{width:280px;border-left:1px solid var(--line);flex:0 0 auto}
 main{flex:1;position:relative;min-width:0;background:var(--canvas)}
@@ -379,6 +383,8 @@ body.ljust .comp text, body.ljust #overlay text{font-weight:700}
     <aside id="left">
       <div id="leftDrag" title="Dra för att ändra bredd. Dubbelklicka för standardbredd."></div>
       <div class="phead"><span class="grow">Struktur</span><button class="ghost" id="addBuilding" title="Lägg till byggnad">+ Byggnad</button></div>
+      <div class="treeTools"><input id="treeSok" type="search" placeholder="Filtrera rum och komponenter" autocomplete="off">
+        <select id="treeSort" title="Sortering"><option value="">Ritningsordning</option><option value="namn">A–Ö</option></select></div>
       <div class="pbody"><div id="tree"></div></div>
       <div class="phead split">
         <div class="tabs"><button id="tabPool" class="on">Att placera</button><button id="tabPal">Palett</button></div>
@@ -1241,7 +1247,7 @@ function buildOverlay(){
   const bld=curBld();
   overlayColors();
   const rooms=f.rooms.filter(r=>!r.hidden&&!f.hidden&&!bld.hidden).map(r=>{
-    const cls='roomShape'+(ui.sel&&ui.sel.id===r.id?' sel':'')+(isHit(r,'room')?' hit':'')+(r.done?' done':'');
+    const cls='roomShape'+(ui.sel&&ui.sel.id===r.id?' sel':'')+(isHit(r,'room')?' hit':'')+(r.done||r.placerad?' done':'');
     const c=centroid(r.points);
     return `<g data-room="${r.id}"><polygon class="${cls}" points="${ptsAttr(r.points)}"/>`+
       `<text class="roomLbl rlab${r.done?' done':''}" x="${c[0].toFixed(2)}" y="${c[1].toFixed(2)}" text-anchor="middle" dominant-baseline="central">${esc(r.name)}${r.done?' ✓':''}</text></g>`;
@@ -1947,11 +1953,17 @@ function renderTree(){
         eyeBtn(f.hidden)+`<button class="ghost" data-act="up">${ic('up')}</button><button class="ghost" data-act="down">${ic('down')}</button><button class="ghost" data-act="ren">${ic('pen')}</button><button class="ghost" data-act="del">${ic('trash')}</button>`,fc,f.id===ui.floorId,f.hidden);
       if(fc)return;
       h+='<div class="kids">';
-      f.rooms.forEach(r=>{
-        const rc=ui.collapsed.has(r.id);
-        const inR=f.components.filter(c=>c.roomId===r.id);
-        const nd=inR.filter(c=>c.done).length;
-        h+=node('room',r.id,ic('room'),r.name,inR.length+' st'+(inR.length?' · '+nd+' klara':''),isHitName(r.name),r.hidden||f.hidden||b.hidden,r.done,
+      // Filter och sortering (fälten ovanför trädet).
+      const q=(ui.treeQ||'').trim().toLowerCase(),traff=t=>!q||String(t||'').toLowerCase().includes(q);
+      const kompTraff=c=>traff(c.tag)||traff(c.pvKomponenttyp)||traff(c.pvSystem);
+      const sortera=(arr,namn)=>ui.treeSort==='namn'?[...arr].sort((x,y)=>String(namn(x)).localeCompare(String(namn(y)),'sv',{numeric:true})):arr;
+      sortera(f.rooms,r=>r.name).forEach(r=>{
+        const rc=ui.collapsed.has(r.id)&&!q;
+        const alla=f.components.filter(c=>c.roomId===r.id);
+        const inR=sortera(q&&!traff(r.name)?alla.filter(kompTraff):alla,c=>c.tag);
+        if(q&&!traff(r.name)&&!inR.length)return;
+        const nd=alla.filter(c=>c.done).length;
+        h+=node('room',r.id,ic('room'),(r.placerad?'✓ ':'')+r.name,alla.length+' st'+(alla.length?' · '+nd+' klara':''),isHitName(r.name)||(!!q&&traff(r.name)),r.hidden||f.hidden||b.hidden,r.done||r.placerad,
           eyeBtn(r.hidden)+doneBtn(r.done)+`<button class="ghost" data-act="copy">${ic('copy')}</button><button class="ghost" data-act="ren">${ic('pen')}</button><button class="ghost" data-act="del">${ic('trash')}</button>`,rc,false,r.hidden);
         if(rc)return;
         h+='<div class="kids">'+inR.map(c=>compNode(c,f,b)).join('')+'</div>';
@@ -1960,7 +1972,9 @@ function renderTree(){
       // ser ut att höra till det sist ritade rummet.
       const grupp=(gid,namn,lista)=>{
         if(!lista.length)return;
-        const gc=ui.collapsed.has(gid);
+        lista=sortera(q?lista.filter(kompTraff):lista,c=>c.tag);
+        if(!lista.length)return;
+        const gc=ui.collapsed.has(gid)&&!q;
         h+=`<div class="node grp" data-kind="grp" data-id="${gid}"><span class="tw" data-tw="1">${gc?'▶':'▼'}</span><span class="lbl">${esc(namn)}</span><span class="sub">${lista.length} st</span></div>`;
         if(!gc)h+='<div class="kids">'+lista.map(c=>compNode(c,f,b)).join('')+'</div>';
       };
@@ -1985,9 +1999,12 @@ function renderTree(){
       <span class="lbl tag">${esc(c.tag)}</span>
       <span class="src ${c.source==='import'?'imp':'man'}">${c.source==='import'?'IMP':'NY'}</span>
       <span class="sub">${c.x==null?'ej placerad':esc(t.code)}</span>
-      <span class="acts">${eyeBtn(c.hidden)}${doneBtn(c.done)}<button class="ghost" data-act="copy">${ic('copy')}</button><button class="ghost" data-act="ren">${ic('pen')}</button><button class="ghost" data-act="del">${ic('trash')}</button></span></div>`;
+      <span class="acts">${eyeBtn(c.hidden)}${doneBtn(c.done)}${c.x!=null||c.roomId?'<button class="ghost" data-act="unplace" title="Tillbaka till Att placera">↩</button>':''}<button class="ghost" data-act="copy">${ic('copy')}</button><button class="ghost" data-act="ren">${ic('pen')}</button><button class="ghost" data-act="del">${ic('trash')}</button></span></div>`;
   }
 }
+$('#treeSok').addEventListener('input',e=>{ui.treeQ=e.target.value;renderTree();});
+$('#treeSort').addEventListener('change',e=>{ui.treeSort=e.target.value;renderTree();try{localStorage.setItem('pv.tradSortering',ui.treeSort);}catch(_){}});
+try{ui.treeSort=localStorage.getItem('pv.tradSortering')||'';$('#treeSort').value=ui.treeSort;}catch(_){}
 const isHitName=n=>!!ui.search&&String(n).toLowerCase().indexOf(ui.search.toLowerCase())>=0;
 
 $('#tree').addEventListener('click',e=>{
@@ -2011,6 +2028,7 @@ function treeAction(act,kind,id){
   if(act==='eye'){const o=objOf(kind,id);o.hidden=!o.hidden;refresh();return;}
   if(act==='done'){toggleDone(kind,id);return;}
   if(act==='copy'){copyNode(kind,id);return;}
+  if(act==='unplace'){tillAttPlacera(id);return;}
   if(act==='addFloor'){const b=P.buildings.find(x=>x.id===id);const f=newFloor('Plan '+(b.floors.length+1));b.floors.push(f);refresh();openFloor(f.id);return;}
   if(act==='ren'){
     const o=objOf(kind,id),k=kind==='comp'?'tag':'name';
@@ -2042,6 +2060,12 @@ function treeAction(act,kind,id){
     const r=findFloor(id),arr=r.bld.floors,i=arr.indexOf(r.floor),j=act==='up'?i-1:i+1;
     if(j<0||j>=arr.length)return;arr.splice(i,1);arr.splice(j,0,r.floor);refresh();
   }
+}
+/** Komponenten tas bort från ritningen och rummet och hamnar under Att placera igen. */
+function tillAttPlacera(id){
+  const r=findComp(id);if(!r)return;
+  r.comp.x=null;r.comp.y=null;r.comp.roomId=null;
+  refresh();flash(r.comp.tag+' ligger under Att placera igen');
 }
 function toggleDone(kind,id){
   if(kind==='comp'){const c=findComp(id).comp;c.done=!c.done;refresh();pvNotify(c.pvId,{kontrollerad:c.done});return;}
@@ -2209,7 +2233,7 @@ function renderInspector(){
         <div class="kv"><b>På ritning</b><span>${c.x==null?'nej':'ja'}</span></div>
         <div class="kv"><b>Ursprung</b><span>${c.source==='import'?'Importerad':'Tillagd manuellt'}</span></div></div>
       ${t.attrs&&t.attrs.length?`<div class="field"><label>Attribut</label>${t.attrs.map(a=>attrInput(t,c,a)).join('')}</div>`:''}
-      <div class="field row"><button id="iCopy">Kopiera</button>${c.x!=null?'<button id="iUnplace">Av ritning</button>':''}<button id="iDel" style="color:var(--danger)">Ta bort</button></div>`;
+      <div class="field row"><button id="iCopy">Kopiera</button>${c.x!=null||c.roomId?'<button id="iUnplace" title="Tar bort komponenten från ritningen och lägger den under Att placera igen">Till Att placera</button>':''}<button id="iDel" style="color:var(--danger)">Ta bort</button></div>`;
     $('#iDone').onchange=e=>{c.done=e.target.checked;refresh();pvNotify(c.pvId,{kontrollerad:c.done});};
     if($('#iInfo'))$('#iInfo').onclick=()=>{const v=pvVard();if(v&&v.visaKomponent)v.visaKomponent(c.pvId);};
     $('#iTag').onchange=e=>{c.tag=e.target.value.trim()||c.tag;refresh();pvNotify(c.pvId,{beteckning:c.tag});};
@@ -2235,7 +2259,7 @@ function renderInspector(){
       c.data[key]=ev.target.type==='checkbox'?ev.target.checked:ev.target.value;
     });
     $('#iCopy').onclick=()=>copyNode('comp',id);
-    if($('#iUnplace'))$('#iUnplace').onclick=()=>{c.x=null;c.y=null;refresh();};
+    if($('#iUnplace'))$('#iUnplace').onclick=()=>tillAttPlacera(id);
     $('#iDel').onclick=()=>{
       if(!confirm(`Ta bort ${c.tag}?${c.pvId?' Detta tar även bort komponenten i Komponenter – går inte att ångra.':''}`))return;
       if(c.pvId)pvNotifyDelete(c.pvId);
@@ -2244,7 +2268,8 @@ function renderInspector(){
   }else if(kind==='room'){
     const r=findRoom(id);if(!r){box.innerHTML='';return;}
     const inR=r.floor.components.filter(c=>c.roomId===id);
-    box.innerHTML=`<div class="field"><label class="chk"><input type="checkbox" id="iDone" ${r.room.done?'checked':''}> Klarmarkerat rum (egenkontroll)</label></div>
+    box.innerHTML=`<div class="field"><button id="iPlacerad" class="placknapp${r.room.placerad?' klar':''}">${r.room.placerad?'✓ Placering klar':'Klarmarkera placering'}</button>${r.room.placerad?'<div class="muted" style="font-size:11px;margin-top:4px">Klicka igen för att öppna rummet, t.ex. vid en större ändring.</div>':''}</div>
+      <div class="field"><label class="chk"><input type="checkbox" id="iDone" ${r.room.done?'checked':''}> Klarmarkerat rum (egenkontroll)</label></div>
       <div class="field"><label>Rumsnamn</label><input type="text" id="iName" value="${esc(r.room.name)}"></div>
       <div class="field"><label>Innehåll</label><div class="kv"><b>Komponenter</b><span>${inR.length} st</span></div>
       <div class="kv"><b>Klarmarkerade</b><span>${inR.filter(c=>c.done).length} st</span></div>
@@ -2253,6 +2278,7 @@ function renderInspector(){
       <div class="field row"><button id="iCopy">Kopiera</button><button id="iDel" style="color:var(--danger)">Ta bort rum</button></div>
       <div class="hint" style="padding:8px 11px">Dra i hörnen för att ändra form. Ringarna mellan hörnen lägger till en brytpunkt, Alt-klick på ett hörn tar bort det.</div>`;
     $('#iDone').onchange=()=>toggleDone('room',id);
+    $('#iPlacerad').onclick=()=>{r.room.placerad=!r.room.placerad;refresh();flash(r.room.placerad?'"'+r.room.name+'": placeringen är klar':'"'+r.room.name+'" är öppnat igen');};
     $('#iName').onchange=e=>{r.room.name=e.target.value;refresh();};
     $('#iCopy').onclick=()=>copyNode('room',id);
     $('#iDel').onclick=()=>treeAction('del','room',id);

@@ -441,3 +441,18 @@ a.knapp { text-decoration: none; color: inherit; display: inline-flex; align-ite
 .projektlista li.medtabort > button:last-child { padding-right: 110px; }
 .projektlista .tabortprojekt { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); width: auto; display: inline-block; padding: 5px 10px; z-index: 1; }
 .bekrafta { width: 100%; background: var(--yta-2); border: 1px solid var(--linje); border-radius: var(--r); padding: 8px 10px; color: var(--text); font: inherit; }
+
+/* Flytande fönster (t.ex. Att göra som pop-ut) */
+.flytande-fonster{position:fixed;z-index:60;display:flex;flex-direction:column;background:var(--yta);border:1px solid var(--linje);border-radius:8px;box-shadow:0 12px 40px rgba(0,0,0,.35)}
+.fonster-titel{display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid var(--linje);cursor:move;user-select:none;font-weight:600;font-size:13px;touch-action:none}
+.fonster-titel span{flex:1}
+.fonster-stang{border:none;background:none;color:var(--dampad);cursor:pointer;font-size:14px;padding:2px 6px;border-radius:4px}
+.fonster-stang:hover{background:var(--yta-2);color:var(--text)}
+.fonster-innehall{flex:1;min-height:0;overflow:auto;padding:8px 10px}
+.fonster-innehall h1,.fonster-innehall .brodsmula,.fonster-innehall .ingress{display:none}
+.fonster-handtag{position:absolute;touch-action:none;z-index:1}
+.fh-n,.fh-s{left:10px;right:10px;height:7px;cursor:ns-resize}.fh-n{top:-3px}.fh-s{bottom:-3px}
+.fh-o,.fh-v{top:10px;bottom:10px;width:7px;cursor:ew-resize}.fh-o{right:-3px}.fh-v{left:-3px}
+.fh-no,.fh-nv,.fh-so,.fh-sv{width:14px;height:14px}
+.fh-no{top:-4px;right:-4px;cursor:nesw-resize}.fh-sv{bottom:-4px;left:-4px;cursor:nesw-resize}
+.fh-nv{top:-4px;left:-4px;cursor:nwse-resize}.fh-so{bottom:-4px;right:-4px;cursor:nwse-resize}

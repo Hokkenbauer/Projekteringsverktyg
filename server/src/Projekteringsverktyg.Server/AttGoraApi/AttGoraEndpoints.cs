@@ -8,9 +8,9 @@ using Projekteringsverktyg.Server.Synk;
 
 namespace Projekteringsverktyg.Server.AttGoraApi;
 
-public sealed record AttGoraDto(Guid Id, Guid ProjektId, string Text, bool Klar, int Ordning, int Version, DateTimeOffset Andrad, string AndradAv)
+public sealed record AttGoraDto(Guid Id, Guid ProjektId, string Text, bool Klar, bool Pagaende, int Ordning, int Version, DateTimeOffset Andrad, string AndradAv)
 {
-    public static AttGoraDto Fran(AttGoraPost a) => new(a.Id, a.ProjektId, a.Text, a.Klar, a.Ordning, a.Version, a.Andrad, a.AndradAv);
+    public static AttGoraDto Fran(AttGoraPost a) => new(a.Id, a.ProjektId, a.Text, a.Klar, a.Pagaende, a.Ordning, a.Version, a.Andrad, a.AndradAv);
 }
 
 public sealed record NyAttGora(string? Text);
@@ -69,6 +69,13 @@ public static class AttGoraEndpoints
                     post.Klar = string.Equals(andring.Varde, "true", StringComparison.OrdinalIgnoreCase);
                     efter = post.Klar ? "Klar" : "Ej klar";
                     beskrivning = post.Klar ? $"bockade av \"{Kort(post.Text)}\" i Att göra" : $"öppnade \"{Kort(post.Text)}\" igen i Att göra";
+                    if (post.Klar) post.Pagaende = false;
+                    break;
+                case "pagaende":
+                    fore = post.Pagaende ? "Pågående" : "Ej pågående";
+                    post.Pagaende = string.Equals(andring.Varde, "true", StringComparison.OrdinalIgnoreCase);
+                    efter = post.Pagaende ? "Pågående" : "Ej pågående";
+                    beskrivning = post.Pagaende ? $"markerade \"{Kort(post.Text)}\" som pågående i Att göra" : $"tog bort pågående på \"{Kort(post.Text)}\" i Att göra";
                     break;
                 default:
                     return Results.ValidationProblem(new Dictionary<string, string[]> { ["falt"] = [$"Fältet '{andring.Falt}' kan inte ändras."] });

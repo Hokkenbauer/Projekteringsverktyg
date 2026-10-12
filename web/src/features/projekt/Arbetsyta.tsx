@@ -6,7 +6,8 @@ import type { Anteckningar, AttGora, Kataloger, Skap, Komponent, KomponentHandel
 import { skrivUt } from "../../lib/utskrift";
 import { NAVIGERING, hittaFlik, type Flik } from "../../shell/navigering";
 import { AnteckningarVy } from "../att-gora/AnteckningarVy";
-import { AttGoraVy } from "../att-gora/AttGoraVy";
+import { AttGoraVy, type AttGoraFalt } from "../att-gora/AttGoraVy";
+import { FlytandeFonster } from "../../shell/FlytandeFonster";
 import { AnslutningsVy } from "../driftsattning/AnslutningsVy";
 import { ProjektfilerVy } from "../filer/ProjektfilerVy";
 import { ServicerapportVy } from "../service/ServicerapportVy";
@@ -258,9 +259,12 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
   }, [projektId, hamtaToken, mig.id, hamtaAllt, hamtaLogg, hamtaLoggSnart, lagg, blinka, listaAndrad]);
 
   // ---- Att göra ----
-  const andraAttGora = async (rad: AttGora, falt: "text" | "klar", varde: string) => {
+  const [attGoraUte, setAttGoraUte] = useState(() => { try { return localStorage.getItem("pv.attGoraUte") === "1"; } catch { return false; } });
+  useEffect(() => { try { localStorage.setItem("pv.attGoraUte", attGoraUte ? "1" : "0"); } catch { /* bara bekvämlighet */ } }, [attGoraUte]);
+  const andraAttGora = async (rad: AttGora, falt: AttGoraFalt, varde: string) => {
     const fore = rad;
-    laggAttGora({ ...rad, [falt]: falt === "klar" ? varde === "true" : varde });
+    const bool = varde === "true";
+    laggAttGora(falt === "text" ? { ...rad, text: varde } : falt === "klar" ? { ...rad, klar: bool, pagaende: bool ? false : rad.pagaende } : { ...rad, pagaende: bool });
     try {
       laggAttGora(await api<AttGora>(`/api/projekt/${projektId}/att-gora/${rad.id}`, {
         method: "PATCH", body: skicka({ falt, varde, version: rad.version }),
@@ -573,7 +577,7 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
           />
         )}
         {flik === "andringslogg" && <LoggVy projektId={projektId} komponenter={komponenter} uppdaterad={loggVersion} />}
-        {flik === "att-gora" && <AttGoraVy rader={attGora} blinkar={blinkar} onAndra={andraAttGora} onNy={nyAttGora} onTaBort={taBortAttGora} lasläge={!mig.rattigheter.skriva} />}
+        {flik === "att-gora" && <AttGoraVy rader={attGora} blinkar={blinkar} onAndra={andraAttGora} onNy={nyAttGora} onTaBort={taBortAttGora} lasläge={!mig.rattigheter.skriva} onPopUt={attGoraUte ? undefined : () => setAttGoraUte(true)} />}
         {flik === "projektstatus" && <ProjektStatusVy projektId={projektId} rattigheter={mig.rattigheter} uppdaterad={statusVersion} visaMeddelande={visaMeddelande} />}
         {flik === "medlemmar" && <MedlemmarVy projektId={projektId} rattigheter={mig.rattigheter} visaMeddelande={visaMeddelande} />}
         {flik === "anteckningar" && anteckningar && <AnteckningarVy key={projektId} anteckningar={anteckningar} onSpara={sparaAnteckningar} lasläge={!mig.rattigheter.skriva} />}
@@ -751,6 +755,11 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
           </>
         )}
       </main>
+      {attGoraUte && (
+        <FlytandeFonster nyckel="attGora" titel={`Att göra – ${projekt?.namn ?? ""}`} onStang={() => setAttGoraUte(false)}>
+          <AttGoraVy rader={attGora} blinkar={blinkar} onAndra={andraAttGora} onNy={nyAttGora} onTaBort={taBortAttGora} lasläge={!mig.rattigheter.skriva} />
+        </FlytandeFonster>
+      )}
       {infoId && (
         <KomponentInfo
           projektId={projektId}

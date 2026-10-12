@@ -26,6 +26,7 @@ public class AttGoraPost
     public Guid ProjektId { get; set; }
     public string Text { get; set; } = "";
     public bool Klar { get; set; }
+    public bool Pagaende { get; set; }
     public int Ordning { get; set; }
     public int Version { get; set; } = 1;
     public DateTimeOffset Andrad { get; set; } = DateTimeOffset.UtcNow;
