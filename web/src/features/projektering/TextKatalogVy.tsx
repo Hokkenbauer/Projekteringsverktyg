@@ -239,25 +239,47 @@ export function TextKatalogVy(p: Props) {
   };
 
   // ---- Import av Word-filer (färdiga funktionstexter/driftkort) ----
+  const [importStatus, setImportStatus] = useState("");
+  /**
+   * Varje fil läses in i webbläsaren först och skickas sedan för sig. En fil som inte går att läsa
+   * (öppen i Word, bara sparad i molnet/OneDrive, eller ändrad efter att den valdes) ger då ett
+   * begripligt meddelande för just den filen, och de andra importeras ändå.
+   */
   const importera = async (filer: File[]) => {
     if (!filer.length) return;
     await lamna();
-    const form = new FormData();
-    filer.forEach((f) => form.append("filer", f, f.name));
     setImporterar(true);
+    const ok: string[] = [];
+    const fel: string[] = [];
+    let forsta: ProjektDokument | undefined;
     try {
-      const svar = await api<ImportSvar>(`/api/projekt/${p.projektId}/funktionstexter/import`, { method: "POST", body: form });
+      for (const [i, f] of filer.entries()) {
+        setImportStatus(filer.length > 1 ? ` ${i + 1}/${filer.length}` : "");
+        let data: ArrayBuffer;
+        try { data = await f.arrayBuffer(); }
+        catch {
+          fel.push(`${f.name} – filen gick inte att läsa. Stäng den i Word, eller om den ligger i OneDrive/SharePoint: välj "Behåll alltid på den här enheten" och försök igen.`);
+          continue;
+        }
+        const form = new FormData();
+        form.append("filer", new Blob([data], { type: f.type || "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }), f.name);
+        try {
+          const svar = await api<ImportSvar>(`/api/projekt/${p.projektId}/funktionstexter/import`, { method: "POST", body: form });
+          forsta ??= svar.skapade[0];
+          svar.rapport.forEach((r) => (r.fel ? fel.push(`${r.fil} – ${r.fel}`) : ok.push(r.namn)));
+        } catch (e) {
+          const m = (e as Error).message;
+          fel.push(`${f.name} – ${/fetch|network/i.test(m) ? "ingen kontakt med servern (kontrollera nätverket/VPN och försök igen)" : m}`);
+        }
+      }
       await hamtaSparade();
-      const forsta = svar.skapade[0];
       if (forsta) { setVal({ typ: "sparad", id: forsta.id }); setText(forsta.data); setStatus("sparat"); }
-      const ok = svar.rapport.filter((r) => !r.fel);
-      const fel = svar.rapport.filter((r) => r.fel);
       p.visaMeddelande([
-        ok.length ? `Importerade: ${ok.map((r) => r.namn + (r.system ? "" : " (inget system hittades)")).join(", ")}.` : "",
-        fel.length ? `Kunde inte importeras: ${fel.map((r) => `${r.fil} – ${r.fel}`).join("; ")}` : "",
+        ok.length ? `Importerade: ${ok.join(", ")}.` : "",
+        fel.length ? `Kunde inte importeras: ${fel.join("; ")}` : "",
       ].filter(Boolean).join(" "));
     } catch (e) { p.visaMeddelande(`Importen misslyckades: ${(e as Error).message}`); }
-    finally { setImporterar(false); }
+    finally { setImporterar(false); setImportStatus(""); }
   };
 
   // ---- Komponenter i texten ----
@@ -292,7 +314,7 @@ export function TextKatalogVy(p: Props) {
         <div className="knappar">
           {ft && !p.lasläge && (
             <button className="knapp" disabled={importerar} onClick={() => importFil.current?.click()} title="Färdiga funktionstexter eller driftkort i Word (.docx). Varje fil blir en text i projektet, kopplad till sitt system.">
-              {importerar ? "Importerar…" : "Importera Word…"}
+              {importerar ? `Importerar${importStatus}…` : "Importera Word…"}
             </button>
           )}
           <input ref={importFil} type="file" multiple hidden accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"

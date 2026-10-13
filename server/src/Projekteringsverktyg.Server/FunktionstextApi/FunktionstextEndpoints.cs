@@ -28,8 +28,9 @@ public static partial class FunktionstextEndpoints
         var g = app.MapGroup("/api/projekt/{projektId:guid}/funktionstexter").AddEndpointFilter<ProjektAtkomst>();
 
         g.MapPost("/import", async (Guid projektId, HttpRequest request, ClaimsPrincipal user, PvDbContext db, IFilLagring lagring,
-            IHubContext<ProjektHub> hub, CancellationToken ct) =>
+            IHubContext<ProjektHub> hub, ILoggerFactory loggar, CancellationToken ct) =>
         {
+            var log = loggar.CreateLogger("Funktionstextimport");
             if (!request.HasFormContentType) return Fel("Skicka filerna som formulär.");
             if (!await db.Projekt.AnyAsync(p => p.Id == projektId, ct)) return Results.NotFound();
             var form = await request.ReadFormAsync(ct);
@@ -51,8 +52,14 @@ public static partial class FunktionstextEndpoints
                 var bytes = m.ToArray();
                 WordHtml.Import imp;
                 try { imp = WordHtml.TillHtml(bytes); }
-                catch (Exception e) when (e is InvalidDataException or global::System.Xml.XmlException)
-                { rapport.Add(new(filnamn, "", null, 0, 0, e is InvalidDataException ? e.Message : "Word-filen kunde inte läsas.")); continue; }
+                catch (InvalidDataException e) { rapport.Add(new(filnamn, "", null, 0, 0, e.Message)); continue; }
+                catch (Exception e)
+                {
+                    // Oväntad uppbyggnad i Word-filen: rapportera den här filen, de andra importeras ändå.
+                    log.LogWarning(e, "Funktionstext {Fil} kunde inte läsas", filnamn);
+                    rapport.Add(new(filnamn, "", null, 0, 0, $"Word-filen kunde inte läsas ({e.GetType().Name})."));
+                    continue;
+                }
 
                 var original = await FilEndpoints.SparaVersionAsync(db, lagring, projektId, Mapp, filnamn, bytes, av, ct);
                 filer.Add(original);
