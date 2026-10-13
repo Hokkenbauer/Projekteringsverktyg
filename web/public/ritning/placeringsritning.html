@@ -187,7 +187,10 @@ main{flex:1;position:relative;min-width:0;background:var(--canvas)}
 #busy{position:absolute;left:50%;top:12px;transform:translateX(-50%);background:var(--flyt);border:1px solid var(--line);border-radius:20px;padding:5px 14px;font-size:11px;color:var(--accent);display:none;z-index:5}
 
 .viewpane{position:absolute;inset:0;overflow:auto;padding:20px 22px 40px;display:none}
-.secBld{margin-bottom:34px;max-width:1000px}
+.secBld{margin-bottom:34px;max-width:none;width:100%}
+.secTools{display:flex;gap:8px;align-items:center;margin-bottom:14px}
+.repFilter{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.repFilter input{flex:1 1 220px;min-width:160px}.repFilter select{width:auto}
 .secBldHead{display:flex;align-items:baseline;gap:10px;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);margin-bottom:2px}
 .secBldHead span{letter-spacing:0;text-transform:none;color:var(--txt3);font-size:11px}
 .roofSvg{display:block;width:100%;height:46px}
@@ -202,8 +205,8 @@ main{flex:1;position:relative;min-width:0;background:var(--canvas)}
 .counts{display:flex;gap:5px;flex-wrap:wrap;margin-left:auto}
 .cnt{font-family:var(--mono);font-size:10.5px;border:1px solid var(--line2);border-radius:10px;padding:1px 7px;color:var(--txt2);display:inline-flex;gap:4px;align-items:center}
 .cnt svg{width:9px;height:9px}
-.secRooms{display:flex;flex-wrap:wrap;gap:8px;padding:10px}
-.secRoom{border:1px solid var(--line);border-radius:6px;background:var(--sunk);min-width:158px;max-width:250px;flex:1 1 158px}
+.secRooms{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px;padding:10px}
+.secRoom{border:1px solid var(--line);border-radius:6px;background:var(--sunk);min-width:0}
 .secRoom.direct{border-style:dashed}
 .secRoom.off{opacity:.4}
 .secRoom.done{border-color:var(--done)}
@@ -2650,11 +2653,13 @@ function renderSection(){
             <span class="lvl">${lvl}</span><b>${esc(f.name)}</b>
             <span class="muted" style="font-size:11px">${f.rooms.length} rum · ${f.components.length} komponenter${f.layers.length?'':' · ingen PDF'}</span>
             <span class="counts">${cs}</span></div>
-          <div class="secRooms">${rooms}${box('Direkt på plan',f.components.filter(c=>!c.roomId),'direct')}</div></div>`;
+          <div class="secRooms">${rooms}${(()=>{const d=f.components.filter(c=>!c.roomId);return d.length||!f.rooms.length?box('Direkt på plan',d,'direct'):'';})()}</div></div>`;
     });
     h+=`</div><div class="ground"></div><div class="groundHatch"></div></div>`;
   });
-  $('#sectionView').innerHTML=h||'<div class="empty-note">Inget att visa ännu.</div>';
+  const verktyg=`<div class="secTools"><b style="font-size:14px">Sektion</b><span class="muted" style="font-size:11px">Byggnaden med planen staplade, rum och komponenter.</span><span style="flex:1"></span><button id="secPdf">PDF</button></div>`;
+  $('#sectionView').innerHTML=h?verktyg+h:'<div class="empty-note">Inget att visa ännu.</div>';
+  if($('#secPdf'))$('#secPdf').onclick=()=>exportSectionPDF();
   function chip(c,f,b){
     const t=typeById(c.typeId);
     const cls=(isHit(c,'comp')?' hit':'')+(ui.sel&&ui.sel.id===c.id?' sel':'')+(compVisible(c,f,b)?'':' off')+(c.done?' done':'');
@@ -2746,11 +2751,24 @@ function renderReport(){
     h+='</tbody></table></div></div>';
   });
 
-  h+=`<div class="card"><h3 class="sec">Komponentlista (${rows.length})</h3><div class="scrollx"><table><thead><tr>
+  const planer=[...new Set(rows.map(r=>r.bld+' › '+r.floor))];
+  h+=`<div class="card"><h3 class="sec">Komponentlista (<span id="repAntal">${rows.length}</span>)</h3>
+    <div class="repFilter">
+      <input id="repSok" type="search" placeholder="Sök beteckning, typ, rum, plan …" value="${esc(ui.repQ||'')}">
+      <select id="repPlan"><option value="">Alla plan</option>${planer.map(p=>`<option${ui.repPlan===p?' selected':''}>${esc(p)}</option>`).join('')}</select>
+      <select id="repStatus">
+        <option value="">Alla</option>
+        <option value="ej-placerad"${ui.repStatus==='ej-placerad'?' selected':''}>Ej placerade</option>
+        <option value="placerad"${ui.repStatus==='placerad'?' selected':''}>Placerade</option>
+        <option value="klar"${ui.repStatus==='klar'?' selected':''}>Klarmarkerade</option>
+        <option value="ej-klar"${ui.repStatus==='ej-klar'?' selected':''}>Ej klarmarkerade</option>
+      </select></div>
+    <div class="scrollx"><table><thead><tr>
     <th>Beteckning</th><th>Typ</th><th>Benämning</th><th>Byggnad</th><th>Plan</th><th>Rum</th><th>Ursprung</th><th>På ritning</th><th>Klar</th>
     ${fields.map(f=>`<th>${esc(f)}</th>`).join('')}</tr></thead><tbody>`;
   rows.forEach(r=>{
-    h+=`<tr class="${r.visible==='Ja'?'':'off'}" data-row="${r.id}" style="cursor:pointer">
+    h+=`<tr class="${r.visible==='Ja'?'':'off'}" data-row="${r.id}" data-plan="${esc(r.bld+' › '+r.floor)}" data-placed="${r.placed}" data-done="${r.done}"
+      data-sok="${esc([r.tag,r.code,r.type,r.bld,r.floor,r.room,...fields.map(f=>r.data[f]==null?'':String(r.data[f]))].join(' ').toLowerCase())}" style="cursor:pointer">
       <td class="mono">${esc(r.tag)}</td><td class="mono">${esc(r.code)}</td><td>${esc(r.type)}</td>
       <td>${esc(r.bld)}</td><td>${esc(r.floor)}</td><td>${esc(r.room)}</td><td>${r.source}</td><td>${r.placed}</td>
       <td${r.done==='Ja'?' style="color:var(--done)"':''}>${r.done}</td>
@@ -2764,6 +2782,21 @@ function renderReport(){
   $('#exRooms').onclick=()=>exportRoomsPDF();
   $('#exPlans').onclick=()=>exportAllPlansPDF();
   $('#exSection').onclick=()=>exportSectionPDF();
+  // Filtret döljer rader direkt i tabellen (ingen omritning, så att sökfältet behåller fokus).
+  const filtrera=()=>{
+    const q=(ui.repQ||'').trim().toLowerCase(),pl=ui.repPlan||'',st=ui.repStatus||'';
+    let n=0;
+    $$('#reportView tr[data-sok]').forEach(tr=>{
+      const ok=(!q||q.split(/\s+/).every(o=>tr.dataset.sok.includes(o)))&&(!pl||tr.dataset.plan===pl)
+        &&(!st||(st==='placerad'&&tr.dataset.placed==='Ja')||(st==='ej-placerad'&&tr.dataset.placed==='Nej')||(st==='klar'&&tr.dataset.done==='Ja')||(st==='ej-klar'&&tr.dataset.done==='Nej'));
+      tr.style.display=ok?'':'none';if(ok)n++;
+    });
+    $('#repAntal').textContent=n===rows.length?String(n):n+' av '+rows.length;
+  };
+  $('#repSok').oninput=e=>{ui.repQ=e.target.value;filtrera();};
+  $('#repPlan').onchange=e=>{ui.repPlan=e.target.value;filtrera();};
+  $('#repStatus').onchange=e=>{ui.repStatus=e.target.value;filtrera();};
+  filtrera();
   $$('#reportView [data-row]').forEach(tr=>tr.onclick=()=>{
     if(findComp(tr.dataset.row))select({kind:'comp',id:tr.dataset.row});
   });

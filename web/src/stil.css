@@ -490,3 +490,18 @@ a.knapp { text-decoration: none; color: inherit; display: inline-flex; align-ite
 .kompchip.saknas{border-color:var(--fara, #c0392b);color:var(--fara, #c0392b)}
 button.kompchip{background:none;cursor:pointer}
 .kompchip.bortvald{opacity:.4;text-decoration:line-through}
+
+/* Tabeller: kolumnstreck och kolumnbredd som går att dra */
+.grid th + th, .grid td + td { border-left: 1px solid color-mix(in srgb, var(--linje) 70%, transparent); }
+.grid th { position: sticky; }
+.grid th .kolhandtag { position: absolute; top: 0; right: -4px; width: 8px; height: 100%; cursor: col-resize; z-index: 2; touch-action: none; }
+.grid th .kolhandtag:hover { background: color-mix(in srgb, var(--accent) 45%, transparent); }
+table.grid.fasta { table-layout: fixed; }
+table.grid.fasta td, table.grid.fasta th { overflow: hidden; text-overflow: ellipsis; }
+table.grid.fasta td.ro span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.popflikar{display:flex;gap:2px;border-bottom:1px solid var(--linje);margin:-2px 0 8px;position:sticky;top:-8px;background:var(--yta);z-index:3;padding-top:2px}
+.popflikar button{border:none;background:none;color:var(--dampad);padding:6px 12px;font-size:13px;cursor:pointer;border-bottom:2px solid transparent}
+.popflikar button.aktiv{color:var(--text);border-bottom-color:var(--accent);font-weight:600}
+.fonster-innehall .rubrikrad{display:none}
+.fonster-innehall textarea.anteckningar{min-height:calc(100% - 70px);height:calc(100% - 70px)}
+.sokersatt-lista{max-height:46vh;overflow:auto;margin-top:8px}

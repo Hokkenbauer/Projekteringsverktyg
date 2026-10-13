@@ -3,6 +3,7 @@ import { DataGrid, type Blink, type Kolumn } from "../../grid/DataGrid";
 import { api, laddaNer, skicka } from "../../lib/api";
 import type { Kataloger, Komponent } from "../../lib/typer";
 import { KomponentMallDialog } from "./KomponentMallDialog";
+import { SokErsattDialog } from "./SokErsattDialog";
 
 type Props = {
   projektId: string;
@@ -38,6 +39,7 @@ export function KomponenterVy({
   projektId, kanHanteraMallar, onUppdatera, visaMeddelande, komponenter, kataloger, blinkar, onAndra, onNy, onTaBort, lasläge, onInfo, fokusId,
 }: Props) {
   const [mallOppen, setMallOppen] = useState(false);
+  const [sokErsatt, setSokErsatt] = useState(false);
   const [importerar, setImporterar] = useState(false);
   const filval = useRef<HTMLInputElement>(null);
 
@@ -119,6 +121,7 @@ export function KomponenterVy({
           <button className="knapp" disabled={ids.length === 0} onClick={() => void sparaSomMall(ids)}>Spara markerade som mall</button>
         ) : undefined}
         verktyg={<>
+          {!lasläge && <button className="knapp" onClick={() => setSokErsatt(true)}>Sök och ersätt…</button>}
           {!lasläge && <button className="knapp" onClick={() => setMallOppen(true)}>Lägg till från mall</button>}
           {!lasläge && (
             <>
@@ -128,6 +131,11 @@ export function KomponenterVy({
           )}
           <button className="knapp" onClick={() => void laddaNer(`/api/projekt/${projektId}/komponenter/excel`, "Komponenter.xlsx").catch((e) => visaMeddelande((e as Error).message))}>Exportera Excel</button>
         </>}
+      />
+      <SokErsattDialog
+        projektId={projektId} oppen={sokErsatt} onStang={() => setSokErsatt(false)} komponenter={komponenter}
+        falt={kolumner.map((k) => ({ nyckel: k.nyckel, rubrik: k.rubrik }))}
+        onKlar={() => onUppdatera()} visaMeddelande={visaMeddelande}
       />
       <KomponentMallDialog
         projektId={projektId} oppen={mallOppen} onStang={() => setMallOppen(false)} kanHanteraMallar={kanHanteraMallar}

@@ -78,6 +78,7 @@ export const NAVIGERING: Grupp[] = [
     flikar: [
       { id: "placeringsritningar", namn: "Placeringsritningar", fas: 2, klar: true },
       { id: "ritbord", namn: "Ritbord (flödesbilder)", fas: 2, klar: true },
+      { id: "funktionstexter", namn: "Funktionstexter", fas: 5, klar: true },
       { id: "projekteringsegenkontroll", namn: "Projekteringsegenkontroll", fas: 5, klar: true, kontroll: "projektering", undergrupp: "Kontroller" },
       { id: "riskanalys-projektering", namn: "Riskanalys projektering", fas: 5, klar: true, risk: "projektering", undergrupp: "Kontroller" },
       { id: "riskanalys-produktion", namn: "Riskanalys produktion", fas: 5, klar: true, risk: "produktion", undergrupp: "Kontroller" },
@@ -88,7 +89,6 @@ export const NAVIGERING: Grupp[] = [
       { id: "kravstallning", namn: "Listad kravställning", fas: 5, klar: true, lista: "kravstallning", undergrupp: "Kravställningar" },
       { id: "projekteringsstod", namn: "Projekteringsstöd", fas: 5, klar: true, undergrupp: "Stöd/Övrigt" },
       { id: "kalkylmangder", namn: "Kalkylmängder", fas: 5, klar: true, lista: "kalkylmangder", undergrupp: "Stöd/Övrigt" },
-      { id: "funktionstexter", namn: "Funktionstexter", fas: 5, klar: true, undergrupp: "Stöd/Övrigt" },
     ],
   },
   {

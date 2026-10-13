@@ -261,6 +261,8 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
   // ---- Att göra ----
   const [attGoraUte, setAttGoraUte] = useState(() => { try { return localStorage.getItem("pv.attGoraUte") === "1"; } catch { return false; } });
   useEffect(() => { try { localStorage.setItem("pv.attGoraUte", attGoraUte ? "1" : "0"); } catch { /* bara bekvämlighet */ } }, [attGoraUte]);
+  const [popFlik, setPopFlik] = useState<"lista" | "anteckningar">(() => { try { return localStorage.getItem("pv.popFlik") === "anteckningar" ? "anteckningar" : "lista"; } catch { return "lista"; } });
+  const oppnaPopUt = (f: "lista" | "anteckningar") => { setPopFlik(f); setAttGoraUte(true); try { localStorage.setItem("pv.popFlik", f); } catch { /* */ } };
   const andraAttGora = async (rad: AttGora, falt: AttGoraFalt, varde: string) => {
     const fore = rad;
     const bool = varde === "true";
@@ -588,10 +590,10 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
           />
         )}
         {flik === "andringslogg" && <LoggVy projektId={projektId} komponenter={komponenter} uppdaterad={loggVersion} />}
-        {flik === "att-gora" && <AttGoraVy rader={attGora} blinkar={blinkar} onAndra={andraAttGora} onNy={nyAttGora} onTaBort={taBortAttGora} onFlytta={(ids) => void flyttaAttGora(ids)} lasläge={!mig.rattigheter.skriva} onPopUt={attGoraUte ? undefined : () => setAttGoraUte(true)} />}
+        {flik === "att-gora" && <AttGoraVy rader={attGora} blinkar={blinkar} onAndra={andraAttGora} onNy={nyAttGora} onTaBort={taBortAttGora} onFlytta={(ids) => void flyttaAttGora(ids)} lasläge={!mig.rattigheter.skriva} onPopUt={() => oppnaPopUt("lista")} />}
         {flik === "projektstatus" && <ProjektStatusVy projektId={projektId} rattigheter={mig.rattigheter} uppdaterad={statusVersion} visaMeddelande={visaMeddelande} />}
         {flik === "medlemmar" && <MedlemmarVy projektId={projektId} rattigheter={mig.rattigheter} visaMeddelande={visaMeddelande} />}
-        {flik === "anteckningar" && anteckningar && <AnteckningarVy key={projektId} anteckningar={anteckningar} onSpara={sparaAnteckningar} lasläge={!mig.rattigheter.skriva} />}
+        {flik === "anteckningar" && anteckningar && <AnteckningarVy key={projektId} anteckningar={anteckningar} onSpara={sparaAnteckningar} lasläge={!mig.rattigheter.skriva} onPopUt={() => oppnaPopUt("anteckningar")} />}
         {vald?.flik.lista && listVy(false)}
         {flik === "modbus-rtu" && (
           <ModbusSumma gateways={listor.modbusrtu} enheter={listor.modbus} komponenter={komponenter} onFlik={onFlik} />
@@ -769,7 +771,17 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
       </main>
       {attGoraUte && (
         <FlytandeFonster nyckel="attGora" titel={`Att göra – ${projekt?.namn ?? ""}`} onStang={() => setAttGoraUte(false)}>
-          <AttGoraVy rader={attGora} blinkar={blinkar} onAndra={andraAttGora} onNy={nyAttGora} onTaBort={taBortAttGora} onFlytta={(ids) => void flyttaAttGora(ids)} lasläge={!mig.rattigheter.skriva} />
+          <div className="popflikar" role="tablist">
+            {(["lista", "anteckningar"] as const).map((f) => (
+              <button key={f} role="tab" aria-selected={popFlik === f} className={popFlik === f ? "aktiv" : ""}
+                onClick={() => { setPopFlik(f); try { localStorage.setItem("pv.popFlik", f); } catch { /* */ } }}>
+                {f === "lista" ? `Lista (${attGora.filter((a) => !a.klar).length})` : "Anteckningar"}
+              </button>
+            ))}
+          </div>
+          {popFlik === "lista"
+            ? <AttGoraVy rader={attGora} blinkar={blinkar} onAndra={andraAttGora} onNy={nyAttGora} onTaBort={taBortAttGora} onFlytta={(ids) => void flyttaAttGora(ids)} lasläge={!mig.rattigheter.skriva} />
+            : anteckningar && <AnteckningarVy key={`${projektId}-pop`} anteckningar={anteckningar} onSpara={sparaAnteckningar} lasläge={!mig.rattigheter.skriva} />}
         </FlytandeFonster>
       )}
       {infoId && (

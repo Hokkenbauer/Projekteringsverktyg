@@ -60,6 +60,36 @@ export function DataGrid<T extends Rad>({
   const [sortering, setSortering] = useState<{ nyckel: string; riktning: 1 | -1 } | null>(null);
   const [markerade, setMarkerade] = useState<Set<string>>(new Set());
   const [drar, setDrar] = useState<string | null>(null);
+  // Kolumnbredder som användaren dragit fram (sparas per tabell i webbläsaren). null = automatiska bredder.
+  const breddNyckel = `pv.kolumner.${kolumner.map((k) => k.nyckel).join(",")}`;
+  const [bredder, setBredder] = useState<Record<string, number> | null>(() => {
+    try { const v = localStorage.getItem(breddNyckel); return v ? JSON.parse(v) as Record<string, number> : null; } catch { return null; }
+  });
+  const tabell = useRef<HTMLTableElement>(null);
+  const andrar = useRef<{ nyckel: string; startX: number; startB: number; alla: Record<string, number> } | null>(null);
+  const borjaAndraBredd = (e: React.PointerEvent, nyckel: string) => {
+    e.preventDefault(); e.stopPropagation();
+    // Första gången: mät alla kolumner som de ser ut nu, så att bara den dragna ändras.
+    const alla: Record<string, number> = { ...(bredder ?? {}) };
+    tabell.current?.querySelectorAll<HTMLTableCellElement>("thead th").forEach((th) => {
+      const k = th.dataset.kol; if (k && alla[k] === undefined) alla[k] = Math.round(th.getBoundingClientRect().width);
+    });
+    andrar.current = { nyckel, startX: e.clientX, startB: alla[nyckel] ?? 120, alla };
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    setBredder(alla);
+  };
+  const flyttaBredd = (e: React.PointerEvent) => {
+    const a = andrar.current; if (!a) return;
+    const ny = Math.max(40, Math.round(a.startB + e.clientX - a.startX));
+    a.alla = { ...a.alla, [a.nyckel]: ny };
+    setBredder(a.alla);
+  };
+  const slappBredd = () => {
+    const a = andrar.current; if (!a) return;
+    andrar.current = null;
+    try { localStorage.setItem(breddNyckel, JSON.stringify(a.alla)); } catch { /* bara bekvämlighet */ }
+  };
+  const aterstallBredder = () => { setBredder(null); try { localStorage.removeItem(breddNyckel); } catch { /* */ } };
   const [over, setOver] = useState<{ id: string; fore: boolean } | null>(null);
   // Flytta går bara när listan visas i sin egen ordning (ingen sökning eller sortering).
   const harFlytta = !!flyttaIn && !lasläge;
@@ -154,16 +184,26 @@ export function DataGrid<T extends Rad>({
         </datalist>
       ))}
       <div className="grid-ram" ref={ram}>
-        <table className="grid">
+        <table
+          ref={tabell} className={`grid ${bredder ? "fasta" : ""}`}
+          style={bredder ? { width: Object.values(bredder).reduce((a, b) => a + b, 0) + 36 * ((kanFlytta ? 1 : 0) + (onTaBort ? 1 : 0) + (onInfo ? 1 : 0)), minWidth: 0 } : undefined}
+        >
           <thead>
             <tr>
               {kanFlytta && <th className="smal" aria-label="Flytta" />}
               {onTaBort && <th className="smal" aria-label="Markera" />}
               {onInfo && <th className="smal" aria-label="Information" />}
               {kolumner.map((k) => (
-                <th key={k.nyckel} onClick={() => sortera(k.nyckel)} style={kolumnStil(k)}>
+                <th key={k.nyckel} data-kol={k.nyckel} onClick={() => sortera(k.nyckel)}
+                  style={bredder?.[k.nyckel] ? { width: bredder[k.nyckel], minWidth: bredder[k.nyckel], maxWidth: bredder[k.nyckel] } : kolumnStil(k)}>
                   {k.rubrik}
                   {sortering?.nyckel === k.nyckel && <span className="pil">{sortering.riktning > 0 ? "▲" : "▼"}</span>}
+                  <span
+                    className="kolhandtag" title="Dra för att ändra bredden. Dubbelklicka för automatiska bredder."
+                    onClick={(e) => e.stopPropagation()}
+                    onDoubleClick={(e) => { e.stopPropagation(); aterstallBredder(); }}
+                    onPointerDown={(e) => borjaAndraBredd(e, k.nyckel)} onPointerMove={flyttaBredd} onPointerUp={slappBredd} onPointerCancel={slappBredd}
+                  />
                 </th>
               ))}
             </tr>

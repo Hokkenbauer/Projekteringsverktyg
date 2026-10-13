@@ -9,6 +9,7 @@ type Props = {
   rubrik?: string;
   ingress?: string;
   onSkrivUt?: (text: string) => void;
+  onPopUt?: () => void;
 };
 
 const tid = (iso: string | null) =>
@@ -17,7 +18,7 @@ const tid = (iso: string | null) =>
 /** Fritt textfält, ungefär som Notepad++. Sparas automatiskt en stund efter att man slutat skriva. */
 export function AnteckningarVy({
   anteckningar, onSpara, lasläge = false, grupp = "Att göra", rubrik = "Anteckningar",
-  ingress = "Fritt textfält för projektet. Texten sparas automatiskt medan du skriver.", onSkrivUt,
+  ingress = "Fritt textfält för projektet. Texten sparas automatiskt medan du skriver.", onSkrivUt, onPopUt,
 }: Props) {
   const [text, setText] = useState(anteckningar?.text ?? "");
   const [status, setStatus] = useState<"sparat" | "osparat" | "sparar" | "fel">("sparat");
@@ -51,14 +52,24 @@ export function AnteckningarVy({
     timer.current = window.setTimeout(() => void spara(varde), 1200);
   };
 
-  useEffect(() => () => window.clearTimeout(timer.current), []);
+  // Sparar det som inte hunnit sparas när vyn stängs (t.ex. byte av flik i pop-ut-fönstret).
+  const textRef = useRef(text); textRef.current = text;
+  const statusRef = useRef(status); statusRef.current = status;
+  useEffect(() => () => {
+    window.clearTimeout(timer.current);
+    if (statusRef.current === "osparat") void onSpara(textRef.current).catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <>
       <div className="brodsmula">{grupp}</div>
       <div className="rubrikrad">
         <h1>{rubrik}</h1>
-        {onSkrivUt && <button className="knapp" onClick={() => onSkrivUt(text)}>Skriv ut / PDF</button>}
+        <div className="knappar">
+          {onPopUt && <button className="knapp" onClick={onPopUt} title="Öppna Att göra och Anteckningar i ett eget fönster som följer med mellan flikarna">⧉ Pop-ut</button>}
+          {onSkrivUt && <button className="knapp" onClick={() => onSkrivUt(text)}>Skriv ut / PDF</button>}
+        </div>
       </div>
       <p className="ingress">{ingress}</p>
       <textarea
