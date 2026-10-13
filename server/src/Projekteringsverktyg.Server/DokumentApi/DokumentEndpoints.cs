@@ -122,7 +122,7 @@ public static class DokumentEndpoints
     }
 
     // Känsliga dokument skickas inte ut i livesynken (alla i projektet får den); bara att något ändrats.
-    private static Task Skicka(IHubContext<ProjektHub> hub, Guid projektId, ProjektDokument d, string typ, Anvandare av) =>
+    public static Task Skicka(IHubContext<ProjektHub> hub, Guid projektId, ProjektDokument d, string typ, Anvandare av) =>
         hub.Clients.Group(ProjektHub.Grupp(projektId)).SendAsync("ListaAndrad", new ListaHandelse($"dokument:{d.Typ}", typ,
             Kansliga.Contains(d.Typ) ? new { d.Id, d.Typ } : Dto(d), av.Id, av.Namn));
 

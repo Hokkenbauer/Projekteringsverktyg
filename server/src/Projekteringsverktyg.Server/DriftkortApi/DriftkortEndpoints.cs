@@ -57,7 +57,16 @@ public static class DriftkortEndpoints
                 text = m.ToArray();
                 textNamn = fil.Namn;
             }
-            else return Fel("Välj funktionstexten (Word-fil).");
+            else if (Guid.TryParse(form["dokumentId"], out var dokumentId))
+            {
+                // Projektets funktionstext (t.ex. importerad och bearbetad i verktyget) blir Word först.
+                var dok = await db.Dokument.AsNoTracking().FirstOrDefaultAsync(d => d.Id == dokumentId && d.ProjektId == projektId && d.Typ == "funktionstext", ct);
+                if (dok is null) return Fel("Funktionstexten finns inte i projektet.");
+                try { text = await FunktionstextApi.FunktionstextEndpoints.TillWordAsync(db, lagring, projektId, dok, ct); }
+                catch (InvalidDataException e) { return Fel(e.Message); }
+                textNamn = $"{dok.Namn}.docx";
+            }
+            else return Fel("Välj funktionstexten.");
             if (text is null || !textNamn.EndsWith(".docx", StringComparison.OrdinalIgnoreCase))
                 return Fel("Funktionstexten måste vara en Word-fil i formatet .docx.");
 

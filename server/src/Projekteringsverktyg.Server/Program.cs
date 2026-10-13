@@ -1,3 +1,4 @@
+using Projekteringsverktyg.Server.FunktionstextApi;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
@@ -163,6 +164,7 @@ app.MapKatalogEndpoints();
 app.MapKomponentMallEndpoints();
 app.MapKontrollEndpoints();
 app.MapDriftkortEndpoints();
+app.MapFunktionstextEndpoints();
 app.MapGemensamKatalogEndpoints();
 app.MapDokumentEndpoints();
 app.MapVerktygEndpoints();

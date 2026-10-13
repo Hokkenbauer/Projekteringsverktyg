@@ -1,6 +1,7 @@
 using Projekteringsverktyg.Server.Auth;
 using Projekteringsverktyg.Server.Data;
 using Projekteringsverktyg.Server.DriftkortApi;
+using Projekteringsverktyg.Server.FunktionstextApi;
 using Projekteringsverktyg.Server.KomponentApi;
 using Projekteringsverktyg.Server.Synk;
 
@@ -426,4 +427,77 @@ public class ImportTester
             System.Xml.Linq.XDocument.Parse("<Annat />"), "Test", new Dictionary<Guid, string>(), ""));
         Assert.Contains(".projxml", fel.Message);
     }
+}
+
+
+public class FunktionstextWordTester
+{
+    private const string Html =
+        "<h1>Allmänt</h1><table><tr><td><p>System</p></td><td><p>VS01</p></td></tr><tr><td><p>Styrs av</p></td><td><p>AS01-PLC01</p></td></tr></table>" +
+        "<h2>Motorstyrning</h2><p>Pump <b>VS01-P01</b> går i <i>Auto</i> &amp; Hand.</p><ul><li>Kurvan sänks</li><li>Tryck sänks</li></ul><p>Rad 1<br/>Rad 2</p>";
+
+    [Fact]
+    public void Text_blir_Word_och_tillbaka_med_rubriker_tabell_lista_och_system()
+    {
+        var word = WordHtml.TillWord(Html, null);
+        var imp = WordHtml.TillHtml(word);
+        Assert.Equal("VS01", imp.System);
+        Assert.Equal(1, imp.Tabeller);
+        Assert.Contains("<h1", imp.Html);
+        Assert.Contains(">Allmänt</h1>", imp.Html);
+        Assert.Contains(">Motorstyrning</h2>", imp.Html);
+        Assert.Contains("<b>VS01-P01</b>", imp.Html);
+        Assert.Contains("<i>Auto</i>", imp.Html);
+        Assert.Contains("&amp; Hand", imp.Html);
+        Assert.Contains("Rad 1<br/>Rad 2", imp.Html);
+        Assert.Contains("Kurvan sänks", imp.Html);
+        Assert.Contains("<table", imp.Html);
+    }
+
+    [Fact]
+    public void Importerad_fil_som_mall_behaller_sidfot_och_byter_brodtext()
+    {
+        var original = WordHtml.TillWord("<p>Gammal text</p>", null);
+        var ny = WordHtml.TillWord("<p>Ny text</p>", original);
+        var imp = WordHtml.TillHtml(ny);
+        Assert.Contains("Ny text", imp.Html);
+        Assert.DoesNotContain("Gammal text", imp.Html);
+        using var zip = new System.IO.Compression.ZipArchive(new MemoryStream(ny));
+        Assert.NotNull(zip.GetEntry("word/footer1.xml"));
+    }
+
+    [Fact]
+    public void Ren_text_och_metadata_delas_upp()
+    {
+        var (meta, html) = WordHtml.Dela("Rad ett\nRad <två>");
+        Assert.Null(meta.Kalla);
+        Assert.Equal("<p>Rad ett</p><p>Rad &lt;två&gt;</p>", html);
+        var sparad = WordHtml.MedMeta("<p>x</p>", new WordHtml.Meta("abc", "VS01"));
+        var (m2, h2) = WordHtml.Dela(sparad);
+        Assert.Equal("abc", m2.Kalla);
+        Assert.Equal("VS01", m2.System);
+        Assert.Equal("<p>x</p>", h2);
+    }
+
+    [Fact]
+    public void Trasig_html_blir_stycken_i_stallet_for_fel()
+    {
+        var word = WordHtml.TillWord("<p>Öppen <b>tagg</p>", null);
+        Assert.Contains("Öppen", WordHtml.TillHtml(word).Html);
+    }
+
+    [Fact]
+    public void Driftkort_kan_byggas_av_text_fran_verktyget()
+    {
+        var text = WordHtml.TillWord(Html, null);
+        var dk = DriftkortWord.Bygg(text, [137, 80, 78, 71], null);
+        Assert.True(dk.Length > text.Length);
+    }
+
+    [Theory]
+    [InlineData("VS01 Driftkort.docx", "VS01")]
+    [InlineData("Driftkort_LB02_rev3.docx", "LB02")]
+    [InlineData("Funktionstext.docx", null)]
+    public void System_ur_filnamn(string fil, string? system) =>
+        Assert.Equal(system, FunktionstextEndpoints.SystemIFilnamn(fil));
 }
