@@ -596,7 +596,7 @@ function migrate(p){
   return p;
 }
 let P=newProject();
-const ui={view:'plan',bldId:null,floorId:null,sel:null,tool:'select',collapsed:new Set(),search:'',clip:null,
+const ui={view:'plan',bldId:null,floorId:null,sel:null,multi:new Set(),sist:null,tool:'select',collapsed:new Set(),search:'',clip:null,
           adjust:null,poolTab:'pool',typeSel:null,poly:null,csv:null};
 
 const typeById=id=>P.types.find(t=>t.id===id)||{id,code:'??',name:'Okänd typ',shape:'circle',attrs:[],models:[],hidden:false};
@@ -1324,7 +1324,7 @@ function buildOverlay(){
   const k=P.settings.symScale||1;
   const comps=f.components.filter(c=>c.x!=null&&compVisible(c,f,bld)).map(c=>{
     const t=typeById(c.typeId);
-    const cls='comp'+(ui.sel&&ui.sel.id===c.id?' sel':'')+(isHit(c,'comp')?' hit':'')+(c.done?' done':'');
+    const cls='comp'+((ui.sel&&ui.sel.id===c.id)||ui.multi.has(c.id)?' sel':'')+(isHit(c,'comp')?' hit':'')+(c.done?' done':'');
     return `<g class="${cls}" data-comp="${c.id}"><g transform="scale(${k})">`+
       `<circle class="ring" r="13"/>${symSvg(t)}`+
       (P.settings.showLabels!==false?`<text x="12" y="4.5" font-size="11">${esc(c.tag)}</text>`:'')+
@@ -1489,8 +1489,16 @@ wrap.addEventListener('pointerdown',e=>{
     wrap.setPointerCapture(e.pointerId);return;
   }
   const cg=e.target.closest('[data-comp]');
-  if(cg){const c=findComp(cg.dataset.comp).comp;select({kind:'comp',id:c.id});
-    drag={mode:'comp',comp:c,start:s2w(mx,my),o:{x:c.x,y:c.y}};wrap.setPointerCapture(e.pointerId);return;}
+  if(cg){const c=findComp(cg.dataset.comp).comp;
+    if(e.ctrlKey||e.metaKey||e.shiftKey){
+      if(ui.sel&&ui.sel.kind==='comp')ui.multi.add(ui.sel.id);
+      if(ui.multi.has(c.id))ui.multi.delete(c.id);else ui.multi.add(c.id);
+      const forsta=[...ui.multi][0];select(forsta?{kind:'comp',id:forsta}:null,true);return;
+    }
+    const grupp=ui.multi.has(c.id)&&ui.multi.size>1;
+    select({kind:'comp',id:c.id},grupp);
+    const medfoljare=grupp?[...ui.multi].map(id=>findComp(id)).filter(r=>r&&r.comp!==c&&r.comp.x!=null&&r.floor.id===ui.floorId).map(r=>({c:r.comp,x:r.comp.x,y:r.comp.y})):[];
+    drag={mode:'comp',comp:c,start:s2w(mx,my),o:{x:c.x,y:c.y},medfoljare};wrap.setPointerCapture(e.pointerId);return;}
   const jdg=e.target.closest('[data-junction]');
   if(jdg){const jp=findJunction(jdg.dataset.junction).junction;select({kind:'junction',id:jp.id});
     drag={mode:'junction',junction:jp,start:s2w(mx,my),o:{x:jp.x,y:jp.y}};wrap.setPointerCapture(e.pointerId);return;}
@@ -1529,6 +1537,7 @@ wrap.addEventListener('pointermove',e=>{
     // placera/dra komponenter fritt, även utanför den ursprungliga
     // referensytan (PDF-sidan eller standard-tomytan).
     drag.comp.x=drag.o.x+dx/ref.w;drag.comp.y=drag.o.y+dy/ref.h;
+    (drag.medfoljare||[]).forEach(m=>{m.c.x=m.x+dx/ref.w;m.c.y=m.y+dy/ref.h;});
     drag.moved=true;updateTransform();
   }else if(drag.mode==='junction'){
     // Kopplingspunkter renderas som statisk markup inuti wg (samma
@@ -1563,7 +1572,7 @@ wrap.addEventListener('pointerup',e=>{
   if(!drag)return;const d=drag;drag=null;
   try{wrap.releasePointerCapture(e.pointerId);}catch(_){}
   if(d.mode==='layer'){renderLayers();scheduleDetail();draw();return;}
-  if(d.mode==='comp'&&d.moved){assignRoom(d.comp);refresh();}
+  if(d.mode==='comp'&&d.moved){assignRoom(d.comp);(d.medfoljare||[]).forEach(m=>assignRoom(m.c));refresh();}
   if(d.mode==='junction'){refresh();}
   if(d.mode==='newrect'){
     const bb=bbox(d.room.points);
@@ -1992,7 +2001,7 @@ $('#tabPal').onclick=()=>{ui.poolTab='pal';$('#tabPal').classList.add('on');$('#
 /* =======================================================================
    TRÄD
    ======================================================================= */
-function select(s){ui.sel=s;buildOverlay();renderTree();renderInspector();if(ui.view==='section')renderSection();}
+function select(s,behallFlera){if(!behallFlera)ui.multi.clear();ui.sel=s;buildOverlay();renderTree();renderInspector();if(ui.view==='section')renderSection();}
 const eyeBtn=h=>`<button class="ghost${h?' act':''}" data-act="eye" title="${h?'Visa':'Dölj'}">${ic(h?'eyeOff':'eye')}</button>`;
 const doneBtn=d=>`<button class="ghost${d?' ok':''}" data-act="done" title="${d?'Ångra klarmarkering':'Klarmarkera'}">${ic('check')}</button>`;
 
@@ -2052,7 +2061,7 @@ function renderTree(){
   }
   function compNode(c,f,b){
     const t=typeById(c.typeId),off=!compVisible(c,f,b);
-    return `<div class="node${ui.sel&&ui.sel.id===c.id?' sel':''}${isHit(c,'comp')?' hit':''}${off?' off':''}${c.done?' done':''}${c.hidden?' eyeoff':''}" data-kind="comp" data-id="${c.id}" draggable="true">
+    return `<div class="node${(ui.sel&&ui.sel.id===c.id)||ui.multi.has(c.id)?' sel':''}${isHit(c,'comp')?' hit':''}${off?' off':''}${c.done?' done':''}${c.hidden?' eyeoff':''}" data-kind="comp" data-id="${c.id}" draggable="true">
       <span class="tw"></span><span class="gi">${glyph(t,'i')}</span>
       <span class="lbl tag">${esc(c.tag)}</span>
       <span class="src ${c.source==='import'?'imp':'man'}">${c.source==='import'?'IMP':'NY'}</span>
@@ -2070,6 +2079,21 @@ $('#tree').addEventListener('click',e=>{
   const kind=n.dataset.kind,id=n.dataset.id,act=e.target.closest('[data-act]');
   if(kind==='grp'||(e.target.dataset.tw&&kind!=='comp')){ui.collapsed.has(id)?ui.collapsed.delete(id):ui.collapsed.add(id);renderTree();return;}
   if(act){treeAction(act.dataset.act,kind,id);return;}
+  // Flera komponenter: Ctrl-klick lägger till/tar bort, Shift-klick markerar allt mellan.
+  if(kind==='comp'&&(e.ctrlKey||e.metaKey||e.shiftKey)){
+    if(ui.sel&&ui.sel.kind==='comp')ui.multi.add(ui.sel.id);
+    if(e.shiftKey&&ui.sist){
+      const alla=$$('#tree .node[data-kind="comp"]').map(x=>x.dataset.id);
+      const a=alla.indexOf(ui.sist),b=alla.indexOf(id);
+      if(a>=0&&b>=0)alla.slice(Math.min(a,b),Math.max(a,b)+1).forEach(x=>ui.multi.add(x));
+    }else if(ui.multi.has(id)){ui.multi.delete(id);}
+    else ui.multi.add(id);
+    ui.sist=id;
+    const forsta=[...ui.multi][0];
+    select(forsta?{kind:'comp',id:ui.multi.has(id)?id:forsta}:null,true);
+    return;
+  }
+  if(kind==='comp')ui.sist=id;
   if(kind==='floor')openFloor(id);
   else if(kind==='room'){const r=findRoom(id);if(r.floor.id!==ui.floorId)openFloor(r.floor.id);}
   else if(kind==='comp'){const r=findComp(id);if(r.floor.id!==ui.floorId)openFloor(r.floor.id);}
@@ -2137,30 +2161,54 @@ function toggleDone(kind,id){
 }
 $('#tree').addEventListener('dragstart',e=>{
   const n=e.target.closest('.node[data-kind="comp"]');if(!n)return;
-  e.dataTransfer.setData('x/comp',n.dataset.id);e.dataTransfer.effectAllowed='move';
+  const ids=ui.multi.has(n.dataset.id)?[...ui.multi]:[n.dataset.id];
+  e.dataTransfer.setData('x/comp',n.dataset.id);
+  e.dataTransfer.setData('x/comps',JSON.stringify(ids));
+  e.dataTransfer.effectAllowed='move';
 });
 $('#tree').addEventListener('dragover',e=>{
   const n=e.target.closest('.node');if(!n)return;
-  if(n.dataset.kind==='room'||n.dataset.kind==='floor'){e.preventDefault();n.classList.add('dragover');}
+  if(n.dataset.kind==='room'||n.dataset.kind==='floor'||(n.dataset.kind==='grp'&&/:kvar$/.test(n.dataset.id))){e.preventDefault();n.classList.add('dragover');}
 });
 $('#tree').addEventListener('dragleave',e=>{const n=e.target.closest('.node');if(n)n.classList.remove('dragover');});
 $('#tree').addEventListener('drop',e=>{
   const n=e.target.closest('.node');if(!n)return;n.classList.remove('dragover');
-  const id=e.dataTransfer.getData('x/comp');if(!id)return;
+  let ids=[];
+  try{ids=JSON.parse(e.dataTransfer.getData('x/comps')||'[]');}catch(_){}
+  if(!ids.length){const en=e.dataTransfer.getData('x/comp');if(en)ids=[en];}
+  if(!ids.length)return;
   e.preventDefault();
-  const src=findComp(id);if(!src)return;
   let target,roomId=null;
   if(n.dataset.kind==='room'){const r=findRoom(n.dataset.id);target=r.floor;roomId=r.room.id;}
-  else target=findFloor(n.dataset.id).floor;
-  if(src.floor!==target){src.floor.components=src.floor.components.filter(c=>c.id!==id);target.components.push(src.comp);src.comp.x=null;src.comp.y=null;}
-  src.comp.roomId=roomId;
-  if(roomId&&src.comp.x!=null&&target.id===ui.floorId&&ref){
-    const r=findRoom(roomId).room;
-    if(!inPoly(r.points,src.comp.x*ref.w,src.comp.y*ref.h)){
-      const bb=bbox(r.points);src.comp.x=(bb.x+bb.w/2)/ref.w;src.comp.y=(bb.y+bb.h/2)/ref.h;}
-  }
-  refresh();
+  else if(n.dataset.kind==='grp'){const f=findFloor(n.dataset.id.split(':')[0]);if(!f)return;target=f.floor;}
+  else if(n.dataset.kind==='floor')target=findFloor(n.dataset.id).floor;
+  else return;
+  flyttaKomponenter(ids,target,roomId,n.dataset.kind==='grp');
 });
+/**
+ * Flyttar komponenter till ett plan (och eventuellt ett rum). Byter de plan blir de oplacerade
+ * på det nya planet (koordinaterna gäller ett annat underlag). Komponenten FLYTTAS, den kopieras inte.
+ */
+function flyttaKomponenter(ids,target,roomId,tillAttPlacera){
+  let n=0;
+  ids.forEach(id=>{
+    const src=findComp(id);if(!src)return;
+    if(src.floor!==target){
+      src.floor.components=src.floor.components.filter(c=>c.id!==id);target.components.push(src.comp);
+      src.comp.x=null;src.comp.y=null;
+    }
+    if(tillAttPlacera){src.comp.x=null;src.comp.y=null;}
+    src.comp.roomId=roomId;
+    if(roomId&&src.comp.x!=null&&target.id===ui.floorId&&ref){
+      const r=findRoom(roomId).room;
+      if(!inPoly(r.points,src.comp.x*ref.w,src.comp.y*ref.h)){
+        const bb=bbox(r.points);src.comp.x=(bb.x+bb.w/2)/ref.w;src.comp.y=(bb.y+bb.h/2)/ref.h;}
+    }
+    n++;
+  });
+  refresh();
+  if(n>1)flash(n+' komponenter flyttade till '+target.name+(roomId?' › '+findRoom(roomId).room.name:''));
+}
 
 /* kopiera / klistra in */
 function copyNode(kind,id){
@@ -2267,6 +2315,25 @@ function attrInput(t,c,a){
 }
 function renderInspector(){
   const box=$('#inspector');
+  // Flera komponenter markerade (Ctrl/Shift-klick): gemensamma åtgärder.
+  const flera=[...ui.multi].map(id=>findComp(id)).filter(Boolean);
+  if(flera.length>1){
+    const plan=[];P.buildings.forEach(b=>b.floors.forEach(f=>plan.push({b,f})));
+    box.innerHTML=`<div class="field"><label>${flera.length} komponenter markerade</label>
+        <div class="muted" style="font-size:12px;line-height:1.5">${flera.slice(0,12).map(r=>esc(r.comp.tag)).join(', ')}${flera.length>12?' …':''}</div></div>
+      <div class="field"><label>Flytta till plan</label>
+        <div class="row"><select id="mPlan">${plan.map(({b,f})=>`<option value="${f.id}"${f.id===ui.floorId?' selected':''}>${esc(b.name)} › ${esc(f.name)}</option>`).join('')}</select>
+        <button id="mFlytta">Flytta</button></div>
+        <div class="muted" style="font-size:11px;margin-top:4px">På ett annat plan hamnar de under Ej utplacerade. Du kan också dra dem i trädet till ett plan, ett rum eller Ej utplacerade.</div></div>
+      <div class="field row"><button id="mAtt">Till Att placera</button><button id="mKlar">Klarmarkera alla</button></div>
+      <div class="field row"><button id="mAvmarkera">Avmarkera</button></div>
+      <div class="hint" style="padding:8px 11px">Ctrl-klick lägger till eller tar bort en komponent, Shift-klick i trädet markerar allt mellan. Dra en av de markerade på ritningen så följer alla med.</div>`;
+    $('#mFlytta').onclick=()=>{const f=findFloor($('#mPlan').value);if(f)flyttaKomponenter(flera.map(r=>r.comp.id),f.floor,null,false);};
+    $('#mAtt').onclick=()=>{flera.forEach(r=>{r.comp.x=null;r.comp.y=null;r.comp.roomId=null;});refresh();flash(flera.length+' komponenter ligger under Att placera igen');};
+    $('#mKlar').onclick=()=>{flera.forEach(r=>{r.comp.done=true;pvNotify(r.comp.pvId,{kontrollerad:true});});refresh();};
+    $('#mAvmarkera').onclick=()=>select(null);
+    return;
+  }
   if(!ui.sel){box.innerHTML='<div class="empty-note">Markera något i strukturen, planvyn eller sektionsvyn.</div>';return;}
   const kind=ui.sel.kind,id=ui.sel.id;
   if(kind==='comp'){
@@ -3818,9 +3885,21 @@ function pvSync(itemsJson){
   const enda_typ = P.types[0]; // en enda generisk typ ("Komponent") – se DEFAULT_TYPES
   const incomingIds = new Set(items.map(i=>i.id));
 
+  // Komponenterna söks på ALLA plan. (Förut bara på första planet, så en komponent som flyttats
+  // till ett annat plan skapades på nytt där som ej utplacerad.) Dubbletter från det felet städas bort:
+  // den utplacerade behålls, annars den som inte ligger på första planet.
+  const perPv=new Map();
+  eachFloor(f=>f.components.forEach(c=>{if(c.pvId){if(!perPv.has(c.pvId))perPv.set(c.pvId,[]);perPv.get(c.pvId).push({c,f});}}));
+  perPv.forEach((lista,pvId)=>{
+    if(lista.length<2)return;
+    const poang=({c,f})=>(c.x!=null?4:0)+(c.roomId?2:0)+(f!==floor?1:0);
+    const behall=[...lista].sort((a,b)=>poang(b)-poang(a))[0];
+    lista.forEach(x=>{if(x!==behall)x.f.components=x.f.components.filter(c=>c!==x.c);});
+    perPv.set(pvId,[behall]);
+  });
+
   items.forEach(item=>{
-    let comp = null;
-    floor.components.forEach(c=>{ if(c.pvId===item.id) comp=c; });
+    let comp = perPv.get(item.id)?.[0]?.c ?? null;
 
     if(!comp){
       comp = {id:uid('c'), pvId:item.id, typeId:enda_typ.id, tag:item.beteckning||nextTag(P.buildings[0], enda_typ),
