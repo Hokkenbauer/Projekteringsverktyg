@@ -57,7 +57,8 @@ public static partial class FunktionstextEndpoints
                 var original = await FilEndpoints.SparaVersionAsync(db, lagring, projektId, Mapp, filnamn, bytes, av, ct);
                 filer.Add(original);
                 var system = imp.System ?? SystemIFilnamn(filnamn);
-                var namn = system ?? Path.GetFileNameWithoutExtension(filnamn);
+                // Texten heter exakt som filen (utan sökväg), så att man känner igen den. Namnet kan ändras efteråt.
+                var namn = Path.GetFileName(f.FileName.Replace('\\', '/')).Trim() is { Length: > 0 } exakt ? exakt : filnamn;
                 var d = new ProjektDokument
                 {
                     ProjektId = projektId, Typ = "funktionstext", Namn = namn, Ordning = ++max, AndradAv = av.Namn,
@@ -83,7 +84,7 @@ public static partial class FunktionstextEndpoints
             byte[] word;
             try { word = await TillWordAsync(db, lagring, projektId, d, ct); }
             catch (InvalidDataException e) { return Fel(e.Message); }
-            return Results.File(word, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", FilEndpoints.RentNamn($"{d.Namn}.docx"));
+            return Results.File(word, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", FilEndpoints.RentNamn(d.Namn.EndsWith(".docx", StringComparison.OrdinalIgnoreCase) ? d.Namn : $"{d.Namn}.docx"));
         });
 
         return app;

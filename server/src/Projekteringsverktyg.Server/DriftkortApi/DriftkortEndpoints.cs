@@ -64,7 +64,7 @@ public static class DriftkortEndpoints
                 if (dok is null) return Fel("Funktionstexten finns inte i projektet.");
                 try { text = await FunktionstextApi.FunktionstextEndpoints.TillWordAsync(db, lagring, projektId, dok, ct); }
                 catch (InvalidDataException e) { return Fel(e.Message); }
-                textNamn = $"{dok.Namn}.docx";
+                textNamn = dok.Namn.EndsWith(".docx", StringComparison.OrdinalIgnoreCase) ? dok.Namn : $"{dok.Namn}.docx";
             }
             else return Fel("Välj funktionstexten.");
             if (text is null || !textNamn.EndsWith(".docx", StringComparison.OrdinalIgnoreCase))

@@ -81,6 +81,7 @@ export function TextKatalogVy(p: Props) {
   const rubriker = kat.data?.rubriker ?? [];
   const valdMall = val?.typ === "mall" ? rubriker[val.r]?.mallar[val.m] : undefined;
   const valdSparad = val?.typ === "sparad" ? sparade?.find((d) => d.id === val.id) : undefined;
+  const valdSparadNu = valdSparad;
 
   const filtrerade = useMemo(() => {
     const s = sok.trim().toLowerCase();
@@ -150,7 +151,8 @@ export function TextKatalogVy(p: Props) {
     } catch (e) { p.visaMeddelande(`Texten kunde inte sparas: ${(e as Error).message}`); }
   };
 
-  const bytNamn = async () => {
+  const bytNamn = async (vilken?: ProjektDokument) => {
+    const valdSparad = vilken ?? valdSparadNu;
     if (!valdSparad) return;
     const namn = window.prompt("Nytt namn:", valdSparad.namn);
     if (!namn?.trim()) return;
@@ -315,8 +317,13 @@ export function TextKatalogVy(p: Props) {
               {sparade === null ? <span className="dampad liten">Hämtar…</span>
                 : sparade.length === 0 ? <span className="dampad liten">Inga än. Välj en mall och klicka på Spara i projektet.</span>
                 : sparade.map((d) => (
-                  <button key={d.id} className={`katalograd ${val?.typ === "sparad" && val.id === d.id ? "aktiv" : ""}`} onClick={() => void valjSparad(d)}>
-                    {d.namn}{arFormaterad(d.data) && <span className="dampad liten"> · Word</span>}
+                  <button
+                    key={d.id} className={`katalograd ${val?.typ === "sparad" && val.id === d.id ? "aktiv" : ""}`}
+                    title={p.lasläge ? d.namn : `${d.namn} – dubbelklicka för att byta namn`}
+                    onClick={() => void valjSparad(d)}
+                    onDoubleClick={() => { if (!p.lasläge) void valjSparad(d).then(() => bytNamn(d)); }}
+                  >
+                    {d.namn}{arFormaterad(d.data) && <span className="dampad liten"> · {dela(d.data).meta.System ? `${dela(d.data).meta.System} · ` : ""}Word</span>}
                   </button>
                 ))}
             </div>
@@ -378,7 +385,7 @@ export function TextKatalogVy(p: Props) {
                     <button className="knapp fara" onClick={() => void taBortSparad()}>Ta bort</button>
                   </>
                 )}
-                {valdSparad && <button className="knapp" onClick={() => void lamna().then(() => laddaNer(`/api/projekt/${p.projektId}/funktionstexter/${valdSparad.id}/word`, `${valdSparad.namn}.docx`))}>Word</button>}
+                {valdSparad && <button className="knapp" onClick={() => void lamna().then(() => laddaNer(`/api/projekt/${p.projektId}/funktionstexter/${valdSparad.id}/word`, /\.docx$/i.test(valdSparad.namn) ? valdSparad.namn : `${valdSparad.namn}.docx`))}>Word</button>}
                 <button className="knapp" onClick={skrivUtValt}>Skriv ut / PDF</button>
               </div>
               {val.typ === "sparad" && arFormaterad(text) ? (

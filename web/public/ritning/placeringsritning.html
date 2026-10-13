@@ -875,11 +875,20 @@ function applyColors(o,lager){
   }
   o.ctx.putImageData(img,0,0);
 }
-const BASE_MAXPX=14e6;
+// Minnet räcker inte obegränsat i webbläsaren: med många stora ritningar kan en bild inte skapas.
+// Gränserna håller nere minnet, och en bakgrund som misslyckats ritas om automatiskt (se renderDetails).
+const BASE_MAXPX=10e6;
 const detailBudget=()=>{
   const n=Math.max(1,stack.filter(s=>s.layer.visible&&s.layer.opacity>0.02).length);
-  return Math.max(6e6,22e6/n);
+  return Math.max(4e6,18e6/n);
 };
+/** En canvas med ritkontext, eller fel om webbläsaren inte kan skapa den (oftast slut på minne). */
+function nyCanvas(w,h){
+  const c=document.createElement('canvas');c.width=Math.max(1,Math.ceil(w));c.height=Math.max(1,Math.ceil(h));
+  const cx=c.getContext('2d',{willReadFrequently:true});
+  if(!cx||c.width*c.height===0)throw new Error('Kunde inte skapa bild ('+c.width+'×'+c.height+')');
+  return {c,cx};
+}
 async function renderBase(e,wanted){
   if(e.busy){e.pending=wanted;return;}
   let s=wanted;const area=e.pageW*e.pageH;
@@ -892,23 +901,25 @@ async function renderBase(e,wanted){
     if(!e.bitmap&&fil){
       const b=await bildHamta(fil);
       if(b&&b.scale>=s*0.6){
-        const c=document.createElement('canvas');c.width=b.w;c.height=b.h;
-        const cx=c.getContext('2d',{willReadFrequently:true});
+        const {c,cx}=nyCanvas(b.w,b.h);
         e.lum=b.lum;e.bitmap=c;e.ctx=cx;e.renderScale=b.scale;
         applyColors(e);return;
       }
     }
     const vp=e.page.getViewport({scale:s});
-    const c=document.createElement('canvas');
-    c.width=Math.max(1,Math.ceil(vp.width));c.height=Math.max(1,Math.ceil(vp.height));
-    const cx=c.getContext('2d',{willReadFrequently:true});
+    const {c,cx}=nyCanvas(vp.width,vp.height);
     cx.fillStyle='#fff';cx.fillRect(0,0,c.width,c.height);
     await e.page.render({canvasContext:cx,viewport:vp}).promise;
     e.lum=toLum(cx.getImageData(0,0,c.width,c.height));
     e.bitmap=c;e.ctx=cx;e.renderScale=s;
-    applyColors(e);
+    applyColors(e);e.forsok=0;
     if(fil)bildSpara(fil,c.width,c.height,s,e.lum);
-  }catch(err){console.warn(err);}
+  }catch(err){
+    console.warn(err);
+    // Försök igen om en stund (minnet kan ha frigjorts), några gånger.
+    e.forsok=(e.forsok||0)+1;
+    if(e.forsok<=4)setTimeout(scheduleDetail,1500*e.forsok);
+  }
   finally{e.busy=false;busy(false);const q=e.pending;e.pending=null;if(q)await renderBase(e,q);else draw();}
 }
 /** Världskoordinat → lagrets egna (sidans) koordinater, med skala och vridning. */
@@ -988,6 +999,8 @@ function renderDetails(){
   const budget=detailBudget();
   stack.forEach(s=>{
     const l=s.layer,e=s.entry;
+    // En tänd bakgrund utan bild (t.ex. om minnet tog slut) ritas om, i stället för att förbli osynlig.
+    if(l.visible&&!e.bitmap&&!e.busy&&e.page){renderBase(e,view.scale*l.k*dpr*2);return;}
     if(!l.visible||l.opacity<=0.02||!e.bitmap){
       if(e.task){try{e.task.cancel();}catch(_){}}
       e.detail=null;return;
@@ -1016,9 +1029,7 @@ async function renderDetalj(s,want,budget){
   const egen=e.pagaende={x0,y0,x1,y1,want,floorId};
   busy(true);
   try{
-    const c=document.createElement('canvas');
-    c.width=Math.max(1,Math.ceil((x1-x0)*sc));c.height=Math.max(1,Math.ceil((y1-y0)*sc));
-    const cx=c.getContext('2d',{willReadFrequently:true});
+    const {c,cx}=nyCanvas((x1-x0)*sc,(y1-y0)*sc);
     cx.fillStyle='#fff';cx.fillRect(0,0,c.width,c.height);
     const vp=e.page.getViewport({scale:sc});
     const task=e.page.render({canvasContext:cx,viewport:vp,transform:[1,0,0,1,-x0*sc,-y0*sc]});
