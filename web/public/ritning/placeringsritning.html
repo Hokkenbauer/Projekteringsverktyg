@@ -629,6 +629,11 @@ function nextTag(bld,type){
 /// pekar då alltid entydigt på EN specifik komponent, och krockar
 /// aldrig oavsett hur tätt komponenterna sitter.
 function numreraKomponenter(list){
+  // Med beteckningen vid symbolen letar man i listan efter namn: sortera då på beteckning.
+  if(P.settings.pdfMarkning!=='nummer'){
+    const sorted=[...list].sort((a,b)=>(a.tag||'').localeCompare(b.tag||'','sv',{numeric:true}));
+    return {sorted,numbering:new Map(sorted.map((c,i)=>[c.id,i+1]))};
+  }
   const sorted=[...list].sort((a,b)=>{
     const ta=(a.pvKomponenttyp||'').trim(), tb=(b.pvKomponenttyp||'').trim();
     if(!ta&&tb)return 1;
@@ -652,34 +657,52 @@ function numreraKomponenter(list){
 /// placeringCol (valfri): {header, get(c)} – en extra kolumn, används
 /// för Placering (vilket rum komponenten tillhör) i planvy-exporten.
 /// Rumsvy-exporten behöver den inte (hela sidan ÄR rummet redan).
+/** Komponenterna i PDF: beteckningen vid symbolen (standard) eller löpnummer med förteckning. */
+const medNummer=()=>P.settings.pdfMarkning==='nummer';
+
 function ritaKomponentTabell(pdf,PW,PH,M,y,sorted,numbering,placeringCol){
-  const cols=placeringCol
-    ?[{t:'Nr',w:22},{t:'Beteckning',w:78},{t:'Komponenttyp',w:100},{t:'Produkttyp',w:82},{t:placeringCol.header,w:82},{t:'Monteringsanvisning',w:114}]
-    :[{t:'Nr',w:26},{t:'Beteckning',w:90},{t:'Komponenttyp',w:130},{t:'Produkttyp',w:110},{t:'Monteringsanvisning',w:132}];
+  // Kolumnerna fyller sidbredden; varje cell radbryts helt och raden blir så hög som behövs.
+  const def=[];
+  if(medNummer())def.push({t:'Nr',v:1.1,get:c=>String(numbering.get(c.id))});
+  def.push({t:'Beteckning',v:4,get:c=>c.tag,mono:true});
+  def.push({t:'Komponenttyp',v:3.2,get:c=>c.pvKomponenttyp||'—'});
+  def.push({t:'Produkttyp',v:2.6,get:c=>c.pvProdukttyp||'—'});
+  if(placeringCol)def.push({t:placeringCol.header,v:3.2,get:c=>placeringCol.get(c)||'—'});
+  def.push({t:'Monteringsanvisning',v:3.4,get:c=>c.pvMonteringsanvisning||'—'});
+  const bredd=PW-2*M, summa=def.reduce((a,c)=>a+c.v,0);
+  def.forEach(c=>c.w=bredd*c.v/summa);
+  const FS=8.5, RADH=FS*1.22, PADY=4, PADX=4;
   const ritaRubriker=()=>{
-    pdf.setFontSize(8);pdf.setTextColor(90);
-    let x=M;cols.forEach(c=>{pdf.text(c.t.toUpperCase(),x,y);x+=c.w;});
-    y+=4;pdf.setDrawColor(180);pdf.line(M,y,PW-M,y);y+=12;pdf.setFontSize(9);
+    pdf.setFontSize(7.5);pdf.setTextColor(90);pdf.setFont('helvetica','bold');
+    let x=M;def.forEach(c=>{pdf.text(c.t.toUpperCase(),x+PADX,y);x+=c.w;});
+    pdf.setFont('helvetica','normal');
+    y+=5;pdf.setDrawColor(150);pdf.setLineWidth(0.6);pdf.line(M,y,PW-M,y);y+=3;
   };
   ritaRubriker();
-  if(!sorted.length){pdf.setTextColor(150);pdf.text('Inga komponenter.',M,y);y+=14;return y;}
-  sorted.forEach(c=>{
-    if(y>PH-M-30){pdf.addPage();y=M;ritaRubriker();}
-    pdf.setTextColor(c.done?40:30,c.done?140:30,c.done?70:30);
-    let x2=M;
-    const cells=[String(numbering.get(c.id)),c.tag,c.pvKomponenttyp||'—',c.pvProdukttyp||'—'];
-    if(placeringCol)cells.push(placeringCol.get(c)||'—');
-    cells.push(c.pvMonteringsanvisning||'—');
-    cells.forEach((v,i)=>{
-      const w=cols[i].w;
-      const lines=pdf.splitTextToSize(String(v),w-6);
-      pdf.text(lines.slice(0,2),x2,y);
-      x2+=w;
+  if(!sorted.length){pdf.setFontSize(FS);pdf.setTextColor(150);pdf.text('Inga komponenter.',M+PADX,y+FS+PADY);return y+FS+PADY*2+6;}
+  sorted.forEach((c,i)=>{
+    pdf.setFontSize(FS);
+    const celler=def.map(d=>{
+      pdf.setFont(d.mono?'courier':'helvetica',d.mono?'bold':'normal');
+      const r=pdf.splitTextToSize(String(d.get(c)),d.w-PADX*2);
+      return r;
     });
-    y+=Math.max(13,12);
-    pdf.setDrawColor(232);pdf.line(M,y-4,PW-M,y-4);
+    const h=Math.max(...celler.map(r=>r.length))*RADH+PADY*2;
+    if(y+h>PH-M-40){pdf.addPage();y=M;ritaRubriker();}
+    if(i%2===1){pdf.setFillColor(246,247,249);pdf.rect(M,y,PW-2*M,h,'F');}
+    pdf.setTextColor(c.done?40:25,c.done?130:25,c.done?70:30);
+    let x=M;
+    celler.forEach((rader,j)=>{
+      const d=def[j];
+      pdf.setFont(d.mono?'courier':'helvetica',d.mono?'bold':'normal');
+      pdf.text(rader,x+PADX,y+PADY+FS*0.9,{lineHeightFactor:1.22});
+      x+=d.w;
+    });
+    y+=h;
+    pdf.setDrawColor(225);pdf.setLineWidth(0.4);pdf.line(M,y,PW-M,y);
   });
-  return y;
+  pdf.setFont('helvetica','normal');
+  return y+10;
 }
 
 /* geometri */
@@ -2881,19 +2904,48 @@ function ritaMarkorer(pdf,floor,bld,sorted,numbering,toPdf){
   const [rr,gg,bb2]=hexRGB(cc);
   const ol=(rr*77+gg*151+bb2*28)/256>140?[11,14,18]:[242,246,250];
   const [dr,dg,db]=hexRGB(DONE_COLOR);
-  sorted.forEach(c=>{
-    if(c.x==null||!compVisible(c,floor,bld))return;
-    const num=numbering.get(c.id);if(num==null)return;
-    const p=toPdf(c);
+  const nummer=medNummer();
+  const upptagna=[]; // etiketternas rutor, för att undvika att de hamnar på varandra
+  const krock=(a)=>upptagna.some(b=>a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y);
+  const punkter=sorted.filter(c=>c.x!=null&&compVisible(c,floor,bld)).map(c=>({c,p:toPdf(c)}));
+  // Symbolerna själva räknas som upptagna, så att ingen etikett täcker en annan komponent.
+  if(!nummer)punkter.forEach(({p})=>upptagna.push({x:p.x-3.5,y:p.y-3.5,w:7,h:7}));
+  punkter.forEach(({c,p})=>{
     const fill=c.done?[dr,dg,db]:[rr,gg,bb2];
     const stroke=c.done?[6,33,15]:ol;
     pdf.setFillColor(fill[0],fill[1],fill[2]);
     pdf.setDrawColor(stroke[0],stroke[1],stroke[2]);
     pdf.setLineWidth(0.6);
-    pdf.circle(p.x,p.y,5.2,'FD');
-    pdf.setFontSize(6.4);
-    pdf.setTextColor(stroke[0],stroke[1],stroke[2]);
-    pdf.text(String(num),p.x,p.y,{align:'center',baseline:'middle'});
+    if(nummer){
+      const num=numbering.get(c.id);if(num==null)return;
+      pdf.circle(p.x,p.y,5.2,'FD');
+      pdf.setFontSize(6.4);
+      pdf.setTextColor(stroke[0],stroke[1],stroke[2]);
+      pdf.text(String(num),p.x,p.y,{align:'center',baseline:'middle'});
+      return;
+    }
+    pdf.circle(p.x,p.y,3,'FD');
+    // Beteckningen i en liten vit ruta bredvid symbolen. Första lediga plats av höger, vänster, över, under.
+    const FS=6.2;pdf.setFont('helvetica','bold');pdf.setFontSize(FS);
+    const tw=pdf.getTextWidth(c.tag)+3, th=FS+2.4;
+    // Platser runt symbolen, närmast först: höger, vänster, över, under, sedan allt längre ut i en "stege".
+    const forslag=[{x:p.x+5,y:p.y-th/2},{x:p.x-5-tw,y:p.y-th/2},{x:p.x-tw/2,y:p.y-5-th},{x:p.x-tw/2,y:p.y+5}];
+    for(let steg=1;steg<=8;steg++){
+      const dy=steg*(th+1.2), dx=steg>4?(steg-4)*12:0;
+      forslag.push({x:p.x+5+dx,y:p.y-th/2-dy},{x:p.x+5+dx,y:p.y-th/2+dy},{x:p.x-5-tw-dx,y:p.y-th/2-dy},{x:p.x-5-tw-dx,y:p.y-th/2+dy});
+    }
+    const plats=forslag.find(f=>!krock({x:f.x,y:f.y,w:tw,h:th}))||forslag[0];
+    upptagna.push({x:plats.x,y:plats.y,w:tw,h:th});
+    // Tunn linje från symbolen till rutan när den inte ligger direkt intill.
+    if(plats!==forslag[0]&&plats!==forslag[1]){
+      pdf.setDrawColor(120);pdf.setLineWidth(0.3);
+      pdf.line(p.x,p.y,Math.min(Math.max(p.x,plats.x),plats.x+tw),Math.min(Math.max(p.y,plats.y),plats.y+th));
+    }
+    pdf.setFillColor(255,255,255);pdf.setDrawColor(c.done?dr:110,c.done?dg:110,c.done?db:110);pdf.setLineWidth(0.35);
+    pdf.rect(plats.x,plats.y,tw,th,'FD');
+    pdf.setTextColor(c.done?20:15,c.done?100:15,c.done?50:20);
+    pdf.text(c.tag,plats.x+1.5,plats.y+th/2,{baseline:'middle'});
+    pdf.setFont('helvetica','normal');
   });
 }
 
@@ -3183,7 +3235,7 @@ async function exportRoomsPDF(){
             const box={x:bb.x-pad,y:bb.y-pad,w:bb.w+pad*2,h:bb.h+pad*2};
             for(const l of f.layers){if(l.visible)await ensureDoc(l);}
             const sc=clamp(Math.sqrt(4e6/(box.w*box.h)),1,5);
-            const cnv=await renderPlanCanvas(f,box,sc,{numbering,cableLayerIds:cableLayerIdsByFloor.get(f.id)});
+            const cnv=await renderPlanCanvas(f,box,sc,{numbering:medNummer()?numbering:null,cableLayerIds:cableLayerIdsByFloor.get(f.id)});
             const maxW=PW-M*2, maxH=270;
             const rat=Math.min(maxW/box.w,maxH/box.h);
             const iw=box.w*rat,ih=box.h*rat;
@@ -3236,6 +3288,12 @@ function renderSettings(){
         <div><label class="lab-s">Symbolstorlek</label>
           <input type="range" id="sSym" min="0.6" max="2.2" step="0.1" value="${s.symScale||1}" style="width:100%;padding:0">
           <label class="chk" style="margin-top:8px"><input type="checkbox" id="sLbl" ${s.showLabels!==false?'checked':''}> Visa beteckningar på ritningen</label></div>
+        <div><label class="lab-s">Komponenter i PDF-export</label>
+          <select id="sPdfMark">
+            <option value="beteckning"${s.pdfMarkning!=='nummer'?' selected':''}>Beteckningen vid symbolen</option>
+            <option value="nummer"${s.pdfMarkning==='nummer'?' selected':''}>Löpnummer med förteckning</option>
+          </select>
+          <div class="muted" style="font-size:11px;margin-top:5px">Förteckningen med alla komponenter följer med i båda fallen.</div></div>
       </div></div>
 
     <div class="card"><h3 class="sec">Komponenttyper och attribut</h3>
@@ -3253,6 +3311,7 @@ function renderSettings(){
   $('#sCsv').onclick=()=>$('#fileCsv').click();
   $('#sSym').oninput=e=>{P.settings.symScale=+e.target.value;buildOverlay();};
   $('#sLbl').onchange=e=>{P.settings.showLabels=e.target.checked;buildOverlay();};
+  $('#sPdfMark').onchange=e=>{P.settings.pdfMarkning=e.target.value;};
   $$('#settingsView .sw-btn[data-bg],#settingsView .sw-btn[data-ink],#settingsView .sw-btn[data-comp]').forEach(b=>b.onclick=()=>{
     if(b.dataset.bg)P.settings.bg=b.dataset.bg;
     if(b.dataset.ink)P.settings.ink=b.dataset.ink;
