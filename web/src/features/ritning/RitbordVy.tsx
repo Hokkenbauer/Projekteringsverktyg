@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, ApiFel, laddaNer, skicka } from "../../lib/api";
-import type { Projekt, ProjektFil } from "../../lib/typer";
+import type { Projekt, ProjektDokument, ProjektFil } from "../../lib/typer";
+import { dela } from "../../lib/funktionstext";
 import { Dialog } from "../../shell/Dialog";
 import { temaForVerktyg } from "./tema";
 
@@ -57,6 +58,10 @@ export function RitbordVy(p: Props) {
   const [dkFiler, setDkFiler] = useState<ProjektFil[] | null>(null);
   const [dkFilId, setDkFilId] = useState("");
   const [dkUppladdad, setDkUppladdad] = useState<File | null>(null);
+  /** Funktionstexten kommer från projektets texter (Funktionstexter) eller från en Word-fil. */
+  const [dkKalla, setDkKalla] = useState<"text" | "fil">("text");
+  const [dkTexter, setDkTexter] = useState<ProjektDokument[] | null>(null);
+  const [dkTextId, setDkTextId] = useState("");
   const [dkArbetar, setDkArbetar] = useState(false);
   const redo = useRef(false);
   const version = useRef(0);
@@ -200,6 +205,16 @@ export function RitbordVy(p: Props) {
   const oppnaSkapaDk = async () => {
     setSkapaDk(true);
     setDkUppladdad(null);
+    setDkTexter(null);
+    try {
+      const texter = await api<ProjektDokument[]>(`/api/projekt/${p.projektId}/dokument?typ=funktionstext`);
+      setDkTexter(texter);
+      // Föreslå texten för samma system som bilden, t.ex. "VS01" i "VS01 driftkort".
+      const namn = (vald?.namn ?? "").toUpperCase();
+      const traff = texter.find((t) => { const sys = (dela(t.data).meta.System ?? t.namn).toUpperCase(); return !!sys && namn.includes(sys); }) ?? texter[0];
+      setDkTextId(traff?.id ?? "");
+      setDkKalla(texter.length ? "text" : "fil");
+    } catch { setDkTexter([]); setDkKalla("fil"); }
     try {
       const svar = await api<{ filer: ProjektFil[] }>(`/api/projekt/${p.projektId}/filer`);
       const docx = svar.filer.filter((f) => f.namn.toLowerCase().endsWith(".docx"));
@@ -223,7 +238,8 @@ export function RitbordVy(p: Props) {
       form.append("svg", new Blob([bild.svg], { type: "image/svg+xml" }), "flodesbild.svg");
       const scada = v.rbScadaSvg?.();
       if (scada) form.append("scada", new Blob([scada], { type: "image/svg+xml" }), "scada.svg");
-      if (dkUppladdad) form.append("funktionstext", dkUppladdad, dkUppladdad.name);
+      if (dkKalla === "text") form.append("dokumentId", dkTextId);
+      else if (dkUppladdad) form.append("funktionstext", dkUppladdad, dkUppladdad.name);
       else form.append("filId", dkFilId);
       const svar = await api<{ driftkort: ProjektFil }>(`/api/projekt/${p.projektId}/driftkort`, { method: "POST", body: form });
       setSkapaDk(false);
@@ -292,12 +308,28 @@ export function RitbordVy(p: Props) {
         fot={<>
           <span className="dampad">Sparas i Projektfiler › Driftkort</span>
           <button className="knapp" disabled={dkArbetar} onClick={() => setSkapaDk(false)}>Avbryt</button>
-          <button className="knapp primar" disabled={dkArbetar || (!dkUppladdad && !dkFilId)} onClick={() => void skapaDriftkort()}>
+          <button className="knapp primar" disabled={dkArbetar || (dkKalla === "text" ? !dkTextId : !dkUppladdad && !dkFilId)} onClick={() => void skapaDriftkort()}>
             {dkArbetar ? "Skapar…" : "Skapa driftkort"}
           </button>
         </>}
       >
         <p>Sida 1 blir flödesbilden med I/O, med sidfoten från Word-filen. Funktionstexten följer från sida 2.</p>
+        <div className="faltrad">
+          <label className="radio"><input type="radio" checked={dkKalla === "text"} disabled={!dkTexter?.length} onChange={() => setDkKalla("text")} /> Projektets funktionstext</label>
+          <label className="radio"><input type="radio" checked={dkKalla === "fil"} onChange={() => setDkKalla("fil")} /> Word-fil</label>
+        </div>
+        {dkKalla === "text" ? (
+          <div className="faltrad">
+            <label>Funktionstext
+              <select value={dkTextId} onChange={(e) => setDkTextId(e.target.value)} disabled={!dkTexter?.length}>
+                {dkTexter === null && <option value="">Hämtar…</option>}
+                {dkTexter?.length === 0 && <option value="">Inga funktionstexter i projektet</option>}
+                {(dkTexter ?? []).map((t) => <option key={t.id} value={t.id}>{t.namn}</option>)}
+              </select>
+            </label>
+            <p className="dampad liten">Texten från fliken Funktionstexter. En importerad text får samma sidfot och stilar som Word-filen den kom från.</p>
+          </div>
+        ) : (<>
         <div className="faltrad">
           <label>Ladda upp funktionstext (.docx)
             <input type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={(e) => setDkUppladdad(e.target.files?.[0] ?? null)} />
@@ -314,6 +346,7 @@ export function RitbordVy(p: Props) {
             </label>
           </div>
         )}
+        </>)}
         <p className="dampad liten">
           Tomma sidor i början av Word-filen (där flödesbilden klistrades in förut) tas bort automatiskt.
           Driftkortet, funktionstexten och SVG:n till SCADA sparas i mappen Driftkort.

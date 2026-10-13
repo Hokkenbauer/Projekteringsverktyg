@@ -722,6 +722,7 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
             projektId={projektId} projekt={projekt} grupp={vald.grupp.namn} rubrik={vald.flik.namn}
             lasläge={!skrivbar} kanRedigeraKatalog={!!mig.rattigheter.hanteraMallar}
             uppdaterad={dokumentVersion.funktionstext ?? 0} visaMeddelande={visaMeddelande}
+            komponenter={komponenter} onNyKomponent={lagg}
           />
         )}
         {flik === "teknisk-beskrivning" && vald && (texter["teknisk-beskrivning"] ? (

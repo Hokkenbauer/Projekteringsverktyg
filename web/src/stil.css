@@ -468,3 +468,25 @@ a.knapp { text-decoration: none; color: inherit; display: inline-flex; align-ite
 .grid tr.drar{opacity:.45}
 .grid tr.slapp-fore td{box-shadow:inset 0 2px 0 var(--accent)}
 .grid tr.slapp-efter td{box-shadow:inset 0 -2px 0 var(--accent)}
+
+/* Formaterade funktionstexter (från Word) */
+.rikeditor{display:flex;flex-direction:column;flex:1;min-height:0;border:1px solid var(--linje);border-radius:6px;background:var(--yta)}
+.rikverktyg{display:flex;flex-wrap:wrap;gap:4px;padding:6px;border-bottom:1px solid var(--linje);background:var(--yta-2);border-radius:6px 6px 0 0;position:sticky;top:0;z-index:1}
+.rikknapp{border:1px solid var(--linje);background:var(--yta);color:var(--text);border-radius:4px;padding:3px 8px;font-size:12px;cursor:pointer;min-width:30px}
+.rikknapp:hover{border-color:var(--accent);color:var(--accent)}
+.rikskiljare{width:1px;background:var(--linje);margin:0 4px}
+.rikyta{flex:1;min-height:360px;overflow:auto;padding:14px 18px;outline:none;line-height:1.5;font-size:14px}
+.rikyta h1{font-size:20px;margin:16px 0 6px}.rikyta h2{font-size:17px;margin:14px 0 5px}.rikyta h3{font-size:15px;margin:12px 0 4px}
+.rikyta p{margin:0 0 6px;min-height:1.2em}
+.rikyta ul{margin:0 0 8px 22px;padding:0}
+.rikyta table{border-collapse:collapse;margin:6px 0 10px}
+.rikyta td{border:1px solid var(--linje);padding:3px 8px;vertical-align:top}.rikyta td p{margin:0}
+.kompitext{margin-top:10px;border:1px solid var(--linje);border-radius:6px;padding:8px 10px;background:var(--yta)}
+.kompitext summary{cursor:pointer;font-size:13px}
+.varnfarg{color:var(--fara, #c0392b)}
+.kompchips{display:flex;flex-wrap:wrap;gap:5px;margin:8px 0}
+.kompchip{font-family:var(--mono, monospace);font-size:12px;padding:2px 7px;border-radius:10px;border:1px solid var(--linje)}
+.kompchip.finns{color:var(--dampad)}
+.kompchip.saknas{border-color:var(--fara, #c0392b);color:var(--fara, #c0392b)}
+button.kompchip{background:none;cursor:pointer}
+.kompchip.bortvald{opacity:.4;text-decoration:line-through}

@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api, ApiFel, skicka } from "../../lib/api";
+import { api, ApiFel, laddaNer, skicka } from "../../lib/api";
+import { arFormaterad, dela, jamfor, sattIhop, textAv } from "../../lib/funktionstext";
 import { useKatalog } from "../../lib/katalog";
-import type { Projekt, ProjektDokument } from "../../lib/typer";
+import type { Komponent, Projekt, ProjektDokument } from "../../lib/typer";
 import { skrivUt } from "../../lib/utskrift";
+import { RikEditor } from "./RikEditor";
 
 type Mall = { namn: string; text: string };
 type Rubrik = { namn: string; mallar: Mall[] };
@@ -23,7 +25,12 @@ type Props = {
   /** Räknas upp när någon annan ändrat projektets funktionstexter. */
   uppdaterad: number;
   visaMeddelande: (t: string) => void;
+  /** Projektets komponenter, för att jämföra beteckningarna i en funktionstext. */
+  komponenter?: Komponent[];
+  onNyKomponent?: (k: Komponent) => void;
 };
+
+type ImportSvar = { skapade: ProjektDokument[]; rapport: { fil: string; namn: string; system: string | null; stycken: number; tabeller: number; fel: string | null }[] };
 
 /**
  * Funktionstexter och Projekteringsstöd. Till vänster katalogen (rubrik → mall) och, för funktionstexter,
@@ -41,6 +48,11 @@ export function TextKatalogVy(p: Props) {
   const [oppna, setOppna] = useState<Set<number>>(new Set());
   const [status, setStatus] = useState<"sparat" | "osparat" | "sparar">("sparat");
   const timer = useRef<number | undefined>(undefined);
+  const importFil = useRef<HTMLInputElement>(null);
+  const [importerar, setImporterar] = useState(false);
+  const [laggerTill, setLaggerTill] = useState(false);
+  /** Saknade beteckningar som användaren valt bort (klick på chippet). */
+  const [bortvalda, setBortvalda] = useState<Set<string>>(new Set());
   const valRef = useRef(val);
   valRef.current = val;
 
@@ -214,9 +226,60 @@ export function TextKatalogVy(p: Props) {
   const mallAndrad = !!valdMall && (text !== valdMall.text || (mallNamn.trim() !== "" && mallNamn.trim() !== valdMall.namn));
   const titel = valdSparad?.namn ?? valdMall?.namn ?? "";
 
+  const escH = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   const skrivUtAlla = () => {
     if (!sparade?.length) return;
-    skrivUt(p.rubrik, p.projekt, { typ: "text", text: sparade.map((d) => `${d.namn.toUpperCase()}\n\n${d.data.trim()}`).join("\n\n\n") });
+    skrivUt(p.rubrik, p.projekt, { typ: "html", html: sparade.map((d) => `<div class="ftnamn">${escH(d.namn)}</div>${dela(d.data).html}`).join("") });
+  };
+  const skrivUtValt = () => {
+    if (arFormaterad(text)) skrivUt(titel || p.rubrik, p.projekt, { typ: "html", html: dela(text).html });
+    else skrivUt(titel || p.rubrik, p.projekt, { typ: "text", text });
+  };
+
+  // ---- Import av Word-filer (färdiga funktionstexter/driftkort) ----
+  const importera = async (filer: File[]) => {
+    if (!filer.length) return;
+    await lamna();
+    const form = new FormData();
+    filer.forEach((f) => form.append("filer", f, f.name));
+    setImporterar(true);
+    try {
+      const svar = await api<ImportSvar>(`/api/projekt/${p.projektId}/funktionstexter/import`, { method: "POST", body: form });
+      await hamtaSparade();
+      const forsta = svar.skapade[0];
+      if (forsta) { setVal({ typ: "sparad", id: forsta.id }); setText(forsta.data); setStatus("sparat"); }
+      const ok = svar.rapport.filter((r) => !r.fel);
+      const fel = svar.rapport.filter((r) => r.fel);
+      p.visaMeddelande([
+        ok.length ? `Importerade: ${ok.map((r) => r.namn + (r.system ? "" : " (inget system hittades)")).join(", ")}.` : "",
+        fel.length ? `Kunde inte importeras: ${fel.map((r) => `${r.fil} – ${r.fel}`).join("; ")}` : "",
+      ].filter(Boolean).join(" "));
+    } catch (e) { p.visaMeddelande(`Importen misslyckades: ${(e as Error).message}`); }
+    finally { setImporterar(false); }
+  };
+
+  // ---- Komponenter i texten ----
+  const traffar = useMemo(() => (ft && val?.typ === "sparad" && p.komponenter ? jamfor(textAv(text), p.komponenter) : []), [ft, val, text, p.komponenter]);
+  const saknasAlla = traffar.filter((t) => !t.finns);
+  const saknas = saknasAlla.filter((t) => !bortvalda.has(t.beteckning));
+  const laggTillSaknade = async () => {
+    if (!saknas.length || !window.confirm(`Lägga till ${saknas.length} komponenter i Komponenter?\n\n${saknas.map((t) => t.beteckning).join(", ")}`)) return;
+    // Följ projektets sätt att skriva beteckningar (bindestreck eller understreck).
+    const understreck = (p.komponenter ?? []).filter((k) => k.beteckning.includes("_")).length > (p.komponenter ?? []).filter((k) => k.beteckning.includes("-")).length;
+    setLaggerTill(true);
+    let n = 0;
+    try {
+      for (const t of saknas) {
+        const k = await api<Komponent>(`/api/projekt/${p.projektId}/komponenter`, {
+          method: "POST",
+          body: skicka({ beteckning: understreck ? t.beteckning.replace(/-/g, "_") : t.beteckning, system: t.system, beskrivning: `Från funktionstexten ${titel}` }),
+        });
+        p.onNyKomponent?.(k);
+        n++;
+      }
+      p.visaMeddelande(`${n} komponenter är tillagda i Komponenter.`);
+    } catch (e) { p.visaMeddelande(`${n} tillagda, sedan blev det fel: ${(e as Error).message}`); }
+    finally { setLaggerTill(false); }
   };
 
   return (
@@ -225,13 +288,20 @@ export function TextKatalogVy(p: Props) {
       <div className="rubrikrad">
         <h1>{p.rubrik}</h1>
         <div className="knappar">
+          {ft && !p.lasläge && (
+            <button className="knapp" disabled={importerar} onClick={() => importFil.current?.click()} title="Färdiga funktionstexter eller driftkort i Word (.docx). Varje fil blir en text i projektet, kopplad till sitt system.">
+              {importerar ? "Importerar…" : "Importera Word…"}
+            </button>
+          )}
+          <input ref={importFil} type="file" multiple hidden accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            onChange={(e) => { const f = [...(e.target.files ?? [])]; e.target.value = ""; void importera(f); }} />
           {ft && !!sparade?.length && <button className="knapp" onClick={skrivUtAlla}>Skriv ut alla projektets texter</button>}
           {p.kanRedigeraKatalog && <button className="knapp" onClick={() => void nyRubrik()}>+ Ny rubrik i katalogen</button>}
         </div>
       </div>
       <p className="ingress">
         {ft
-          ? "Välj en mall till vänster, anpassa texten och spara den i projektet med ett eget namn. Mallen påverkas inte. Projektets texter sparas automatiskt medan du skriver."
+          ? "Välj en mall till vänster, anpassa texten och spara den i projektet med ett eget namn. Mallen påverkas inte. Färdiga funktionstexter eller driftkort i Word tar du in med Importera Word. Projektets texter sparas automatiskt medan du skriver."
           : "Referenstexter och checklistor att ha med sig i projekteringen. Inget sparas i projektet, men du kan skriva ut texten."}
         {p.kanRedigeraKatalog && " Du kan även ändra katalogen, som är gemensam för alla projekt."}
       </p>
@@ -246,7 +316,7 @@ export function TextKatalogVy(p: Props) {
                 : sparade.length === 0 ? <span className="dampad liten">Inga än. Välj en mall och klicka på Spara i projektet.</span>
                 : sparade.map((d) => (
                   <button key={d.id} className={`katalograd ${val?.typ === "sparad" && val.id === d.id ? "aktiv" : ""}`} onClick={() => void valjSparad(d)}>
-                    {d.namn}
+                    {d.namn}{arFormaterad(d.data) && <span className="dampad liten"> · Word</span>}
                   </button>
                 ))}
             </div>
@@ -308,14 +378,53 @@ export function TextKatalogVy(p: Props) {
                     <button className="knapp fara" onClick={() => void taBortSparad()}>Ta bort</button>
                   </>
                 )}
-                <button className="knapp" onClick={() => skrivUt(titel || p.rubrik, p.projekt, { typ: "text", text })}>Skriv ut / PDF</button>
+                {valdSparad && <button className="knapp" onClick={() => void lamna().then(() => laddaNer(`/api/projekt/${p.projektId}/funktionstexter/${valdSparad.id}/word`, `${valdSparad.namn}.docx`))}>Word</button>}
+                <button className="knapp" onClick={skrivUtValt}>Skriv ut / PDF</button>
               </div>
-              <textarea
-                className="stortext" value={text} spellCheck
-                readOnly={p.lasläge && val.typ === "sparad"}
-                onChange={(e) => andraText(e.target.value)}
-                onBlur={() => void lamna()}
-              />
+              {val.typ === "sparad" && arFormaterad(text) ? (
+                <RikEditor
+                  html={dela(text).html} lasläge={p.lasläge}
+                  onAndra={(html) => andraText(sattIhop(dela(text).meta, html))}
+                  onLamna={() => void lamna()}
+                />
+              ) : (
+                <textarea
+                  className="stortext" value={text} spellCheck
+                  readOnly={p.lasläge && val.typ === "sparad"}
+                  onChange={(e) => andraText(e.target.value)}
+                  onBlur={() => void lamna()}
+                />
+              )}
+              {traffar.length > 0 && (
+                <details className="kompitext">
+                  <summary>
+                    Komponenter i texten: {traffar.length} st{saknasAlla.length ? <>, <b className="varnfarg">{saknasAlla.length} saknas i Komponenter</b></> : ", alla finns i Komponenter"}
+                  </summary>
+                  <div className="kompchips">
+                    {traffar.map((t) => (
+                      t.finns
+                        ? <span key={t.beteckning} className="kompchip finns" title="Finns i Komponenter">✓ {t.beteckning}</span>
+                        : (
+                          <button
+                            key={t.beteckning} type="button"
+                            className={`kompchip saknas ${bortvalda.has(t.beteckning) ? "bortvald" : ""}`}
+                            title={bortvalda.has(t.beteckning) ? "Bortvald – klicka för att ta med" : "Saknas i Komponenter – klicka för att inte lägga till den"}
+                            onClick={() => setBortvalda((s) => { const n = new Set(s); if (n.has(t.beteckning)) n.delete(t.beteckning); else n.add(t.beteckning); return n; })}
+                          >✕ {t.beteckning}</button>
+                        )
+                    ))}
+                  </div>
+                  {!!saknas.length && !p.lasläge && (
+                    <button className="knapp" disabled={laggerTill} onClick={() => void laggTillSaknade()}>
+                      {laggerTill ? "Lägger till…" : `Lägg till de ${saknas.length} som saknas i Komponenter`}
+                    </button>
+                  )}
+                  <p className="dampad liten">
+                    Beteckningar med system först räknas (t.ex. VS01-P01). Signalnamn som VS01-P01-AUT räknas till komponenten VS01-P01.
+                    Bindestreck och understreck räknas lika. Klicka på en saknad beteckning för att inte lägga till den.
+                  </p>
+                </details>
+              )}
               {val.typ === "mall" && ft && (
                 <p className="dampad liten">Ändringar här sparas inte i mallen. Klicka på Spara i projektet för att spara texten som projektets egen.</p>
               )}
