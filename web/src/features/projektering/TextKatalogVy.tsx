@@ -258,7 +258,7 @@ export function TextKatalogVy(p: Props) {
         let data: ArrayBuffer;
         try { data = await f.arrayBuffer(); }
         catch {
-          fel.push(`${f.name} – filen gick inte att läsa. Stäng den i Word, eller om den ligger i OneDrive/SharePoint: välj "Behåll alltid på den här enheten" och försök igen.`);
+          fel.push(`${f.name} är troligen öppen i Word. Stäng filen i Word och importera igen. (Ligger den i OneDrive eller SharePoint kan den också behöva laddas ner till datorn först: högerklicka och välj "Behåll alltid på den här enheten".)`);
           continue;
         }
         const form = new FormData();
@@ -274,10 +274,9 @@ export function TextKatalogVy(p: Props) {
       }
       await hamtaSparade();
       if (forsta) { setVal({ typ: "sparad", id: forsta.id }); setText(forsta.data); setStatus("sparat"); }
-      p.visaMeddelande([
-        ok.length ? `Importerade: ${ok.join(", ")}.` : "",
-        fel.length ? `Kunde inte importeras: ${fel.join("; ")}` : "",
-      ].filter(Boolean).join(" "));
+      if (ok.length) p.visaMeddelande(`Importerade: ${ok.join(", ")}.`);
+      // Fel visas i en ruta som ligger kvar tills man klickat OK, så att det inte missas.
+      if (fel.length) window.alert(`${fel.length === 1 ? "En fil" : `${fel.length} filer`} kunde inte importeras:\n\n${fel.join("\n\n")}`);
     } catch (e) { p.visaMeddelande(`Importen misslyckades: ${(e as Error).message}`); }
     finally { setImporterar(false); setImportStatus(""); }
   };

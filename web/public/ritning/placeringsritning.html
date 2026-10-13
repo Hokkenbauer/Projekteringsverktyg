@@ -661,6 +661,7 @@ function numreraKomponenter(list){
 const medNummer=()=>P.settings.pdfMarkning==='nummer';
 
 function ritaKomponentTabell(pdf,PW,PH,M,y,sorted,numbering,placeringCol){
+  const liggande=PW>PH;
   // Kolumnerna fyller sidbredden; varje cell radbryts helt och raden blir så hög som behövs.
   const def=[];
   if(medNummer())def.push({t:'Nr',v:1.1,get:c=>String(numbering.get(c.id))});
@@ -688,7 +689,7 @@ function ritaKomponentTabell(pdf,PW,PH,M,y,sorted,numbering,placeringCol){
       return r;
     });
     const h=Math.max(...celler.map(r=>r.length))*RADH+PADY*2;
-    if(y+h>PH-M-40){pdf.addPage();y=M;ritaRubriker();}
+    if(y+h>PH-M-40){pdf.addPage('a4',liggande?'landscape':'portrait');y=M;ritaRubriker();}
     if(i%2===1){pdf.setFillColor(246,247,249);pdf.rect(M,y,PW-2*M,h,'F');}
     pdf.setTextColor(c.done?40:25,c.done?130:25,c.done?70:30);
     let x=M;
@@ -2974,8 +2975,9 @@ async function exportPlanPDF(){
     pdf.addImage(c.toDataURL('image/jpeg',0.94),'JPEG',0,0,box.w,box.h);
     ritaMarkorer(pdf,f,bld,sorted,numbering,comp=>({x:comp.x*f.ref.w-box.x,y:comp.y*f.ref.h-box.y}));
 
-    const PW=595.28,PH=841.89,M=48;
-    pdf.addPage('a4','portrait');
+    // Förteckningen på A4 liggande: gott om plats för alla kolumner.
+    const PW=841.89,PH=595.28,M=40;
+    pdf.addPage('a4','landscape');
     let y=M;
     pdf.setFontSize(8);pdf.setTextColor(130);
     pdf.text((P.name||'Projekt')+'  ·  '+f.name,M,y);y+=6;
@@ -3006,7 +3008,7 @@ async function exportAllPlansPDF(){
   busy(true,'Skapar PDF…');
   try{
     const {jsPDF}=window.jspdf;
-    const PW=595.28,PH=841.89,M=48;
+    const PW=841.89,PH=595.28,M=40;
     let pdf=null;
     for(let i=0;i<list.length;i++){
       const {b,f}=list[i];
@@ -3036,7 +3038,7 @@ async function exportAllPlansPDF(){
       pdf.setFontSize(9);pdf.setTextColor(120);
       pdf.text(b.name+' – '+f.name,10,12);
 
-      pdf.addPage('a4','portrait');
+      pdf.addPage('a4','landscape');
       let y=M;
       pdf.setFontSize(8);pdf.setTextColor(130);
       pdf.text((P.name||'Projekt')+'  ·  '+b.name+'  ·  '+f.name,M,y);y+=6;
