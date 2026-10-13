@@ -865,12 +865,15 @@ function lagerMedId(id){let hit=null;eachFloor(f=>f.layers.forEach(l=>{if(l.id==
 function applyColors(o,lager){
   if(!o||!o.lum)return;
   const ink=hexRGB(lagerFarg(lager!==undefined?lager:lagerMedId(o.layerId)));
-  const d=o.img.data,l=o.lum,n=l.length,LO=55,HI=195,sp=HI-LO;
+  // Bilddatan skapas bara medan färgen läggs på och släpps sedan: bara gråskalan (1 byte per punkt) sparas.
+  const cv=o.canvas||o.bitmap;if(!cv||!o.ctx)return;
+  const img=o.ctx.createImageData(cv.width,cv.height);
+  const d=img.data,l=o.lum,n=Math.min(l.length,cv.width*cv.height),LO=55,HI=195,sp=HI-LO;
   for(let i=0,p=0;i<n;i++,p+=4){
     let t=(l[i]-LO)/sp;t=t<0?0:t>1?1:t;
     d[p]=ink[0];d[p+1]=ink[1];d[p+2]=ink[2];d[p+3]=Math.round(255*(1-t));
   }
-  o.ctx.putImageData(o.img,0,0);
+  o.ctx.putImageData(img,0,0);
 }
 const BASE_MAXPX=14e6;
 const detailBudget=()=>{
@@ -891,7 +894,7 @@ async function renderBase(e,wanted){
       if(b&&b.scale>=s*0.6){
         const c=document.createElement('canvas');c.width=b.w;c.height=b.h;
         const cx=c.getContext('2d',{willReadFrequently:true});
-        e.img=cx.createImageData(b.w,b.h);e.lum=b.lum;e.bitmap=c;e.ctx=cx;e.renderScale=b.scale;
+        e.lum=b.lum;e.bitmap=c;e.ctx=cx;e.renderScale=b.scale;
         applyColors(e);return;
       }
     }
@@ -901,7 +904,7 @@ async function renderBase(e,wanted){
     const cx=c.getContext('2d',{willReadFrequently:true});
     cx.fillStyle='#fff';cx.fillRect(0,0,c.width,c.height);
     await e.page.render({canvasContext:cx,viewport:vp}).promise;
-    e.img=cx.getImageData(0,0,c.width,c.height);e.lum=toLum(e.img);
+    e.lum=toLum(cx.getImageData(0,0,c.width,c.height));
     e.bitmap=c;e.ctx=cx;e.renderScale=s;
     applyColors(e);
     if(fil)bildSpara(fil,c.width,c.height,s,e.lum);
@@ -969,52 +972,68 @@ function ritaPassaPunkter(){
   });
 }
 
-let detailT=null,detailToken=0;
+let detailT=null;
 function scheduleDetail(){clearTimeout(detailT);detailT=setTimeout(renderDetails,190);}
-async function renderDetails(){
-  const token=++detailToken, budget=detailBudget();
-  for(const s of stack){
-    if(token!==detailToken)return;
+/** Täcker området r (sidkoordinater) det som syns nu, med tillräcklig skärpa? */
+function tackerVyn(r,l,e,want){
+  if(!r||r.floorId!==ui.floorId||!(r.want>=want*0.85&&r.want<=want*3))return false;
+  const a=s2w(0,0),b=s2w(cw,ch);
+  const syns=[[a.x,a.y],[b.x,a.y],[a.x,b.y],[b.x,b.y]].map(([x,y])=>tillLager(l,x,y));
+  return syns.every(h=>(h.x>=r.x0-1||r.x0<=0.5)&&(h.x<=r.x1+1||r.x1>=e.pageW-0.5)&&(h.y>=r.y0-1||r.y0<=0.5)&&(h.y<=r.y1+1||r.y1>=e.pageH-0.5));
+}
+/* Skarpa utsnitt när man zoomat in. Varje bakgrund renderas för sig och samtidigt, så att ingen
+   blir stående oskarp medan man arbetar. En rendering som redan pågår och fortfarande täcker vyn
+   får bli klar i stället för att börja om; en färdig rendering används alltid (den gäller sitt område). */
+function renderDetails(){
+  const budget=detailBudget();
+  stack.forEach(s=>{
     const l=s.layer,e=s.entry;
-    if(!l.visible||l.opacity<=0.02||!e.bitmap){e.detail=null;continue;}
-    const want=view.scale*l.k*dpr;
-    if(want<=e.renderScale*1.02){if(e.detail){e.detail=null;draw();}continue;}
-    const a=s2w(0,0),b=s2w(cw,ch);
-    // Täcker den skarpa bilden vi redan har det som syns nu, i tillräcklig skärpa? Då behövs ingen ny rendering
-    // (att rendera om en tung ritning tar tid, även när man bara panorerar lite).
-    if(e.detail&&e.detail.floorId===ui.floorId&&e.detail.want>=want*0.85&&e.detail.want<=want*3){
-      const syns=[[a.x,a.y],[b.x,a.y],[a.x,b.y],[b.x,b.y]].map(([x,y])=>tillLager(l,x,y));
-      const d=e.detail,inX=h=>h.x>=d.x0-1||d.x0<=0.5, inX1=h=>h.x<=d.x1+1||d.x1>=e.pageW-0.5;
-      const inY=h=>h.y>=d.y0-1||d.y0<=0.5, inY1=h=>h.y<=d.y1+1||d.y1>=e.pageH-0.5;
-      if(syns.every(h=>inX(h)&&inX1(h)&&inY(h)&&inY1(h)))continue;
+    if(!l.visible||l.opacity<=0.02||!e.bitmap){
+      if(e.task){try{e.task.cancel();}catch(_){}}
+      e.detail=null;return;
     }
-    const padX=(b.x-a.x)*0.3,padY=(b.y-a.y)*0.3;
-    const hornen=[[a.x-padX,a.y-padY],[b.x+padX,a.y-padY],[a.x-padX,b.y+padY],[b.x+padX,b.y+padY]].map(([x,y])=>tillLager(l,x,y));
-    let x0=Math.min(...hornen.map(h=>h.x)), x1=Math.max(...hornen.map(h=>h.x));
-    let y0=Math.min(...hornen.map(h=>h.y)), y1=Math.max(...hornen.map(h=>h.y));
-    x0=Math.max(0,x0);y0=Math.max(0,y0);x1=Math.min(e.pageW,x1);y1=Math.min(e.pageH,y1);
-    if(x1-x0<1||y1-y0<1){e.detail=null;continue;}
-    let sc=Math.min(want,24);
-    const area=(x1-x0)*(y1-y0);
-    if(area*sc*sc>budget)sc=Math.sqrt(budget/area);
-    if(e.task){try{e.task.cancel();}catch(_){}e.task=null;}
-    busy(true);
-    try{
-      const c=document.createElement('canvas');
-      c.width=Math.max(1,Math.ceil((x1-x0)*sc));c.height=Math.max(1,Math.ceil((y1-y0)*sc));
-      const cx=c.getContext('2d',{willReadFrequently:true});
-      cx.fillStyle='#fff';cx.fillRect(0,0,c.width,c.height);
-      const vp=e.page.getViewport({scale:sc});
-      const task=e.page.render({canvasContext:cx,viewport:vp,transform:[1,0,0,1,-x0*sc,-y0*sc]});
-      e.task=task;await task.promise;e.task=null;
-      if(token!==detailToken)continue;
-      const o={canvas:c,ctx:cx,img:cx.getImageData(0,0,c.width,c.height),layerId:l.id};
-      o.lum=toLum(o.img);applyColors(o,l);
-      e.detail=Object.assign(o,{x0,y0,x1,y1,sc,want,floorId:ui.floorId});
-      draw();
-    }catch(err){if(err&&err.name!=='RenderingCancelledException')console.warn(err);}
-    finally{busy(false);}
-  }
+    const want=view.scale*l.k*dpr;
+    if(want<=e.renderScale*1.02){if(e.detail){e.detail=null;draw();}return;}
+    if(tackerVyn(e.detail,l,e,want))return;
+    if(e.task&&tackerVyn(e.pagaende,l,e,want))return;
+    void renderDetalj(s,want,budget);
+  });
+}
+async function renderDetalj(s,want,budget){
+  const l=s.layer,e=s.entry;
+  const a=s2w(0,0),b=s2w(cw,ch);
+  const padX=(b.x-a.x)*0.3,padY=(b.y-a.y)*0.3;
+  const hornen=[[a.x-padX,a.y-padY],[b.x+padX,a.y-padY],[a.x-padX,b.y+padY],[b.x+padX,b.y+padY]].map(([x,y])=>tillLager(l,x,y));
+  let x0=Math.min(...hornen.map(h=>h.x)), x1=Math.max(...hornen.map(h=>h.x));
+  let y0=Math.min(...hornen.map(h=>h.y)), y1=Math.max(...hornen.map(h=>h.y));
+  x0=Math.max(0,x0);y0=Math.max(0,y0);x1=Math.min(e.pageW,x1);y1=Math.min(e.pageH,y1);
+  if(x1-x0<1||y1-y0<1){e.detail=null;return;}
+  let sc=Math.min(want,24);
+  const area=(x1-x0)*(y1-y0);
+  if(area*sc*sc>budget)sc=Math.sqrt(budget/area);
+  if(e.task){try{e.task.cancel();}catch(_){}e.task=null;}
+  const floorId=ui.floorId;
+  const egen=e.pagaende={x0,y0,x1,y1,want,floorId};
+  busy(true);
+  try{
+    const c=document.createElement('canvas');
+    c.width=Math.max(1,Math.ceil((x1-x0)*sc));c.height=Math.max(1,Math.ceil((y1-y0)*sc));
+    const cx=c.getContext('2d',{willReadFrequently:true});
+    cx.fillStyle='#fff';cx.fillRect(0,0,c.width,c.height);
+    const vp=e.page.getViewport({scale:sc});
+    const task=e.page.render({canvasContext:cx,viewport:vp,transform:[1,0,0,1,-x0*sc,-y0*sc]});
+    e.task=task;await task.promise;
+    if(e.task===task)e.task=null;
+    if(e.pagaende===egen)e.pagaende=null;
+    if(floorId!==ui.floorId||cache.get(l.id)!==e)return;
+    const o={canvas:c,ctx:cx,layerId:l.id};
+    o.lum=toLum(cx.getImageData(0,0,c.width,c.height));applyColors(o,l);
+    e.detail=Object.assign(o,{x0,y0,x1,y1,sc,want,floorId});
+    draw();
+    // Har vyn flyttats under tiden kan ett nytt utsnitt behövas.
+    if(!tackerVyn(e.detail,l,e,view.scale*l.k*dpr))scheduleDetail();
+  }catch(err){if(err&&err.name!=='RenderingCancelledException')console.warn(err);if(e.pagaende===egen)e.pagaende=null;}
+  finally{busy(false);}
 }
 function resize(){
   const r=$('#planWrap').getBoundingClientRect();
@@ -1456,8 +1475,10 @@ wrap.addEventListener('pointerdown',e=>{
   if(cbg){select({kind:'cable',id:cbg.dataset.cable});return;}
   select(null);
 });
+wrap.addEventListener('pointerleave',()=>{ui.mus=null;});
 wrap.addEventListener('pointermove',e=>{
   const r=wrap.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;
+  ui.mus=s2w(mx,my); // klistra in hamnar här
   if(wrap.classList.contains('drawing')){
     $('#chH').style.top=my+'px';
     $('#chV').style.left=mx+'px';
@@ -2119,10 +2140,15 @@ function copyNode(kind,id){
 function paste(){
   const f=curFloor();if(!ui.clip||!f||!ref)return;
   const bld=findFloor(f.id).bld,off=24;
+  // Står muspekaren över ritningen hamnar det inklistrade där (rummets mitt eller komponenten),
+  // annars en bit snett nedanför originalet.
+  const mus=ui.view==='plan'&&ui.mus?ui.mus:null;
   if(ui.clip.kind==='room'){
     const src=ui.clip.room;
-    const room=Object.assign(deep(src),{id:uid('r'),points:src.points.map(p=>[p[0]+off,p[1]+off]),
-      name:uniqueRoomName(f,src.name),done:false});
+    const bb=bbox(src.points);
+    const dx=mus?mus.x-(bb.x+bb.w/2):off, dy=mus?mus.y-(bb.y+bb.h/2):off;
+    const room=Object.assign(deep(src),{id:uid('r'),points:src.points.map(p=>[p[0]+dx,p[1]+dy]),
+      name:uniqueRoomName(f,src.name),done:false,placerad:false,locked:false});
     f.rooms.push(room);
     ui.clip.comps.forEach(sc=>{
       // pvId nollställs INNAN den läggs till – annars skulle kopian
@@ -2130,7 +2156,7 @@ function paste(){
       // istället för att bli en egen ny rad. pvNotifyNew registrerar
       // den som en genuint ny komponent, se pvAssignId ovan.
       const c=Object.assign(deep(sc),{id:uid('c'),pvId:null,roomId:room.id,tag:nextTag(bld,typeById(sc.typeId)),done:false,source:'manual'});
-      if(c.x!=null){c.x=c.x+off/ref.w;c.y=c.y+off/ref.h;}
+      if(c.x!=null){c.x=c.x+dx/ref.w;c.y=c.y+dy/ref.h;}
       f.components.push(c);
       pvNotifyNew(c);
     });
@@ -2138,7 +2164,8 @@ function paste(){
   }else{
     const sc=ui.clip.comp;
     const c=Object.assign(deep(sc),{id:uid('c'),pvId:null,tag:nextTag(bld,typeById(sc.typeId)),roomId:null,done:false,source:'manual'});
-    if(c.x!=null){c.x=c.x+off/ref.w;c.y=c.y+off/ref.h;}
+    if(mus){c.x=mus.x/ref.w;c.y=mus.y/ref.h;}
+    else if(c.x!=null){c.x=c.x+off/ref.w;c.y=c.y+off/ref.h;}
     f.components.push(c);assignRoom(c);select({kind:'comp',id:c.id});flash('Komponent inklistrad');
     pvNotifyNew(c);
   }
@@ -2706,7 +2733,7 @@ async function renderPlanCanvas(floor,box,scale,opts){
     const vp=e.page.getViewport({scale:scale*l.k});
     await e.page.render({canvasContext:tc,viewport:vp,
       transform:[Math.cos(l.rot||0),Math.sin(l.rot||0),-Math.sin(l.rot||0),Math.cos(l.rot||0),(l.ox-box.x)*scale,(l.oy-box.y)*scale]}).promise;
-    const o={ctx:tc,img:tc.getImageData(0,0,W,H)};o.lum=toLum(o.img);applyColors(o,l);
+    const o={ctx:tc,canvas:tmp};o.lum=toLum(tc.getImageData(0,0,W,H));applyColors(o,l);
     oc.globalAlpha=l.opacity;oc.drawImage(tmp,0,0);oc.globalAlpha=1;
   }
   /* rum */
