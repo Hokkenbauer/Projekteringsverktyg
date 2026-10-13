@@ -25,7 +25,7 @@ public static partial class WordHtml
     public sealed record Meta(string? Kalla, string? System);
 
     public static string MedMeta(string html, Meta meta) =>
-        $"{Markering}{global::System.Text.Json.JsonSerializer.Serialize(meta)}-->{html}";
+        Markering + global::System.Text.Json.JsonSerializer.Serialize(meta) + "-->" + html;
 
     /// <summary>Delar upp sparad text i metadata och HTML. Ren text blir stycken.</summary>
     public static (Meta Meta, string Html) Dela(string data)
