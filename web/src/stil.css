@@ -448,7 +448,7 @@ a.knapp { text-decoration: none; color: inherit; display: inline-flex; align-ite
 .fonster-titel span{flex:1}
 .fonster-stang{border:none;background:none;color:var(--dampad);cursor:pointer;font-size:14px;padding:2px 6px;border-radius:4px}
 .fonster-stang:hover{background:var(--yta-2);color:var(--text)}
-.fonster-innehall{flex:1;min-height:0;overflow:auto;padding:8px 10px}
+.fonster-innehall{flex:1;min-height:0;overflow:auto;padding:8px 10px;display:flex;flex-direction:column}
 .fonster-innehall h1,.fonster-innehall .brodsmula,.fonster-innehall .ingress{display:none}
 .fonster-handtag{position:absolute;touch-action:none;z-index:1}
 .fh-n,.fh-s{left:10px;right:10px;height:7px;cursor:ns-resize}.fh-n{top:-3px}.fh-s{bottom:-3px}
@@ -503,5 +503,17 @@ table.grid.fasta td.ro span { white-space: nowrap; overflow: hidden; text-overfl
 .popflikar button{border:none;background:none;color:var(--dampad);padding:6px 12px;font-size:13px;cursor:pointer;border-bottom:2px solid transparent}
 .popflikar button.aktiv{color:var(--text);border-bottom-color:var(--accent);font-weight:600}
 .fonster-innehall .rubrikrad{display:none}
-.fonster-innehall textarea.anteckningar{min-height:calc(100% - 70px);height:calc(100% - 70px)}
+.fonster-innehall textarea.anteckningar{flex:1;min-height:80px;height:auto;resize:none}
 .sokersatt-lista{max-height:46vh;overflow:auto;margin-top:8px}
+
+/* Att göra: tabellen rullar inom sig själv, så att rullningslisten i sidled alltid syns längst ner. */
+.attgora-grid .grid-ram{overflow:auto;max-height:calc(100vh - 250px)}
+.fonster-innehall .attgora-grid{flex:1;min-height:0;display:flex;flex-direction:column}
+.fonster-innehall .attgora-grid .grid-yta{flex:1;min-height:0;display:flex;flex-direction:column}
+.fonster-innehall .attgora-grid .grid-ram{flex:1;min-height:0;max-height:none}
+.anteckningar.utan-radbryt{white-space:pre;overflow-x:scroll;overflow-wrap:normal}
+/* Minimerat pop-ut-fönster */
+.flytande-fonster.mini{height:auto!important;width:auto!important;min-width:200px;max-width:340px}
+.flytande-fonster.mini .fonster-titel{border-bottom:0}
+.flytande-fonster.mini .fonster-titel span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.flytande-fonster.mini .fonster-innehall,.flytande-fonster.mini .fonster-handtag{display:none}

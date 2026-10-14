@@ -33,7 +33,9 @@ button.ghost{background:transparent;border-color:transparent;color:var(--txt3);p
 button.ghost:hover{background:var(--hover);color:var(--txt)}
 button.ghost.act{color:var(--accent)}
 button.ghost.ok{color:var(--done)}
-input[type=text],input[type=number],select,textarea{background:var(--input);border:1px solid var(--line);border-radius:5px;padding:5px 8px;width:100%}
+input[type=text],input[type=search],input[type=number],select,textarea{background:var(--input);border:1px solid var(--line);border-radius:5px;padding:5px 8px;width:100%}
+input::placeholder,textarea::placeholder{color:var(--txt3);opacity:1}
+input[type=search]{-webkit-appearance:none;appearance:none}
 input:focus,select:focus,button:focus-visible,textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
 input[type=range]{accent-color:var(--accent)}
 input[type=checkbox]{accent-color:var(--accent);width:auto}
@@ -126,6 +128,25 @@ main{flex:1;position:relative;min-width:0;background:var(--canvas)}
 #pdfCanvas{position:absolute;inset:0;width:100%;height:100%;display:block}
 #overlay{position:absolute;inset:0;width:100%;height:100%}
 #overlay text{font-family:var(--mono);paint-order:stroke;stroke:var(--ol);stroke-width:3px;stroke-linejoin:round;fill:var(--cc);font-weight:600}
+/* Kommentarslagret: pil från rummet till en textruta. Klickbart bara när man arbetar i lagret. */
+#kg{pointer-events:none}
+#planWrap.kommlage #kg [data-kommbox],#planWrap.kommlage #kg [data-kommspets]{pointer-events:auto;cursor:move}
+#planWrap.kommlage{cursor:crosshair}
+#overlay .komm text{stroke:none;fill:var(--komm);font-family:var(--sans);font-weight:600;font-size:13px}
+#overlay .komm .kommRuta{stroke-width:1.6px}
+#overlay .komm.sel .kommRuta{stroke-width:2.4px;stroke-dasharray:5 3}
+#overlay .kommSpets{stroke:var(--panel);stroke-width:1.5px}
+#kommEdit{position:absolute;z-index:6;box-sizing:border-box;font:600 13px/17px var(--sans);padding:4px 7px;border:2px solid var(--komm);color:var(--komm);
+  background:var(--kommbg);border-radius:3px;resize:none;overflow:hidden;white-space:pre;outline:none;box-shadow:0 2px 10px rgba(0,0,0,.35)}
+#kommEdit::placeholder{color:var(--komm);opacity:.55}
+.pop.delad{display:inline-flex}
+.pop.delad>button:first-child{border-top-right-radius:0;border-bottom-right-radius:0}
+.pop.delad>button[data-pop]{border-top-left-radius:0;border-bottom-left-radius:0;border-left:0;padding-left:5px;padding-right:5px}
+.pop.delad>button.on:first-child{background:var(--sel);border-color:var(--accent);color:var(--accent)}
+.kabelverktyg{display:contents}
+.kabelverktyg[hidden]{display:none!important}
+#kommPanel{flex-direction:column;align-items:stretch;width:284px;padding:0}
+#kommPanel label{display:flex;gap:7px;align-items:center;padding:4px 10px;font-size:12px}
 .roomShape{fill:color-mix(in srgb, var(--rc,var(--accent2)) 8%, transparent);stroke:var(--rc,var(--accent2));stroke-width:var(--rw,1.4px);vector-effect:non-scaling-stroke}
 .cableLine{fill:none;stroke-width:2.4px;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke;cursor:pointer;opacity:.92}
 .cableLine.sel{stroke-width:4px;opacity:1;filter:drop-shadow(0 0 2px #fff)}
@@ -189,7 +210,8 @@ main{flex:1;position:relative;min-width:0;background:var(--canvas)}
 .viewpane{position:absolute;inset:0;overflow:auto;padding:20px 22px 40px;display:none}
 .secBld{margin-bottom:34px;max-width:none;width:100%}
 .secTools{display:flex;gap:8px;align-items:center;margin-bottom:14px}
-.repFilter{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.repFilter{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px;position:sticky;top:0;z-index:3;background:var(--bg);padding:8px 0;border-bottom:1px solid var(--line)}
+.repFilter .lbl{font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--accent)}
 .repFilter input{flex:1 1 220px;min-width:160px}.repFilter select{width:auto}
 .secBldHead{display:flex;align-items:baseline;gap:10px;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);margin-bottom:2px}
 .secBldHead span{letter-spacing:0;text-transform:none;color:var(--txt3);font-size:11px}
@@ -343,11 +365,13 @@ body.ljust .comp text, body.ljust #overlay text{font-weight:700}
       <button id="btnPlan" class="on">Plan</button><button id="btnSection">Sektion</button><button id="btnReport" title="Sammanställning"><span class="lang">Sammanställning</span><span class="kortn">Lista</span></button><button id="btnSettings" title="Inställningar">⚙<span class="lang"> Inställningar</span></button>
     </div>
     <div class="grp planbara">
-      <button id="btnImport" title="Lägg till en PDF som bakgrund på planet">+<span class="etikett"> PDF</span><span class="kort">PDF</span></button>
+      <button id="btnImport" hidden title="Lägg till en PDF som bakgrund på planet">+<span class="etikett"> PDF</span><span class="kort">PDF</span></button>
       <button id="btnRect" title="Rita rektangulärt rum (R)">▭<span class="etikett"> Rum</span></button>
       <button id="btnPoly" title="Rita polygonrum (P)">⬠<span class="etikett"> Polygon</span></button>
+      <span class="kabelverktyg" hidden>
       <button id="btnCable" title="Rita kabel (K)">╱<span class="etikett"> Kabel</span></button>
       <button id="btnJunction" title="Lägg till kopplingspunkt (J) – hör bara till ritningen, läggs aldrig till i Komponenter">◆<span class="etikett"> Kopplingspunkt</span></button>
+      </span>
       <button id="btnFit" title="Anpassa planen till fönstret (F)">⤢<span class="etikett"> Anpassa</span></button>
     </div>
     <div class="grp planbara">
@@ -361,8 +385,10 @@ body.ljust .comp text, body.ljust #overlay text{font-weight:700}
         </div></div>
       <div class="pop"><button data-pop title="PDF-bakgrunder på planet: synlighet, ordning och läge">▤<span class="etikett"> Bakgrunder</span> ▾</button>
         <div class="popruta"><div id="layersPanel" class="panel-i-pop"></div></div></div>
-      <div class="pop"><button data-pop title="Installationslager för kablar">≋<span class="etikett"> Kabellager</span> ▾</button>
+      <div class="pop delad"><button id="btnKabelLager" title="Arbeta i kabellagret: visar verktygen Kabel och Kopplingspunkt">≋<span class="etikett"> Kabellager</span></button><button data-pop title="Installationslager för kablar">▾</button>
         <div class="popruta"><div id="instLayersPanel" class="panel-i-pop"></div></div></div>
+      <div class="pop delad"><button id="btnKommLager" title="Arbeta i kommentarslagret: håll in vänster musknapp på t.ex. ett rum, dra ut och släpp, skriv sedan texten">✎<span class="etikett"> Kommentarslager</span></button><button data-pop title="Visa och exportera kommentarer">▾</button>
+        <div class="popruta"><div id="kommPanel" class="panel-i-pop"></div></div></div>
     </div>
     <div class="grow"></div>
     <span id="pvSparstatus" class="muted sparstatus"></span>
@@ -540,7 +566,7 @@ const DONE_COLOR='#37c26a';
 /** Färg ur en lista, eller en egen färg (#rrggbb) som valts med färgväljaren. */
 const pick=(arr,k,d)=>(typeof k==='string'&&/^#[0-9a-f]{6}$/i.test(k))?k:(arr.find(x=>x.k===k)||arr[d]).c;
 
-function newFloor(name){return {id:uid('f'),name,layers:[],ref:null,rooms:[],components:[],hidden:false,instLayers:[],cables:[],junctionPoints:[]};}
+function newFloor(name){return {id:uid('f'),name,layers:[],ref:null,rooms:[],components:[],hidden:false,instLayers:[],cables:[],junctionPoints:[],kommentarer:[]};}
 function newProject(){
   const b={id:uid('b'),name:'Byggnad A',hidden:false,floors:[newFloor('Plan 1')]};
   return {v:4,name:'Nytt projekt',types:deep(DEFAULT_TYPES),imports:[],
@@ -576,6 +602,7 @@ function migrate(p){
       f.instLayers.forEach(l=>{if(l.dash===undefined)l.dash=false;});
       if(!f.cables)f.cables=[];
       if(!f.junctionPoints)f.junctionPoints=[];
+      if(!f.kommentarer)f.kommentarer=[];
       f.cables.forEach(c=>{
         if(c.kabeltyp===undefined)c.kabeltyp='';
         if(c.startCompId===undefined)c.startCompId=null;
@@ -600,7 +627,8 @@ function migrate(p){
 }
 let P=newProject();
 const ui={view:'plan',bldId:null,floorId:null,sel:null,multi:new Set(),sist:null,tool:'select',collapsed:new Set(),search:'',clip:null,
-          adjust:null,poolTab:'pool',typeSel:null,poly:null,csv:null};
+          adjust:null,poolTab:'pool',typeSel:null,poly:null,csv:null,
+          lager:null,kommSel:null,kommRed:null,kommUtkast:null};
 
 const typeById=id=>P.types.find(t=>t.id===id)||{id,code:'??',name:'Okänd typ',shape:'circle',attrs:[],models:[],hidden:false};
 function eachFloor(fn){P.buildings.forEach(b=>b.floors.forEach(f=>fn(f,b)));}
@@ -1333,7 +1361,7 @@ function buildOverlay(){
       (P.settings.showLabels!==false?`<text x="12" y="4.5" font-size="11">${esc(c.tag)}</text>`:'')+
       `</g></g>`;
   }).join('');
-  svg.innerHTML=`<g id="wg">${rooms}${cables}${junctions}</g><g id="tg"></g><g id="hg"></g><g id="cg">${comps}</g>`;
+  svg.innerHTML=`<g id="wg">${rooms}${cables}${junctions}</g><g id="tg"></g><g id="hg"></g><g id="cg">${comps}</g><g id="kg"></g>`;
   updateTransform();
 }
 function updateTransform(){
@@ -1352,6 +1380,7 @@ function updateTransform(){
     const p=w2s(r.comp.x*ref.w,r.comp.y*ref.h);
     g.setAttribute('transform',`translate(${p.x.toFixed(2)},${p.y.toFixed(2)})`);
   });
+  ritaKommentarer();
   drawHandles();
 }
 function drawHandles(){
@@ -1428,6 +1457,7 @@ wrap.addEventListener('pointerdown',e=>{
     const l=curFloor().layers.find(x=>x.id===ui.adjust);
     if(l){drag={mode:'layer',layer:l,start:s2w(mx,my),o:{ox:l.ox,oy:l.oy}};wrap.setPointerCapture(e.pointerId);return;}
   }
+  if(ui.lager==='komm'){kommNer(e,mx,my);return;}
   if(ui.tool==='poly'){polyClick(s2w(mx,my),e);return;}
   if(ui.tool==='cable'){cableClick(s2w(mx,my),e);return;}
   if(ui.tool==='junction'){
@@ -1535,6 +1565,9 @@ wrap.addEventListener('pointermove',e=>{
   if(drag.mode==='pan'){view.tx=drag.tx+(mx-drag.mx);view.ty=drag.ty+(my-drag.my);scheduleDetail();draw();return;}
   const p=s2w(mx,my),dx=p.x-drag.start.x,dy=p.y-drag.start.y;
   if(drag.mode==='layer'){drag.layer.ox=drag.o.ox+dx;drag.layer.oy=drag.o.oy+dy;draw();}
+  else if(drag.mode==='kommny'){ui.kommUtkast.bx=p.x/ref.w;ui.kommUtkast.by=p.y/ref.h;ritaKommentarer();}
+  else if(drag.mode==='kommbox'){drag.k.bx=drag.o.x+dx/ref.w;drag.k.by=drag.o.y+dy/ref.h;if(Math.hypot(mx-drag.sx,my-drag.sy)>3)drag.moved=true;ritaKommentarer();}
+  else if(drag.mode==='kommspets'){drag.k.ax=drag.o.x+dx/ref.w;drag.k.ay=drag.o.y+dy/ref.h;ritaKommentarer();}
   else if(drag.mode==='comp'){
     // Ingen 0-1-begränsning här längre (se Steg 103) – man ska kunna
     // placera/dra komponenter fritt, även utanför den ursprungliga
@@ -1575,6 +1608,7 @@ wrap.addEventListener('pointerup',e=>{
   if(!drag)return;const d=drag;drag=null;
   try{wrap.releasePointerCapture(e.pointerId);}catch(_){}
   if(d.mode==='layer'){renderLayers();scheduleDetail();draw();return;}
+  if(d.mode==='kommny'||d.mode==='kommbox'||d.mode==='kommspets'){kommUpp(d,e);return;}
   if(d.mode==='comp'&&d.moved){assignRoom(d.comp);(d.medfoljare||[]).forEach(m=>assignRoom(m.c));refresh();}
   if(d.mode==='junction'){refresh();}
   if(d.mode==='newrect'){
@@ -2708,6 +2742,9 @@ function renderReport(){
   const roomDiff=imported.filter(r=>r.wantRoom&&r.placed==='Ja'&&norm(r.wantRoom)!==norm(r.roomRaw));
   const perType={};rows.forEach(r=>perType[r.code]=(perType[r.code]||0)+1);
 
+  const planer=[...new Set(rows.map(r=>r.bld+' › '+r.floor))];
+  // Samma sökattribut på alla tabellrader, så att filtret överst gäller hela sammanställningen.
+  const sokAttr=r=>`data-plan="${esc(r.bld+' › '+r.floor)}" data-placed="${r.placed}" data-done="${r.done}" data-sok="${esc([r.tag,r.code,r.type,r.bld,r.floor,r.room,r.wantRoom,...fields.map(f=>r.data[f]==null?'':String(r.data[f]))].join(' ').toLowerCase())}"`;
   let h=`<div id="reportTools" style="display:flex;gap:8px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
       <b style="font-size:15px">${esc(P.name||'Projekt')}</b>
       <span class="muted" style="font-size:11px">${new Date().toLocaleDateString('sv-SE')}</span>
@@ -2716,6 +2753,17 @@ function renderReport(){
       <button id="exRooms">PDF rum för rum</button><button id="exPlans">PDF alla planvyer</button>
       <button id="exSection">PDF sektionsvy</button>
       <button id="exPrint">Skriv ut</button></div>
+    <div class="repFilter"><span class="lbl">Sök/filtrera</span>
+      <input id="repSok" type="search" placeholder="Sök beteckning, typ, rum, plan … (filtrerar alla tabeller)" value="${esc(ui.repQ||'')}">
+      <select id="repPlan"><option value="">Alla plan</option>${planer.map(p=>`<option${ui.repPlan===p?' selected':''}>${esc(p)}</option>`).join('')}</select>
+      <select id="repStatus">
+        <option value="">Alla</option>
+        <option value="ej-placerad"${ui.repStatus==='ej-placerad'?' selected':''}>Ej placerade</option>
+        <option value="placerad"${ui.repStatus==='placerad'?' selected':''}>Placerade</option>
+        <option value="klar"${ui.repStatus==='klar'?' selected':''}>Klarmarkerade</option>
+        <option value="ej-klar"${ui.repStatus==='ej-klar'?' selected':''}>Ej klarmarkerade</option>
+      </select>
+      <span class="muted" id="repTraff" style="font-size:11px"></span></div>
     <div class="card"><h3 class="sec">Nyckeltal</h3><div class="grid2">
       <div class="stat"><b>${nB}</b><span>Byggnader</span></div>
       <div class="stat"><b>${nF}</b><span>Plan</span></div>
@@ -2745,30 +2793,19 @@ function renderReport(){
     b.floors.forEach(f=>{
       const counts={};f.components.forEach(c=>{const k=typeById(c.typeId).code;counts[k]=(counts[k]||0)+1;});
       const dist=Object.keys(counts).sort((a,c)=>counts[c]-counts[a]).map(c=>`<span class="cnt" style="margin-right:4px">${esc(c)} ×${counts[c]}</span>`).join('');
-      h+=`<tr><td>${esc(f.name)}</td><td>${f.rooms.length}</td><td>${f.components.length}</td>
+      h+=`<tr data-planrad="${esc(b.name+' › '+f.name)}"><td>${esc(f.name)}</td><td>${f.rooms.length}</td><td>${f.components.length}</td>
         <td>${f.components.filter(c=>c.done).length}</td><td>${dist||'<span class="muted">—</span>'}</td></tr>`;
     });
     h+='</tbody></table></div></div>';
   });
 
-  const planer=[...new Set(rows.map(r=>r.bld+' › '+r.floor))];
   h+=`<div class="card"><h3 class="sec">Komponentlista (<span id="repAntal">${rows.length}</span>)</h3>
-    <div class="repFilter">
-      <input id="repSok" type="search" placeholder="Sök beteckning, typ, rum, plan …" value="${esc(ui.repQ||'')}">
-      <select id="repPlan"><option value="">Alla plan</option>${planer.map(p=>`<option${ui.repPlan===p?' selected':''}>${esc(p)}</option>`).join('')}</select>
-      <select id="repStatus">
-        <option value="">Alla</option>
-        <option value="ej-placerad"${ui.repStatus==='ej-placerad'?' selected':''}>Ej placerade</option>
-        <option value="placerad"${ui.repStatus==='placerad'?' selected':''}>Placerade</option>
-        <option value="klar"${ui.repStatus==='klar'?' selected':''}>Klarmarkerade</option>
-        <option value="ej-klar"${ui.repStatus==='ej-klar'?' selected':''}>Ej klarmarkerade</option>
-      </select></div>
+
     <div class="scrollx"><table><thead><tr>
     <th>Beteckning</th><th>Typ</th><th>Benämning</th><th>Byggnad</th><th>Plan</th><th>Rum</th><th>Ursprung</th><th>På ritning</th><th>Klar</th>
     ${fields.map(f=>`<th>${esc(f)}</th>`).join('')}</tr></thead><tbody>`;
   rows.forEach(r=>{
-    h+=`<tr class="${r.visible==='Ja'?'':'off'}" data-row="${r.id}" data-plan="${esc(r.bld+' › '+r.floor)}" data-placed="${r.placed}" data-done="${r.done}"
-      data-sok="${esc([r.tag,r.code,r.type,r.bld,r.floor,r.room,...fields.map(f=>r.data[f]==null?'':String(r.data[f]))].join(' ').toLowerCase())}" style="cursor:pointer">
+    h+=`<tr class="${r.visible==='Ja'?'':'off'}" data-row="${r.id}" data-lista="1" ${sokAttr(r)} style="cursor:pointer">
       <td class="mono">${esc(r.tag)}</td><td class="mono">${esc(r.code)}</td><td>${esc(r.type)}</td>
       <td>${esc(r.bld)}</td><td>${esc(r.floor)}</td><td>${esc(r.room)}</td><td>${r.source}</td><td>${r.placed}</td>
       <td${r.done==='Ja'?' style="color:var(--done)"':''}>${r.done}</td>
@@ -2789,9 +2826,11 @@ function renderReport(){
     $$('#reportView tr[data-sok]').forEach(tr=>{
       const ok=(!q||q.split(/\s+/).every(o=>tr.dataset.sok.includes(o)))&&(!pl||tr.dataset.plan===pl)
         &&(!st||(st==='placerad'&&tr.dataset.placed==='Ja')||(st==='ej-placerad'&&tr.dataset.placed==='Nej')||(st==='klar'&&tr.dataset.done==='Ja')||(st==='ej-klar'&&tr.dataset.done==='Nej'));
-      tr.style.display=ok?'':'none';if(ok)n++;
+      tr.style.display=ok?'':'none';if(ok&&tr.dataset.lista)n++;
     });
+    $$('#reportView tr[data-planrad]').forEach(tr=>{tr.style.display=!pl||tr.dataset.planrad===pl?'':'none';});
     $('#repAntal').textContent=n===rows.length?String(n):n+' av '+rows.length;
+    $('#repTraff').textContent=q||pl||st?n+' av '+rows.length+' komponenter':'';
   };
   $('#repSok').oninput=e=>{ui.repQ=e.target.value;filtrera();};
   $('#repPlan').onchange=e=>{ui.repPlan=e.target.value;filtrera();};
@@ -2807,7 +2846,7 @@ function renderReport(){
       <div class="muted" style="font-size:11.5px;margin-top:3px">Inga avvikelser.</div></div>`;
     return `<div style="margin-top:12px"><b style="font-size:12px">${title} (${list.length})</b>
       <div class="scrollx" style="margin-top:5px"><table><thead><tr>${cols.map(c=>`<th>${H[c]}</th>`).join('')}</tr></thead>
-      <tbody>${list.map(r=>`<tr data-row="${r.id}" style="cursor:pointer">${cols.map(c=>
+      <tbody>${list.map(r=>`<tr data-row="${r.id}" ${sokAttr(r)} style="cursor:pointer">${cols.map(c=>
         `<td${c==='tag'||c==='code'?' class="mono"':''}>${esc(r[c]||'—')}</td>`).join('')}</tr>`).join('')}</tbody></table></div></div>`;
   }
 }
@@ -2986,6 +3025,24 @@ async function renderPlanCanvas(floor,box,scale,opts){
       oc.fillStyle=fill;oc.fillText(c.tag,x+12*k,y+1*k);
     }
   });
+  /* kommentarer */
+  if(floor.ref&&floor.kommentarer&&floor.kommentarer.length&&P.settings.kommExport!==false&&P.settings.visaKomm!==false){
+    const kc=kommFarg(),kb=pick(BG_PRESETS,P.settings.bg,2),kk=Math.max(0.6,scale*0.6);
+    floor.kommentarer.forEach(km=>{
+      if(!(km.text||'').trim())return;
+      const ax=W2(km.ax*floor.ref.w),ay=H2(km.ay*floor.ref.h),bx=W2(km.bx*floor.ref.w),by=H2(km.by*floor.ref.h);
+      const v=Math.atan2(ay-by,ax-bx);
+      oc.strokeStyle=kc;oc.fillStyle=kc;oc.lineWidth=2*kk;oc.lineCap='round';
+      oc.beginPath();oc.moveTo(bx,by);oc.lineTo(ax-7*kk*Math.cos(v),ay-7*kk*Math.sin(v));oc.stroke();
+      const sp=kommPilspets(ax,ay,bx,by,13*kk);
+      oc.beginPath();oc.moveTo(sp[0][0],sp[0][1]);oc.lineTo(sp[1][0],sp[1][1]);oc.lineTo(sp[2][0],sp[2][1]);oc.closePath();oc.fill();
+      const m=kommStorlek(km.text,kk),x=bx-m.b/2,y=by-m.h/2;
+      oc.fillStyle=kb;oc.globalAlpha=0.94;oc.fillRect(x,y,m.b,m.h);oc.globalAlpha=1;
+      oc.lineWidth=1.6*kk;oc.strokeRect(x,y,m.b,m.h);
+      oc.fillStyle=kc;oc.font=`600 ${13*kk}px `+getComputedStyle(document.body).fontFamily;oc.textBaseline='alphabetic';oc.textAlign='left';
+      m.rader.forEach((r,i)=>oc.fillText(r,x+8*kk,y+(5+13+i*17)*kk));
+    });
+  }
   return out;
 }
 function planScaleFor(box,maxPx){
@@ -3546,6 +3603,7 @@ async function loadStack(f){
 }
 let oppnaTur=0;
 async function openFloor(id){
+  if(typeof kommStangEditor==='function'&&document.getElementById('kommEdit'))kommStangEditor();
   const r=findFloor(id);if(!r)return;
   const tur=++oppnaTur;
   ui.floorId=id;ui.bldId=r.bld.id;
@@ -3578,7 +3636,7 @@ function drawEmpty(){
     : (!f?`<div>Välj ett plan i strukturen till vänster.</div>`:'');
 }
 function refresh(){
-  renderTree();renderInspector();buildOverlay();hud();updateSearchCount();renderPool();renderInstLayers();
+  renderTree();renderInspector();buildOverlay();hud();updateSearchCount();renderPool();renderInstLayers();renderKommPanel();
   if(ui.view==='section')renderSection();
   if(ui.view==='report')renderReport();
   $('#brandName').textContent=P.name||'Namnlöst';
@@ -3613,6 +3671,175 @@ function setTool(t){
   if(t==='cable')flash('Klicka ut kabelns sträckning. Dubbelklick, högerklick eller Enter avslutar. Börja/sluta nära en komponent för att knyta dit.');
   if(t==='junction')flash('Klicka på ritningen för att lägga till en kopplingspunkt. Klicka igen för fler, byt verktyg för att avsluta.');
 }
+/* =======================================================================
+   ARBETSLAGER: KABELLAGER OCH KOMMENTARSLAGER
+   Kabel och Kopplingspunkt visas bara när man arbetar i kabellagret.
+   I kommentarslagret drar man från t.ex. ett rum och släpper där texten
+   ska stå: en pil pekar på rummet och en textruta skrivs direkt.
+   ======================================================================= */
+function setLager(l){
+  const ny=ui.lager===l?null:l;
+  kommStangEditor();
+  if(ui.lager==='kabel'&&ny!=='kabel'&&(ui.tool==='cable'||ui.tool==='junction'))setTool('select');
+  if(ny==='komm'){setTool('select');if(ui.sel)select(null);}
+  ui.lager=ny;ui.kommSel=null;ui.kommUtkast=null;
+  $('#btnKabelLager').classList.toggle('on',ny==='kabel');
+  $('#btnKommLager').classList.toggle('on',ny==='komm');
+  $$('.kabelverktyg').forEach(x=>x.hidden=ny!=='kabel');
+  wrap.classList.toggle('kommlage',ny==='komm');
+  if(ny==='kabel')flash('Kabellager: verktygen Kabel och Kopplingspunkt visas i verktygsraden.');
+  if(ny==='komm')flash('Håll in vänster musknapp på rummet, dra ut och släpp – skriv sedan texten.');
+  ritaKommentarer();renderKommPanel();
+}
+$('#btnKabelLager').onclick=()=>setLager('kabel');
+$('#btnKommLager').onclick=()=>setLager('komm');
+
+/** En färg som sticker ut mot vald bakgrund (ljus magenta på mörkt, mörk magenta på ljust). */
+function kommFarg(){
+  const bg=pick(BG_PRESETS,P.settings.bg,2);
+  const [r,g,b]=/^#[0-9a-f]{6}$/i.test(bg)?hexRGB(bg):[14,28,44];
+  return (r*77+g*151+b*28)/256>140?'#c8006a':'#ff4fd8';
+}
+const kommMat=document.createElement('canvas').getContext('2d');
+function kommStorlek(text,k){
+  k=k||1;
+  kommMat.font=`600 ${13*k}px `+getComputedStyle(document.body).fontFamily;
+  const rader=(text||'').split('\n');
+  const b=Math.max(40*k,...rader.map(r=>kommMat.measureText(r).width))+16*k;
+  return {rader,b,h:rader.length*17*k+10*k};
+}
+function kommPilspets(ax,ay,bx,by,n){
+  const v=Math.atan2(ay-by,ax-bx);
+  return [[ax,ay],[ax-n*Math.cos(v-0.42),ay-n*Math.sin(v-0.42)],[ax-n*Math.cos(v+0.42),ay-n*Math.sin(v+0.42)]];
+}
+function kommLista(){const f=curFloor();if(!f)return [];if(!f.kommentarer)f.kommentarer=[];return f.kommentarer;}
+function ritaKommentarer(){
+  const kg=svg.querySelector('#kg');if(!kg)return;
+  const f=curFloor();
+  const visa=P.settings.visaKomm!==false||ui.lager==='komm';
+  if(!f||!ref||!visa){kg.innerHTML='';kommPlaceraEditor();return;}
+  const c=kommFarg(),bg=pick(BG_PRESETS,P.settings.bg,2);
+  const lista=kommLista().slice();
+  if(ui.kommUtkast)lista.push(Object.assign({id:'_utkast',text:''},ui.kommUtkast));
+  kg.style.setProperty('--komm',c);
+  kg.innerHTML=lista.map(k=>{
+    const A=w2s(k.ax*ref.w,k.ay*ref.h),B=w2s(k.bx*ref.w,k.by*ref.h);
+    const v=Math.atan2(A.y-B.y,A.x-B.x),ex=A.x-7*Math.cos(v),ey=A.y-7*Math.sin(v);
+    const spets=kommPilspets(A.x,A.y,B.x,B.y,13).map(q=>q[0].toFixed(1)+','+q[1].toFixed(1)).join(' ');
+    let h=`<g class="komm${ui.kommSel===k.id?' sel':''}" data-komm="${k.id}">`+
+      `<line x1="${B.x.toFixed(1)}" y1="${B.y.toFixed(1)}" x2="${ex.toFixed(1)}" y2="${ey.toFixed(1)}" stroke="${c}" stroke-width="2" stroke-linecap="round"/>`+
+      `<polygon points="${spets}" fill="${c}"/>`;
+    if(k.id!=='_utkast'&&ui.kommRed!==k.id){
+      const m=kommStorlek(k.text);
+      const x=B.x-m.b/2,y=B.y-m.h/2;
+      h+=`<g data-kommbox="1"><rect class="kommRuta" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${m.b.toFixed(1)}" height="${m.h.toFixed(1)}" rx="3" fill="${bg}" fill-opacity="0.94" stroke="${c}"/>`+
+        `<text fill="${c}">${m.rader.map((r,i)=>`<tspan x="${(x+8).toFixed(1)}" y="${(y+5+13+i*17).toFixed(1)}">${esc(r)||' '}</tspan>`).join('')}</text></g>`;
+    }else if(k.id==='_utkast'){
+      h+=`<circle cx="${B.x.toFixed(1)}" cy="${B.y.toFixed(1)}" r="4" fill="${c}"/>`;
+    }
+    if(ui.lager==='komm'&&ui.kommSel===k.id)h+=`<circle class="kommSpets" data-kommspets="${k.id}" cx="${A.x.toFixed(1)}" cy="${A.y.toFixed(1)}" r="6" fill="${c}"><title>Dra för att flytta pilens spets</title></circle>`;
+    return h+'</g>';
+  }).join('');
+  kommPlaceraEditor();
+}
+function kommNer(e,mx,my){
+  kommStangEditor();
+  const f=curFloor();if(!f||!ref)return;
+  const p=s2w(mx,my);
+  const spets=e.target.closest('[data-kommspets]'),box=e.target.closest('[data-kommbox]');
+  if(spets){
+    const k=kommLista().find(x=>x.id===spets.dataset.kommspets);
+    if(k)drag={mode:'kommspets',k,start:p,o:{x:k.ax,y:k.ay}};
+  }else if(box){
+    const k=kommLista().find(x=>x.id===box.closest('[data-komm]').dataset.komm);
+    if(k){ui.kommSel=k.id;drag={mode:'kommbox',k,start:p,o:{x:k.bx,y:k.by},sx:mx,sy:my,moved:false};ritaKommentarer();}
+  }else{
+    ui.kommSel=null;
+    ui.kommUtkast={ax:p.x/ref.w,ay:p.y/ref.h,bx:p.x/ref.w,by:p.y/ref.h};
+    drag={mode:'kommny',start:p,sx:mx,sy:my};
+    ritaKommentarer();
+  }
+  if(drag){wrap.setPointerCapture(e.pointerId);e.preventDefault();}
+}
+function kommUpp(d,e){
+  const r=wrap.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;
+  if(d.mode==='kommny'){
+    const u=ui.kommUtkast;ui.kommUtkast=null;
+    if(!u||Math.hypot(mx-d.sx,my-d.sy)<12){
+      ritaKommentarer();
+      flash('Håll in vänster musknapp på rummet, dra ut en bit och släpp där texten ska stå.');
+      return;
+    }
+    const k={id:uid('km'),ax:u.ax,ay:u.ay,bx:u.bx,by:u.by,text:''};
+    kommLista().push(k);
+    renderKommPanel();
+    kommRedigera(k.id);
+    return;
+  }
+  if(d.mode==='kommbox'&&!d.moved){kommRedigera(d.k.id);return;}
+  ritaKommentarer();
+}
+function kommRedigera(id){
+  kommStangEditor();
+  const k=kommLista().find(x=>x.id===id);if(!k)return;
+  ui.kommRed=id;ui.kommSel=id;
+  const ta=document.createElement('textarea');
+  ta.id='kommEdit';ta.value=k.text||'';ta.placeholder='Skriv kommentar…';ta.spellcheck=true;ta.wrap='off';
+  ta.style.setProperty('--komm',kommFarg());ta.style.setProperty('--kommbg',pick(BG_PRESETS,P.settings.bg,2));
+  ta.addEventListener('pointerdown',e=>e.stopPropagation());
+  ta.addEventListener('wheel',e=>e.stopPropagation());
+  ta.addEventListener('input',()=>{const x=kommLista().find(y=>y.id===id);if(x)x.text=ta.value;kommPlaceraEditor();});
+  ta.addEventListener('keydown',e=>{
+    e.stopPropagation();
+    if((e.key==='Enter'&&!e.shiftKey)||e.key==='Escape'){e.preventDefault();kommStangEditor();}
+  });
+  ta.addEventListener('blur',()=>kommStangEditor());
+  wrap.appendChild(ta);
+  ritaKommentarer();
+  // Textmarkören står redo direkt när musen släpps.
+  ta.focus();ta.setSelectionRange(ta.value.length,ta.value.length);
+  requestAnimationFrame(()=>{if(document.activeElement!==ta&&ta.isConnected)ta.focus();});
+}
+function kommPlaceraEditor(){
+  const ta=document.getElementById('kommEdit');if(!ta)return;
+  const k=kommLista().find(x=>x.id===ui.kommRed);
+  if(!k||!ref){return;}
+  const B=w2s(k.bx*ref.w,k.by*ref.h),m=kommStorlek(ta.value||ta.placeholder);
+  const b=m.b+18,h=m.h+6;
+  ta.style.left=(B.x-b/2)+'px';ta.style.top=(B.y-h/2)+'px';ta.style.width=b+'px';ta.style.height=h+'px';
+}
+function kommStangEditor(){
+  const ta=document.getElementById('kommEdit');if(!ta||ta.dataset.stangs)return;
+  ta.dataset.stangs='1'; // remove() nedan ger blur, som annars stänger en gång till
+  const id=ui.kommRed;ui.kommRed=null;
+  const text=ta.value.replace(/\s+$/,'');
+  ta.remove();
+  const f=curFloor();
+  if(f&&f.kommentarer){
+    const k=f.kommentarer.find(x=>x.id===id);
+    if(k){k.text=text;if(!text.trim()){f.kommentarer=f.kommentarer.filter(x=>x.id!==id);ui.kommSel=null;}}
+  }
+  ritaKommentarer();renderKommPanel();
+}
+function kommTaBort(id){
+  const f=curFloor();if(!f||!f.kommentarer)return;
+  f.kommentarer=f.kommentarer.filter(x=>x.id!==id);
+  if(ui.kommSel===id)ui.kommSel=null;
+  ritaKommentarer();renderKommPanel();
+}
+function renderKommPanel(){
+  const el=$('#kommPanel');if(!el)return;
+  const f=curFloor(),n=f&&f.kommentarer?f.kommentarer.length:0;
+  el.innerHTML=`<div class="lhead"><span class="lab">Kommentarer${f?' på '+esc(f.name):''}</span><span class="muted" style="font-size:10.5px;margin-left:auto">${n} st</span></div>
+    <label><input type="checkbox" id="kommVisa"${P.settings.visaKomm!==false?' checked':''}> Visa kommentarer på planen</label>
+    <label><input type="checkbox" id="kommExport"${P.settings.kommExport!==false?' checked':''}> Med i PDF-export</label>
+    <div class="lempty" style="text-align:left">Klicka på ✎ Kommentarslager och dra från t.ex. ett rum till där texten ska stå. Klicka på en ruta för att ändra texten, dra i den för att flytta. Markera och tryck Delete för att ta bort.</div>
+    ${ui.kommSel?`<div style="padding:0 10px 8px"><button id="kommDel">Ta bort markerad kommentar</button></div>`:''}`;
+  $('#kommVisa').onchange=e=>{P.settings.visaKomm=e.target.checked;ritaKommentarer();};
+  $('#kommExport').onchange=e=>{P.settings.kommExport=e.target.checked;};
+  const del=$('#kommDel');if(del)del.onclick=()=>kommTaBort(ui.kommSel);
+}
+
 $('#addBuilding').onclick=()=>{
   const b={id:uid('b'),name:'Byggnad '+String.fromCharCode(65+P.buildings.length),hidden:false,floors:[newFloor('Plan 1')]};
   P.buildings.push(b);refresh();openFloor(b.floors[0].id);
@@ -3714,6 +3941,8 @@ window.addEventListener('keydown',e=>{
   if(mod&&(e.key==='v'||e.key==='V')){paste();e.preventDefault();return;}
   if(mod&&(e.key==='s'||e.key==='S')){if(pvVard())pvSparaNu();else saveProject();e.preventDefault();return;}
   if(mod)return;
+  if(ui.lager==='komm'&&ui.kommSel&&(e.key==='Delete'||e.key==='Backspace')){kommTaBort(ui.kommSel);e.preventDefault();return;}
+  if(ui.lager==='komm'&&ui.kommSel&&e.key==='Enter'){kommRedigera(ui.kommSel);e.preventDefault();return;}
   if(e.key==='Enter'&&ui.tool==='poly'&&ui.poly){polyFinish();e.preventDefault();return;}
   if(e.key==='Backspace'&&ui.tool==='poly'&&ui.poly){polyUndo();e.preventDefault();return;}
   if(e.key==='Enter'&&ui.tool==='cable'&&ui.poly){cableFinish();e.preventDefault();return;}
@@ -3728,14 +3957,16 @@ window.addEventListener('keydown',e=>{
   if(e.key==='Escape'){
     if(ui.passa){avbrytPassa();return;}
     if(ui.poly){polyCancel();return;}
+    if(ui.kommSel){ui.kommSel=null;ritaKommentarer();}
     setTool('select');select(null);
     if(ui.adjust){ui.adjust=null;$('#planWrap').classList.remove('adjusting');renderLayers();draw();}
     $$('.modal').forEach(m=>m.classList.remove('open'));
   }
   if(e.key==='r'||e.key==='R')setTool(ui.tool==='rect'?'select':'rect');
   if(e.key==='p'||e.key==='P')setTool(ui.tool==='poly'?'select':'poly');
-  if(e.key==='k'||e.key==='K')setTool(ui.tool==='cable'?'select':'cable');
-  if(e.key==='j'||e.key==='J')setTool(ui.tool==='junction'?'select':'junction');
+  // Kabelverktygen hör till kabellagret.
+  if(ui.lager==='kabel'&&(e.key==='k'||e.key==='K')&&!ui.sel)setTool(ui.tool==='cable'?'select':'cable');
+  if(ui.lager==='kabel'&&(e.key==='j'||e.key==='J'))setTool(ui.tool==='junction'?'select':'junction');
   if((e.key==='k'||e.key==='K')&&ui.sel)toggleDone(ui.sel.kind,ui.sel.id);
   if(e.key==='f'||e.key==='F')fitView();
   if((e.key==='Delete'||e.key==='Backspace')&&ui.sel){treeAction('del',ui.sel.kind,ui.sel.id);e.preventDefault();}

@@ -134,7 +134,7 @@ public static class Listdefinitioner
     [
         // ---------------- Komponenter & Listor (kopplade till komponenterna) ----------------
         new("skyltlista", "Skyltlista", "Komponenter & Listor",
-            "En rad per komponent, med två skyltar som standard (välj 1 där det räcker). Komponentnamn, typ och var den är ansluten hämtas från Komponenter. Exporten innehåller de tre skyltraderna och antalet.",
+            "En rad per komponent, med två skyltar som standard (välj 1–4). Komponentnamn, typ och var den är ansluten hämtas från Komponenter. Exporten innehåller de tre skyltraderna och antalet.",
             Kopplad: true,
             Kolumner:
             [
@@ -144,8 +144,8 @@ public static class Listdefinitioner
                 new("textfarg", "Textfärg", "val", Kat("SkyltlistaTextfarg"), Standard: "Svart"),
                 new("skyltfarg", "Skyltfärg", "val", Kat("SkyltlistaSkyltfarg"), Standard: "Vit"),
                 new("montage", "Montage", "val", Kat("SkyltlistaMontage"), Standard: "2 hål + tejp"),
-                // Oftast en skylt på varje sida (t.ex. spjäll och apparatskåp): två som standard, en går att välja.
-                new("antal", "Antal skyltar", "val", ["2", "1"], Standard: "2", Bredd: 90),
+                // Oftast en skylt på varje sida (t.ex. spjäll och apparatskåp): två som standard, 1–4 går att välja.
+                new("antal", "Antal skyltar", "val", ["1", "2", "3", "4"], Standard: "2", Bredd: 90),
                 new("ovrigt", "Övrigt"),
             ],
             ExportKolumner: ["beteckning", "komponenttyp", "anslutsTill", "antal"],

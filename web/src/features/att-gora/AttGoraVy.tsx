@@ -35,6 +35,7 @@ export function AttGoraVy({ rader, blinkar, onAndra, onNy, onTaBort, onFlytta, l
         Projektets att göra-lista. Bocka i Pågående när någon har börjat och Åtgärdad när saken är gjord. Skriv gärna i Kommentar vad som gjorts.
         Dra i ⠿ eller använd pilarna för att ändra ordningen. Kryssrutan före texten markerar rader, t.ex. för att ta bort dem.
       </p>
+      <div className="attgora-grid">
       <DataGrid
         rader={ordnade}
         kolumner={KOLUMNER}
@@ -46,6 +47,7 @@ export function AttGoraVy({ rader, blinkar, onAndra, onNy, onTaBort, onFlytta, l
         blinkar={blinkar}
         lasläge={lasläge}
       />
+      </div>
     </>
   );
 }

@@ -10,6 +10,8 @@ type Props = {
   ingress?: string;
   onSkrivUt?: (text: string) => void;
   onPopUt?: () => void;
+  /** Bryt långa rader automatiskt. Att göra-anteckningarna bryts inte (rullas i sidled i stället). */
+  radbryt?: boolean;
 };
 
 const tid = (iso: string | null) =>
@@ -19,6 +21,7 @@ const tid = (iso: string | null) =>
 export function AnteckningarVy({
   anteckningar, onSpara, lasläge = false, grupp = "Att göra", rubrik = "Anteckningar",
   ingress = "Fritt textfält för projektet. Texten sparas automatiskt medan du skriver.", onSkrivUt, onPopUt,
+  radbryt = grupp !== "Att göra",
 }: Props) {
   const [text, setText] = useState(anteckningar?.text ?? "");
   const [status, setStatus] = useState<"sparat" | "osparat" | "sparar" | "fel">("sparat");
@@ -73,7 +76,8 @@ export function AnteckningarVy({
       </div>
       <p className="ingress">{ingress}</p>
       <textarea
-        className="anteckningar"
+        className={`anteckningar${radbryt ? "" : " utan-radbryt"}`}
+        wrap={radbryt ? "soft" : "off"}
         aria-label={rubrik}
         spellCheck
         readOnly={lasläge}
