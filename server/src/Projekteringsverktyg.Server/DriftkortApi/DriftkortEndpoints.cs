@@ -73,6 +73,8 @@ public static class DriftkortEndpoints
             byte[] driftkort;
             try { driftkort = DriftkortWord.Bygg(text, png, svg); }
             catch (InvalidDataException e) { return Fel(e.Message); }
+            // Projektets sidfot (status, datum, projektnummer …) skrivs in.
+            driftkort = await DriftkortSidfot.TillampaAsync(db, projektId, driftkort, ct);
 
             var av = Anvandare.Fran(user);
             var sparade = new List<FilDto>
@@ -88,6 +90,39 @@ public static class DriftkortEndpoints
                 await hub.Clients.Group(ProjektHub.Grupp(projektId)).SendAsync("ListaAndrad", new ListaHandelse("filer", "skapad", dto, av.Id, av.Namn), ct);
             return Results.Ok(new { driftkort = sparade[0], filer = sparade });
         }).DisableAntiforgery();
+
+        // Skriver in projektets sidfot i alla Word-filer i mappen Driftkort (senaste versionen blir en ny version).
+        g.MapPost("/sidfot/uppdatera", async (Guid projektId, ClaimsPrincipal user, PvDbContext db, IFilLagring lagring,
+            IHubContext<ProjektHub> hub, CancellationToken ct) =>
+        {
+            var sidfot = await DriftkortSidfot.HamtaAsync(db, projektId, ct);
+            if (sidfot is null || sidfot.ArTom) return Fel("Fyll i sidfoten först.");
+            var loggor = DriftkortSidfot.LasLoggor(await DokumentApi.GemensamKatalogEndpoints.HamtaData(db, DriftkortSidfot.LoggKatalog));
+            var filer = (await db.Filer.AsNoTracking().Where(f => f.ProjektId == projektId && f.Mapp == Mapp).ToListAsync(ct))
+                .Where(f => f.Namn.EndsWith(".docx", StringComparison.OrdinalIgnoreCase))
+                .GroupBy(f => f.Namn).Select(g => g.OrderByDescending(f => f.Version).First()).ToList();
+            var av = Anvandare.Fran(user);
+            var sparade = new List<FilDto>();
+            var oforandrade = 0;
+            foreach (var fil in filer)
+            {
+                byte[] fore;
+                await using (var s = await lagring.OppnaAsync(fil.BlobNamn, ct))
+                {
+                    if (s is null) continue;
+                    using var m = new MemoryStream();
+                    await s.CopyToAsync(m, ct);
+                    fore = m.ToArray();
+                }
+                var efter = DriftkortSidfot.Tillampa(fore, sidfot, loggor);
+                if (ReferenceEquals(efter, fore) || efter.AsSpan().SequenceEqual(fore)) { oforandrade++; continue; }
+                sparade.Add(await FilEndpoints.SparaVersionAsync(db, lagring, projektId, Mapp, fil.Namn, efter, av, ct));
+            }
+            await db.SaveChangesAsync(ct);
+            foreach (var dto in sparade)
+                await hub.Clients.Group(ProjektHub.Grupp(projektId)).SendAsync("ListaAndrad", new ListaHandelse("filer", "skapad", dto, av.Id, av.Namn), ct);
+            return Results.Ok(new { uppdaterade = sparade.Count, oforandrade, filer = sparade });
+        });
 
         return app;
     }

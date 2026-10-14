@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { DriftkortSidfotDialog, hamtaSidfot, sidfotKort } from "./DriftkortSidfot";
 import { api, ApiFel, laddaNer, skicka } from "../../lib/api";
 import type { Projekt, ProjektDokument, ProjektFil } from "../../lib/typer";
 import { dela } from "../../lib/funktionstext";
@@ -55,6 +56,8 @@ export function RitbordVy(p: Props) {
   const [arDk, setArDk] = useState(false);
   const [nyttDk, setNyttDk] = useState<{ namn: string; as: string } | null>(null);
   const [skapaDk, setSkapaDk] = useState(false);
+  const [sidfotOppen, setSidfotOppen] = useState(false);
+  const [sidfotText, setSidfotText] = useState("");
   const [dkFiler, setDkFiler] = useState<ProjektFil[] | null>(null);
   const [dkFilId, setDkFilId] = useState("");
   const [dkUppladdad, setDkUppladdad] = useState<File | null>(null);
@@ -204,6 +207,7 @@ export function RitbordVy(p: Props) {
 
   const oppnaSkapaDk = async () => {
     setSkapaDk(true);
+    hamtaSidfot(p.projektId).then((r) => setSidfotText(r.dok ? sidfotKort(r.sidfot) : "Inte ifylld")).catch(() => setSidfotText(""));
     setDkUppladdad(null);
     setDkTexter(null);
     try {
@@ -273,6 +277,7 @@ export function RitbordVy(p: Props) {
         {p.lasläge && <span className="dampad">Endast läsning</span>}
         <span className="grow" />
         {arDk && <button className="knapp" title="Flödesbilden utan I/O-rader och I/O-streck, att använda i SCADA" onClick={() => verktyg()?.rbExportScada?.()}>SVG till SCADA</button>}
+        {arDk && <button className="knapp" title="Status, datum, namn och loggor i sidfoten – gemensamt för projektets alla driftkort" onClick={() => setSidfotOppen(true)}>Sidfot…</button>}
         {arDk && !p.lasläge && <button className="knapp primar" onClick={() => void oppnaSkapaDk()}>Skapa driftkort…</button>}
         {vald && <span className="dampad liten">Ändrad av {vald.andradAv}</span>}
         <button className="knapp" onClick={() => setHelskarm((h) => !h)}>{helskarm ? "Avsluta helskärm" : "Helskärm"}</button>
@@ -314,6 +319,10 @@ export function RitbordVy(p: Props) {
         </>}
       >
         <p>Sida 1 blir flödesbilden med I/O, med sidfoten från Word-filen. Funktionstexten följer från sida 2.</p>
+        <p className="dampad liten">
+          Projektets sidfot: <b>{sidfotText || "…"}</b>{" "}
+          <button type="button" className="knapp liten" onClick={() => setSidfotOppen(true)}>Ändra sidfot…</button>
+        </p>
         <div className="faltrad">
           <label className="radio"><input type="radio" checked={dkKalla === "text"} disabled={!dkTexter?.length} onChange={() => setDkKalla("text")} /> Projektets funktionstext</label>
           <label className="radio"><input type="radio" checked={dkKalla === "fil"} onChange={() => setDkKalla("fil")} /> Word-fil</label>
@@ -348,10 +357,16 @@ export function RitbordVy(p: Props) {
         )}
         </>)}
         <p className="dampad liten">
+          Status, datum, namn och loggor i sidfoten byts mot projektets sidfot.
           Tomma sidor i början av Word-filen (där flödesbilden klistrades in förut) tas bort automatiskt.
           Driftkortet, funktionstexten och SVG:n till SCADA sparas i mappen Driftkort.
         </p>
       </Dialog>
+      <DriftkortSidfotDialog
+        projektId={p.projektId} projekt={p.projekt} oppen={sidfotOppen} lasläge={p.lasläge}
+        kanHanteraLoggor={p.kanInstallningar} visaMeddelande={p.visaMeddelande}
+        onStang={() => setSidfotOppen(false)} onSparad={(s) => setSidfotText(sidfotKort(s))}
+      />
     </div>
   );
 }

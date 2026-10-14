@@ -533,3 +533,19 @@ table.grid.fasta td.ro span { white-space: nowrap; overflow: hidden; text-overfl
 .flytande-fonster.mini .fonster-titel{border-bottom:0}
 .flytande-fonster.mini .fonster-titel span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .flytande-fonster.mini .fonster-innehall,.flytande-fonster.mini .fonster-handtag{display:none}
+
+/* Sidfot för driftkort */
+.knappgrupp{display:flex;gap:6px;flex-wrap:wrap}
+.falt-etikett{font-size:12.5px;color:var(--dampad);min-width:60px}
+.radmed{display:inline-flex;gap:6px;align-items:center}
+.faltrad input[type="date"]{background:var(--yta-2);border:1px solid var(--linje);border-radius:var(--r);padding:5px 8px;color:var(--text);color-scheme:light dark}
+.faltrad.tva label{flex:1 1 200px}
+.liten-rubrik{font-size:13px;margin:14px 0 8px}
+.loggval{flex-direction:column;align-items:flex-start!important}
+.loggtumme{height:32px;max-width:160px;object-fit:contain;background:#fff;border:1px solid var(--linje);border-radius:4px;padding:2px}
+.loggbibliotek{border:1px solid var(--linje);border-radius:var(--r);padding:10px;margin-bottom:10px;background:var(--yta-2)}
+.loggrutnat{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:10px}
+.loggrutnat figure{margin:0;border:1px solid var(--linje);border-radius:var(--r);background:var(--yta);padding:6px}
+.loggrutnat img{display:block;width:100%;height:56px;object-fit:contain;background:#fff;border-radius:3px}
+.loggrutnat figcaption{display:flex;gap:4px;align-items:center;margin-top:6px;font-size:12px}
+.loggrutnat figcaption input{flex:1;min-width:0;background:var(--yta-2);border:1px solid var(--linje);border-radius:4px;padding:3px 5px;color:var(--text);font-size:12px}

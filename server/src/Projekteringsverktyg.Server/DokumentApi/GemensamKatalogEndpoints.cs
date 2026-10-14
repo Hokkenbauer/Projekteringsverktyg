@@ -24,6 +24,8 @@ public static class GemensamKatalogEndpoints
         ["byggvaror"] = "Byggvarudatabasen",
         // Resursplaneringen (gemensam för alla projekt). Tom tills någon sparat; verktyget har då sin inbäddade planering.
         ["resursplanering"] = "Resursplaneringen",
+        // Loggor till driftkortens sidfot (PNG/JPG i base64), gemensamma för alla projekt.
+        [DriftkortApi.DriftkortSidfot.LoggKatalog] = "Loggbiblioteket",
     };
 
     public const int MaxLangd = 20_000_000;

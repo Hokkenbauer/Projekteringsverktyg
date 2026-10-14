@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { DriftkortSidfotDialog } from "../ritning/DriftkortSidfot";
 import { api, ApiFel, laddaNer, skicka } from "../../lib/api";
 import { arFormaterad, dela, harWordFormat, jamfor, sattIhop, textAv } from "../../lib/funktionstext";
 import { useKatalog } from "../../lib/katalog";
@@ -41,6 +42,7 @@ export function TextKatalogVy(p: Props) {
   const ft = p.lage === "funktionstexter";
   const kat = useKatalog<TextKatalog>(p.lage, TOM);
   const [sparade, setSparade] = useState<ProjektDokument[] | null>(ft ? null : []);
+  const [sidfotOppen, setSidfotOppen] = useState(false);
   const [val, setVal] = useState<Val>(null);
   const [text, setText] = useState("");
   const [mallNamn, setMallNamn] = useState("");
@@ -311,6 +313,9 @@ export function TextKatalogVy(p: Props) {
       <div className="rubrikrad">
         <h1>{p.rubrik}</h1>
         <div className="knappar">
+          {ft && (
+            <button className="knapp" onClick={() => setSidfotOppen(true)} title="Status, datum, namn och loggor i sidfoten – gemensamt för projektets driftkort och Word-exporter">Sidfot för driftkort…</button>
+          )}
           {ft && !p.lasläge && (
             <button className="knapp" disabled={importerar} onClick={() => importFil.current?.click()} title="Färdiga funktionstexter eller driftkort i Word (.docx). Varje fil blir en text i projektet, kopplad till sitt system.">
               {importerar ? `Importerar${importStatus}…` : "Importera Word…"}
@@ -463,6 +468,12 @@ export function TextKatalogVy(p: Props) {
           )}
         </section>
       </div>
+      {ft && (
+        <DriftkortSidfotDialog
+          projektId={p.projektId} projekt={p.projekt} oppen={sidfotOppen} lasläge={p.lasläge}
+          kanHanteraLoggor={p.kanRedigeraKatalog} visaMeddelande={p.visaMeddelande} onStang={() => setSidfotOppen(false)}
+        />
+      )}
     </>
   );
 }

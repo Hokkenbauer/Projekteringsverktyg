@@ -91,6 +91,7 @@ public static partial class FunktionstextEndpoints
             byte[] word;
             try { word = await TillWordAsync(db, lagring, projektId, d, ct); }
             catch (InvalidDataException e) { return Fel(e.Message); }
+            word = await DriftkortApi.DriftkortSidfot.TillampaAsync(db, projektId, word, ct);
             return Results.File(word, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", FilEndpoints.RentNamn(d.Namn.EndsWith(".docx", StringComparison.OrdinalIgnoreCase) ? d.Namn : $"{d.Namn}.docx"));
         });
 

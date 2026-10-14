@@ -563,3 +563,85 @@ public class FunktionstextWordTester
     public void System_ur_filnamn(string fil, string? system) =>
         Assert.Equal(system, FunktionstextEndpoints.SystemIFilnamn(fil));
 }
+
+
+public class DriftkortSidfotTester
+{
+    private const string Wns = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+
+    private static string Cell(params string[] stycken) =>
+        "<w:tc>" + string.Concat(stycken.Select(t => $"<w:p><w:r><w:rPr><w:rFonts w:ascii=\"Arial\"/><w:sz w:val=\"14\"/></w:rPr><w:t>{t}</w:t></w:r></w:p>")) + "</w:tc>";
+
+    // Samma uppbyggnad som sidfoten i HECO:s driftkort.
+    private static readonly string SidfotXml =
+        $"<w:ftr xmlns:w=\"{Wns}\"><w:tbl>" +
+        "<w:tr>" + Cell("") + Cell("99999 – Lillkyrka", "Ute på landet", "Adressrad", "Apparatskåp AS01, UC") + Cell("Granskningshandling") + Cell("Projektnummer") + Cell("xyxyxyxy") + "</w:tr>" +
+        "<w:tr>" + Cell("Rev") + Cell("Ändring avser") + Cell("Datum") + Cell("Sign") + Cell("Konstruktör") + Cell("Håkan Engström") + "</w:tr>" +
+        "<w:tr>" + Cell("") + Cell("") + Cell("") + Cell("") + Cell("Kontrollansvarig") + Cell("Fredrik Danielsson") + "</w:tr>" +
+        "<w:tr>" + Cell("") + Cell("") + Cell("") + Cell("") + Cell("Datum") + Cell("2024-05-14") + "</w:tr>" +
+        "</w:tbl></w:ftr>";
+
+    private static List<List<string>> Rader(System.Xml.Linq.XElement rot)
+    {
+        System.Xml.Linq.XNamespace w = Wns;
+        return rot.Descendants(w + "tr").Select(tr => tr.Elements(w + "tc")
+            .Select(tc => string.Join("|", tc.Elements(w + "p").Select(p => string.Concat(p.Descendants(w + "t").Select(t => t.Value))))).ToList()).ToList();
+    }
+
+    [Fact]
+    public void Status_datum_och_namn_skrivs_in_men_revisionsrubrikerna_lamnas()
+    {
+        var rot = System.Xml.Linq.XElement.Parse(SidfotXml);
+        var s = new Projekteringsverktyg.Server.DriftkortApi.Sidfot("BYGGHANDLING", "2026-10-15", "12345", "Anna Andersson", "Bo Berg", "12345 – Nya skolan", "Skolvägen 1", null);
+        Assert.True(Projekteringsverktyg.Server.DriftkortApi.DriftkortSidfot.Andra(rot, s));
+        var r = Rader(rot);
+        Assert.Equal("BYGGHANDLING", r[0][2]);
+        Assert.Equal("12345 – Nya skolan|Skolvägen 1|Adressrad|Apparatskåp AS01, UC", r[0][1]);
+        Assert.Equal("12345", r[0][4]);
+        Assert.Equal("Sign", r[1][3]);              // revisionsrubriken "Datum" fick inget värde
+        Assert.Equal("Anna Andersson", r[1][5]);
+        Assert.Equal("Bo Berg", r[2][5]);
+        Assert.Equal("2026-10-15", r[3][5]);
+        // Formatet (typsnitt, storlek) i cellen behålls.
+        System.Xml.Linq.XNamespace w = Wns;
+        Assert.All(rot.Descendants(w + "r").Where(x => x.Element(w + "t") is not null), x => Assert.Equal("14", (string?)x.Element(w + "rPr")?.Element(w + "sz")?.Attribute(w + "val")));
+        // En gång till: inget att ändra.
+        Assert.False(Projekteringsverktyg.Server.DriftkortApi.DriftkortSidfot.Andra(rot, s));
+    }
+
+    [Fact]
+    public void Forsta_loggan_i_sidfoten_byts_och_anpassas_in_i_rutan()
+    {
+        var original = File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Testfiler", "driftkort_struktur.docx"));
+        const string png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==";
+        var logga = new Logga("abc123", "Kundlogga", "image/png", 400, 100, png);
+        var s = new Sidfot(null, null, null, null, null, null, null, null, ["abc123", null]);
+        var ut = DriftkortSidfot.Tillampa(original, s, [logga]);
+        Assert.NotSame(original, ut);
+
+        using var zip = new System.IO.Compression.ZipArchive(new MemoryStream(ut));
+        Assert.NotNull(zip.GetEntry("word/media/pvlogga_abc123.png"));
+        System.Xml.Linq.XDocument Las(string n) { using var st = zip.GetEntry(n)!.Open(); return System.Xml.Linq.XDocument.Load(st); }
+        System.Xml.Linq.XNamespace a = "http://schemas.openxmlformats.org/drawingml/2006/main";
+        System.Xml.Linq.XNamespace r = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+        System.Xml.Linq.XNamespace wp = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing";
+        var fot = Las("word/footer1.xml");
+        var blips = fot.Descendants(a + "blip").ToList();
+        Assert.Equal("rIdPvLoggaabc123", (string?)blips[0].Attribute(r + "embed"));
+        Assert.NotEqual("rIdPvLoggaabc123", (string?)blips[1].Attribute(r + "embed"));   // Logga 2 behålls
+        var rels = Las("word/_rels/footer1.xml.rels").ToString();
+        Assert.Contains("media/pvlogga_abc123.png", rels);
+        var ext = blips[0].Ancestors().First(x => x.Name == wp + "inline" || x.Name == wp + "anchor").Element(wp + "extent")!;
+        var forhallande = (double)(long)ext.Attribute("cx")! / (long)ext.Attribute("cy")!;
+        Assert.InRange(forhallande, 3.95, 4.05);
+        Assert.Contains("Extension=\"png\"", Las("[Content_Types].xml").ToString());
+    }
+
+    [Fact]
+    public void Tom_sidfot_lamnar_filen_orord()
+    {
+        var fil = WordHtml.TillWord("<p>x</p>", null);
+        Assert.Same(fil, Projekteringsverktyg.Server.DriftkortApi.DriftkortSidfot.Tillampa(fil, new(null, null, null, null, null, null, null, null)));
+        Assert.Same(fil, Projekteringsverktyg.Server.DriftkortApi.DriftkortSidfot.Tillampa(fil, new("ARBETSKOPIA", null, null, null, null, null, null, null)));
+    }
+}
