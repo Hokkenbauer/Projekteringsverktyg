@@ -514,24 +514,24 @@ public class FunktionstextWordTester
         var efter = Kropp(ut);
         // Tabbar blir mellanslag och flera mellanslag ett i verktyget, så jämförelsen bortser från blanktecken.
         string Text(System.Xml.Linq.XElement b) => System.Text.RegularExpressions.Regex.Replace(string.Concat(b.Descendants(Wn + "t").Select(t => t.Value)), @"\s+", "");
-        Assert.Equal(Text(fore), Text(efter));
-        int Arial(System.Xml.Linq.XElement b) => b.Descendants(Wn + "r").Count(r => r.Element(Wn + "t") is not null &&
-            (string?)r.Element(Wn + "rPr")?.Element(Wn + "rFonts")?.Attribute(Wn + "ascii") == "Arial");
-        int MedText(System.Xml.Linq.XElement b) => b.Descendants(Wn + "r").Count(r => r.Element(Wn + "t") is not null);
-        Assert.Equal(MedText(efter), Arial(efter)); // all text i Arial som i originalet
-        Assert.Equal(fore.Descendants(Wn + "tbl").Count(), efter.Descendants(Wn + "tbl").Count());
-        Assert.Equal(
-            string.Join(",", fore.Descendants(Wn + "gridCol").Select(g => (string?)g.Attribute(Wn + "w"))),
-            string.Join(",", efter.Descendants(Wn + "gridCol").Select(g => (string?)g.Attribute(Wn + "w"))));
-        Assert.Equal(fore.Descendants(Wn + "tcW").Count(), efter.Descendants(Wn + "tcW").Count());
-        Assert.Equal(fore.Descendants(Wn + "trHeight").Count(), efter.Descendants(Wn + "trHeight").Count());
-        Assert.Equal(fore.Descendants(Wn + "p").Count(), efter.Descendants(Wn + "p").Count());
-        Assert.Equal(
-            fore.Descendants(Wn + "br").Count(b => (string?)b.Attribute(Wn + "type") is "page" or "column"),
-            efter.Descendants(Wn + "br").Count(b => (string?)b.Attribute(Wn + "type") is "page" or "column"));
-        int Storlek(System.Xml.Linq.XElement b, string v) => b.Descendants(Wn + "r").Count(r => r.Element(Wn + "t") is not null &&
-            (string?)r.Element(Wn + "rPr")?.Element(Wn + "sz")?.Attribute(Wn + "val") == v);
-        Assert.True(Storlek(efter, "16") > 0 && Storlek(efter, "18") > 0);
+        // Antal tecken per typsnitt och storlek (körningarna kan delas annorlunda, tecknen ska ha samma format).
+        string Format(System.Xml.Linq.XElement b) => string.Join(" ", b.Descendants(Wn + "r").Where(r => r.Element(Wn + "t") is not null)
+            .GroupBy(r => ((string?)r.Element(Wn + "rPr")?.Element(Wn + "rFonts")?.Attribute(Wn + "ascii") ?? "-") + "/" +
+                          ((string?)r.Element(Wn + "rPr")?.Element(Wn + "sz")?.Attribute(Wn + "val") ?? "-") + "/" +
+                          (r.Element(Wn + "rPr")?.Element(Wn + "b") is null ? "" : "b") + (r.Element(Wn + "rPr")?.Element(Wn + "u") is null ? "" : "u"))
+            .OrderBy(g => g.Key).Select(g => g.Key + "=" + g.Sum(r => System.Text.RegularExpressions.Regex.Replace(r.Element(Wn + "t")!.Value, @"\s+", "").Length)));
+        string Rakna(System.Xml.Linq.XElement b) =>
+            $"p={b.Descendants(Wn + "p").Count()} tbl={b.Descendants(Wn + "tbl").Count()} tcW={b.Descendants(Wn + "tcW").Count()} " +
+            $"trHeight={b.Descendants(Wn + "trHeight").Count()} brytningar={b.Descendants(Wn + "br").Count(x => (string?)x.Attribute(Wn + "type") is "page" or "column")} " +
+            $"grid={string.Join(",", b.Descendants(Wn + "gridCol").Select(g => (string?)g.Attribute(Wn + "w")))}";
+
+        var t1 = Text(fore); var t2 = Text(efter);
+        var forsta = Enumerable.Range(0, Math.Min(t1.Length, t2.Length)).FirstOrDefault(i => t1[i] != t2[i], -1);
+        Assert.True(t1 == t2, $"Texten skiljer: {t1.Length} mot {t2.Length} tecken, första skillnad vid {forsta}: " +
+            $"'{(forsta >= 0 ? t1.Substring(Math.Max(0, forsta - 20), Math.Min(60, t1.Length - Math.Max(0, forsta - 20))) : "")}' / " +
+            $"'{(forsta >= 0 ? t2.Substring(Math.Max(0, forsta - 20), Math.Min(60, t2.Length - Math.Max(0, forsta - 20))) : "")}'");
+        Assert.Equal(Rakna(fore), Rakna(efter));
+        Assert.Equal(Format(fore), Format(efter));
         Assert.Contains("data-ppr", imp.Html);
     }
 
