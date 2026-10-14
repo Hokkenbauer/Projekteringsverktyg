@@ -486,6 +486,64 @@ public class FunktionstextWordTester
         Assert.Contains("Öppen", WordHtml.TillHtml(word).Html);
     }
 
+    private static readonly System.Xml.Linq.XNamespace Wn = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+
+    private static System.Xml.Linq.XElement Kropp(byte[] docx)
+    {
+        using var zip = new System.IO.Compression.ZipArchive(new MemoryStream(docx));
+        using var s = zip.GetEntry("word/document.xml")!.Open();
+        return System.Xml.Linq.XDocument.Load(s).Root!.Element(Wn + "body")!;
+    }
+
+    [Fact]
+    public void Driftkort_behaller_typsnitt_tabeller_och_sidbrytningar_efter_import_och_export()
+    {
+        var original = File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Testfiler", "driftkort_struktur.docx"));
+        var imp = WordHtml.TillHtml(original);
+        var ut = WordHtml.TillWord(imp.Html, original);
+
+        // Resultatet sparas när bygget ber om det, så att det kan granskas (laddas upp som "ordprov").
+        if (Environment.GetEnvironmentVariable("ORDPROV_UT") is { Length: > 0 } mapp)
+        {
+            Directory.CreateDirectory(mapp);
+            File.WriteAllBytes(Path.Combine(mapp, "driftkort_export.docx"), ut);
+            File.WriteAllText(Path.Combine(mapp, "driftkort_import.html"), imp.Html);
+        }
+
+        var fore = Kropp(original);
+        var efter = Kropp(ut);
+        // Tabbar blir mellanslag och flera mellanslag ett i verktyget, så jämförelsen bortser från blanktecken.
+        string Text(System.Xml.Linq.XElement b) => System.Text.RegularExpressions.Regex.Replace(string.Concat(b.Descendants(Wn + "t").Select(t => t.Value)), @"\s+", "");
+        Assert.Equal(Text(fore), Text(efter));
+        int Arial(System.Xml.Linq.XElement b) => b.Descendants(Wn + "r").Count(r => r.Element(Wn + "t") is not null &&
+            (string?)r.Element(Wn + "rPr")?.Element(Wn + "rFonts")?.Attribute(Wn + "ascii") == "Arial");
+        int MedText(System.Xml.Linq.XElement b) => b.Descendants(Wn + "r").Count(r => r.Element(Wn + "t") is not null);
+        Assert.Equal(MedText(efter), Arial(efter)); // all text i Arial som i originalet
+        Assert.Equal(fore.Descendants(Wn + "tbl").Count(), efter.Descendants(Wn + "tbl").Count());
+        Assert.Equal(
+            string.Join(",", fore.Descendants(Wn + "gridCol").Select(g => (string?)g.Attribute(Wn + "w"))),
+            string.Join(",", efter.Descendants(Wn + "gridCol").Select(g => (string?)g.Attribute(Wn + "w"))));
+        Assert.Equal(fore.Descendants(Wn + "tcW").Count(), efter.Descendants(Wn + "tcW").Count());
+        Assert.Equal(fore.Descendants(Wn + "trHeight").Count(), efter.Descendants(Wn + "trHeight").Count());
+        Assert.Equal(fore.Descendants(Wn + "p").Count(), efter.Descendants(Wn + "p").Count());
+        Assert.Equal(
+            fore.Descendants(Wn + "br").Count(b => (string?)b.Attribute(Wn + "type") is "page" or "column"),
+            efter.Descendants(Wn + "br").Count(b => (string?)b.Attribute(Wn + "type") is "page" or "column"));
+        int Storlek(System.Xml.Linq.XElement b, string v) => b.Descendants(Wn + "r").Count(r => r.Element(Wn + "t") is not null &&
+            (string?)r.Element(Wn + "rPr")?.Element(Wn + "sz")?.Attribute(Wn + "val") == v);
+        Assert.True(Storlek(efter, "16") > 0 && Storlek(efter, "18") > 0);
+        Assert.Contains("data-ppr", imp.Html);
+    }
+
+    [Fact]
+    public void Sparad_formatering_som_pekar_pa_saknad_sidfot_tas_bort_med_standardmall()
+    {
+        const string html = "<p data-ppr=\"&lt;w:pPr&gt;&lt;w:sectPr&gt;&lt;w:footerReference w:type=&quot;default&quot; r:id=&quot;rId99&quot;/&gt;&lt;/w:sectPr&gt;&lt;/w:pPr&gt;\">Text</p>";
+        var ut = WordHtml.TillWord(html, null);
+        Assert.Contains(Kropp(ut).Descendants(), x => x.Name.LocalName == "sectPr" && x.Parent?.Name.LocalName == "pPr");
+        Assert.DoesNotContain(Kropp(ut).Descendants(), x => x.Name.LocalName == "footerReference" && (string?)x.Attribute(System.Xml.Linq.XName.Get("id", "http://schemas.openxmlformats.org/officeDocument/2006/relationships")) == "rId99");
+    }
+
     [Fact]
     public void Driftkort_kan_byggas_av_text_fran_verktyget()
     {

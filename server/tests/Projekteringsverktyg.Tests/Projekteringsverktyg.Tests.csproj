@@ -19,6 +19,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Anonymiserat driftkort (texten förvrängd) med verklig formatering: A4 liggande, två spalter, Arial 8–9 pt, tabeller. -->
+    <None Include="Testfiler/**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="../../src/Projekteringsverktyg.Server/Projekteringsverktyg.Server.csproj" />
   </ItemGroup>
 

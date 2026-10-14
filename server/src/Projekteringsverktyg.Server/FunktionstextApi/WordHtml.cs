@@ -9,14 +9,17 @@ namespace Projekteringsverktyg.Server.FunktionstextApi;
 /// <summary>
 /// Funktionstexter mellan Word och verktyget.
 /// Import: .docx blir enkel HTML (rubriker, stycken, punktlistor, tabeller, fet/kursiv/understruken).
-/// Wordstilarnas namn följer med (data-stil, data-num) så att en export med originalfilen som mall
-/// ser ut som originalet. Export: HTML blir brödtext i en Word-fil som använder mallens stilar,
+/// Words egen formatering följer med i dolda attribut så att exporten ser ut som originalet:
+/// data-ppr (stycke: stil, indrag, avstånd, sektionsbrytning), data-r (styckets vanliga typsnitt och storlek),
+/// span data-rpr (text som avviker), data-tblpr/data-grid/data-trpr/data-tcpr (tabell, kolumnbredder, rader, celler)
+/// och br data-w (sid- och spaltbrytning). Export: HTML blir brödtext i en Word-fil som använder mallens stilar,
 /// sidfot och sidinställningar.
 /// </summary>
 public static partial class WordHtml
 {
     private static readonly XNamespace W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
     private static readonly XNamespace Rel = "http://schemas.openxmlformats.org/package/2006/relationships";
+    private static readonly XNamespace R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
     private static readonly XNamespace XmlNs = XNamespace.Xml;
 
     /// <summary>Markering först i en funktionstext som är formaterad (HTML). Äldre texter är ren text.</summary>
@@ -62,8 +65,8 @@ public static partial class WordHtml
             var sb = new StringBuilder();
             var raknare = new Raknare();
             Block(body.Elements(), sb, stilar, raknare);
-            var html = Regex.Replace(sb.ToString(), "(<p[^>]*></p>){2,}", m => Regex.Match(m.Value, "<p[^>]*></p>").Value);
-            html = Regex.Replace(html, "^(<p[^>]*></p>)+|(<p[^>]*></p>)+$", "");
+            // Tomma stycken behålls: de är en del av hur dokumentet ser ut (luft, sidbrytningar).
+            var html = sb.ToString();
             return new Import(html, HittaSystem(body), raknare.Stycken, raknare.Tabeller);
         }
     }
@@ -83,12 +86,13 @@ public static partial class WordHtml
             var pPr = e.Element(W + "pPr");
             var stil = (string?)pPr?.Element(W + "pStyle")?.Attribute(W + "val");
             var numPr = pPr?.Element(W + "numPr");
-            var inneh = Inline(e);
-            var bara = e.Descendants(W + "br").Any(b => (string?)b.Attribute(W + "type") == "page") && inneh.Trim().Length == 0;
-            if (bara) continue;
+            var basR = VanligRpr(e);
+            var inneh = Inline(e, basR);
             r.Stycken++;
 
-            var attr = stil is null ? "" : $" data-stil=\"{Esc(stil)}\"";
+            var attr = (stil is null ? "" : $" data-stil=\"{Esc(stil)}\"")
+                + (pPr is null ? "" : $" data-ppr=\"{Esc(Spara(pPr))}\"")
+                + (basR.Length == 0 ? "" : $" data-r=\"{Esc(basR)}\"");
             var niva = RubrikNiva(stil, stilar, pPr);
             if (numPr is not null && niva == 0)
             {
@@ -116,15 +120,26 @@ public static partial class WordHtml
     private static void Tabell(XElement tbl, StringBuilder sb, Dictionary<string, string> stilar, Raknare r)
     {
         r.Tabeller++;
-        var stil = (string?)tbl.Element(W + "tblPr")?.Element(W + "tblStyle")?.Attribute(W + "val");
-        sb.Append(stil is null ? "<table>" : $"<table data-stil=\"{Esc(stil)}\">");
+        var tblPr = tbl.Element(W + "tblPr");
+        var stil = (string?)tblPr?.Element(W + "tblStyle")?.Attribute(W + "val");
+        var grid = string.Join(",", tbl.Element(W + "tblGrid")?.Elements(W + "gridCol").Select(g => (string?)g.Attribute(W + "w") ?? "0") ?? []);
+        sb.Append("<table")
+            .Append(stil is null ? "" : $" data-stil=\"{Esc(stil)}\"")
+            .Append(tblPr is null ? "" : $" data-tblpr=\"{Esc(Spara(tblPr))}\"")
+            .Append(grid.Length == 0 ? "" : $" data-grid=\"{Esc(grid)}\"")
+            .Append('>');
         foreach (var tr in tbl.Elements(W + "tr"))
         {
-            sb.Append("<tr>");
+            var trPr = tr.Element(W + "trPr");
+            sb.Append(trPr is null ? "<tr>" : $"<tr data-trpr=\"{Esc(Spara(trPr))}\">");
             foreach (var tc in tr.Elements(W + "tc"))
             {
-                var span = (string?)tc.Element(W + "tcPr")?.Element(W + "gridSpan")?.Attribute(W + "val");
-                sb.Append(span is null or "1" ? "<td>" : $"<td colspan=\"{Esc(span)}\">");
+                var tcPr = tc.Element(W + "tcPr");
+                var span = (string?)tcPr?.Element(W + "gridSpan")?.Attribute(W + "val");
+                sb.Append("<td")
+                    .Append(span is null or "1" ? "" : $" colspan=\"{Esc(span)}\"")
+                    .Append(tcPr is null ? "" : $" data-tcpr=\"{Esc(Spara(tcPr))}\"")
+                    .Append('>');
                 var inre = new StringBuilder();
                 Block(tc.Elements(), inre, stilar, new Raknare());
                 sb.Append(inre).Append("</td>");
@@ -134,8 +149,11 @@ public static partial class WordHtml
         sb.Append("</table>");
     }
 
-    /// <summary>Texten i ett stycke med fet/kursiv/understruken och radbrytningar.</summary>
-    private static string Inline(XElement p)
+    /// <summary>
+    /// Texten i ett stycke med fet/kursiv/understruken, radbrytningar och sid-/spaltbrytningar.
+    /// Text vars typsnitt eller storlek avviker från styckets vanliga (basR) läggs i span data-rpr.
+    /// </summary>
+    private static string Inline(XElement p, string basR)
     {
         var sb = new StringBuilder();
         foreach (var run in Korningar(p))
@@ -153,6 +171,7 @@ public static partial class WordHtml
                     case "tab": text.Append(' '); break;
                     case "noBreakHyphen": text.Append('-'); break;
                     case "br" when (string?)c.Attribute(W + "type") is null or "textWrapping": text.Append("<br/>"); break;
+                    case "br" when (string?)c.Attribute(W + "type") is "page" or "column": text.Append($"<br data-w=\"{(string?)c.Attribute(W + "type")}\"/>"); break;
                 }
             }
             if (text.Length == 0) continue;
@@ -160,6 +179,8 @@ public static partial class WordHtml
             if (under) s = $"<u>{s}</u>";
             if (kursiv) s = $"<i>{s}</i>";
             if (fet) s = $"<b>{s}</b>";
+            var egen = Teckenformat(rPr);
+            if (egen != basR) s = $"<span data-rpr=\"{Esc(egen)}\">{s}</span>";
             sb.Append(s);
         }
         // Sammanhängande formatering slås ihop: "<b>a</b><b>b</b>" → "<b>ab</b>".
@@ -168,6 +189,51 @@ public static partial class WordHtml
         do { forra = html; html = html.Replace("</b><b>", "").Replace("</i><i>", "").Replace("</u><u>", ""); } while (html != forra);
         return html;
     }
+
+    /// <summary>Teckenformatet utan fet/kursiv/understruken (de blir egna taggar) och utan Words revisionsmärken.</summary>
+    private static string Teckenformat(XElement? rPr)
+    {
+        if (rPr is null) return "";
+        var k = Rensa(rPr);
+        k.Elements().Where(x => x.Name.LocalName is "b" or "bCs" or "i" or "iCs" or "u").Remove();
+        return k.HasElements ? Xml(k) : "";
+    }
+
+    /// <summary>Det teckenformat som flest tecken i stycket har (styckets "vanliga" typsnitt och storlek).</summary>
+    private static string VanligRpr(XElement p)
+    {
+        var antal = new Dictionary<string, int>();
+        foreach (var run in Korningar(p))
+        {
+            var langd = run.Elements(W + "t").Sum(t => t.Value.Length);
+            if (langd == 0) continue;
+            var f = Teckenformat(run.Element(W + "rPr"));
+            antal[f] = antal.GetValueOrDefault(f) + langd;
+        }
+        if (antal.Count == 0)
+            return Teckenformat(p.Element(W + "pPr")?.Element(W + "rPr"));
+        return antal.OrderByDescending(x => x.Value).First().Key;
+    }
+
+    /// <summary>En kopia utan revisionsmärken (rsid, w14:paraId m.m.).</summary>
+    private static XElement Rensa(XElement e)
+    {
+        var k = new XElement(e);
+        foreach (var x in k.DescendantsAndSelf())
+            x.Attributes().Where(a => a.Name.LocalName.StartsWith("rsid", StringComparison.Ordinal) || a.Name.NamespaceName == W14).Remove();
+        return k;
+    }
+
+    private const string W14 = "http://schemas.microsoft.com/office/word/2010/wordml";
+
+    /// <summary>Elementet som XML-text utan namnrymdsdeklarationer (prefixen, t.ex. w:, gäller i Word-filen).</summary>
+    private static string Spara(XElement e) => Xml(Rensa(e));
+
+    private static string Xml(XElement e) =>
+        NamnrymdRegex().Replace(e.ToString(SaveOptions.DisableFormatting), "");
+
+    [GeneratedRegex(@"\s+xmlns(:\w+)?=""[^""]*""")]
+    private static partial Regex NamnrymdRegex();
 
     /// <summary>Körningarna i ett stycke, även i länkar och spårade infogningar. Borttaget och textrutor hoppas över.</summary>
     private static IEnumerable<XElement> Korningar(XElement e)
@@ -257,7 +323,13 @@ public static partial class WordHtml
             var sectPr = sista is null ? null : new XElement(sista);
             body.RemoveNodes();
 
-            var bygg = new Byggare(stilar, numIds);
+            // Namnrymderna i mallen, så att sparad Word-formatering (w:, r:, w14: …) kan läsas tillbaka.
+            var nsDekl = string.Join(" ", dok.Root!.Attributes().Where(a => a.IsNamespaceDeclaration).Select(a => a.ToString()));
+            if (!nsDekl.Contains("xmlns:w=\"", StringComparison.Ordinal)) nsDekl += $" xmlns:w=\"{W.NamespaceName}\"";
+            if (!nsDekl.Contains("xmlns:r=\"", StringComparison.Ordinal)) nsDekl += $" xmlns:r=\"{R.NamespaceName}\"";
+            var relIds = Las(zip, "word/_rels/document.xml.rels")?.Root?.Elements(Rel + "Relationship")
+                .Select(x => (string?)x.Attribute("Id")).Where(x => x is not null).ToHashSet() ?? [];
+            var bygg = new Byggare(stilar, numIds, nsDekl);
             XElement rot;
             try { rot = XElement.Parse($"<rot>{html}</rot>", LoadOptions.PreserveWhitespace); }
             catch (global::System.Xml.XmlException)
@@ -268,6 +340,11 @@ public static partial class WordHtml
             }
             foreach (var b in bygg.Block(rot)) body.Add(b);
             if (!body.Elements().Any()) body.Add(new XElement(W + "p"));
+            // Sparade sektionsbrytningar kan peka på sidhuvud/sidfot eller listor som inte finns i den här mallen.
+            foreach (var x in body.Descendants().Where(x => x.Name.LocalName is "headerReference" or "footerReference").ToList())
+                if (!relIds.Contains((string?)x.Attribute(R + "id"))) x.Remove();
+            foreach (var x in body.Descendants(W + "numPr").ToList())
+                if (!numIds.Contains((string?)x.Element(W + "numId")?.Attribute(W + "val"))) x.Remove();
             if (sectPr is not null) body.Add(sectPr);
 
             Skriv(zip, "word/document.xml", dok);
@@ -275,8 +352,32 @@ public static partial class WordHtml
         return minne.ToArray();
     }
 
-    private sealed class Byggare(Dictionary<string, string> stilar, HashSet<string?> numIds)
+    private sealed class Byggare(Dictionary<string, string> stilar, HashSet<string?> numIds, string nsDekl)
     {
+        /// <summary>Sparad Word-formatering (data-ppr m.fl.) tillbaka till XML. Trasig eller tom → null.</summary>
+        private XElement? Xml(string? s)
+        {
+            if (string.IsNullOrWhiteSpace(s)) return null;
+            try { return XElement.Parse($"<x {nsDekl}>{s}</x>").Elements().FirstOrDefault() is { } e ? new XElement(e) : null; }
+            catch (global::System.Xml.XmlException) { return null; }
+        }
+
+        private XElement? Xml(XElement? kalla, string attribut) => Xml((string?)kalla?.Attribute(attribut));
+
+        /// <summary>Words krav på ordningen i w:rPr (fel ordning kan ge "filen är skadad").</summary>
+        private static readonly string[] RprOrdning = ["rStyle", "rFonts", "b", "bCs", "i", "iCs", "caps", "smallCaps", "strike", "dstrike", "outline", "shadow",
+            "emboss", "imprint", "noProof", "snapToGrid", "vanish", "webHidden", "color", "spacing", "w", "kern", "position", "sz", "szCs", "highlight",
+            "u", "effect", "bdr", "shd", "fitText", "vertAlign", "rtl", "cs", "em", "lang", "eastAsianLayout", "specVanish", "oMath"];
+
+        private static void Ordna(XElement rPr)
+        {
+            var barn = rPr.Elements().ToList();
+            var sorterade = barn.Select((e, i) => (e, i))
+                .OrderBy(x => Array.IndexOf(RprOrdning, x.e.Name.LocalName) is var n and >= 0 ? n : 999).ThenBy(x => x.i).Select(x => x.e).ToList();
+            rPr.RemoveNodes();
+            foreach (var e in sorterade) rPr.Add(e);
+        }
+
         private string? StilFor(string? onskad, int rubrik)
         {
             if (onskad is not null && stilar.ContainsKey(onskad)) return onskad;
@@ -298,13 +399,13 @@ public static partial class WordHtml
             {
                 if (n is XElement e && ArBlock(e.Name.LocalName))
                 {
-                    if (losText.Count > 0) { yield return Stycke(losText, null, 0, null); losText = []; }
+                    if (losText.Count > 0) { yield return Stycke(losText, null, 0, null, null); losText = []; }
                     foreach (var b in BlockElement(e)) yield return b;
                 }
                 else losText.Add(n);
             }
             if (losText.Any(n => n is XElement || (n is XText t && t.Value.Trim().Length > 0)))
-                yield return Stycke(losText, null, 0, null);
+                yield return Stycke(losText, null, 0, null, null);
         }
 
         private static bool ArBlock(string namn) => namn is "p" or "div" or "h1" or "h2" or "h3" or "h4" or "h5" or "h6" or "ul" or "ol" or "li" or "table" or "tbody" or "thead" or "tr";
@@ -316,27 +417,27 @@ public static partial class WordHtml
             switch (namn)
             {
                 case "h1" or "h2" or "h3" or "h4" or "h5" or "h6":
-                    yield return Stycke(e.Nodes(), stil, Math.Min(3, namn[1] - '0'), null);
+                    yield return Stycke(e.Nodes(), stil, Math.Min(3, namn[1] - '0'), null, e);
                     break;
                 case "p":
-                    yield return Stycke(e.Nodes(), stil, 0, null);
+                    yield return Stycke(e.Nodes(), stil, 0, null, e);
                     break;
                 case "div":
                     if (e.Elements().Any(c => ArBlock(c.Name.LocalName))) foreach (var b in Block(e)) yield return b;
-                    else yield return Stycke(e.Nodes(), stil, 0, null);
+                    else yield return Stycke(e.Nodes(), stil, 0, null, e);
                     break;
                 case "ul" or "ol":
                     foreach (var li in e.Elements())
                     {
                         if (li.Name.LocalName != "li") { foreach (var b in BlockElement(li)) yield return b; continue; }
                         yield return Stycke(li.Nodes().Where(x => x is not XElement c || c.Name.LocalName is not ("ul" or "ol")),
-                            (string?)li.Attribute("data-stil"), 0, (string?)li.Attribute("data-num") ?? "punkt");
+                            (string?)li.Attribute("data-stil"), 0, (string?)li.Attribute("data-num") ?? "punkt", li);
                         foreach (var under in li.Elements().Where(c => c.Name.LocalName is "ul" or "ol"))
                             foreach (var b in BlockElement(under)) yield return b;
                     }
                     break;
                 case "li":
-                    yield return Stycke(e.Nodes(), stil, 0, (string?)e.Attribute("data-num") ?? "punkt");
+                    yield return Stycke(e.Nodes(), stil, 0, (string?)e.Attribute("data-num") ?? "punkt", e);
                     break;
                 case "table":
                     yield return Tabell(e);
@@ -347,9 +448,18 @@ public static partial class WordHtml
             }
         }
 
-        private XElement Stycke(IEnumerable<XNode> innehall, string? onskadStil, int rubrik, string? lista)
+        private XElement Stycke(IEnumerable<XNode> innehall, string? onskadStil, int rubrik, string? lista, XElement? kalla)
         {
             var p = new XElement(W + "p");
+            var sparad = Xml(kalla, "data-ppr");
+            var basR = Xml(kalla, "data-r");
+            if (sparad is not null && sparad.Name == W + "pPr")
+            {
+                // Styckets formatering som i originalet (stil, indrag, avstånd, lista, sektionsbrytning).
+                p.Add(sparad);
+                foreach (var r in Korningar(innehall, false, false, false, basR)) p.Add(r);
+                return p;
+            }
             var pPr = new XElement(W + "pPr");
             var stil = StilFor(onskadStil, rubrik);
             if (stil is not null) pPr.Add(new XElement(W + "pStyle", new XAttribute(W + "val", stil)));
@@ -370,44 +480,49 @@ public static partial class WordHtml
             if (rubrik > 0 && stil is null)
                 pPr.Add(new XElement(W + "spacing", new XAttribute(W + "before", 240), new XAttribute(W + "after", 60)));
             if (pPr.HasElements) p.Add(pPr);
-            if (prefix != "") p.Add(Korning(prefix, false, false, false));
-            foreach (var r in Korningar(innehall, rubrik > 0 && stil is null, false, false)) p.Add(r);
+            if (prefix != "") p.Add(Korning(prefix, false, false, false, basR));
+            foreach (var r in Korningar(innehall, rubrik > 0 && stil is null, false, false, basR)) p.Add(r);
             return p;
         }
 
-        private static IEnumerable<XElement> Korningar(IEnumerable<XNode> noder, bool fet, bool kursiv, bool under)
+        private IEnumerable<XElement> Korningar(IEnumerable<XNode> noder, bool fet, bool kursiv, bool under, XElement? rPr)
         {
             foreach (var n in noder)
             {
                 if (n is XText t)
                 {
                     var text = Regex.Replace(t.Value, @"[\r\n\t ]+", " ");
-                    if (text.Length > 0) yield return Korning(text, fet, kursiv, under);
+                    if (text.Length > 0) yield return Korning(text, fet, kursiv, under, rPr);
                     continue;
                 }
                 if (n is not XElement e) continue;
                 switch (e.Name.LocalName)
                 {
-                    case "br": yield return new XElement(W + "r", new XElement(W + "br")); break;
-                    case "b" or "strong": foreach (var r in Korningar(e.Nodes(), true, kursiv, under)) yield return r; break;
-                    case "i" or "em": foreach (var r in Korningar(e.Nodes(), fet, true, under)) yield return r; break;
-                    case "u": foreach (var r in Korningar(e.Nodes(), fet, kursiv, true)) yield return r; break;
-                    default: foreach (var r in Korningar(e.Nodes(), fet, kursiv, under)) yield return r; break;
+                    case "br" when (string?)e.Attribute("data-w") is "page" or "column":
+                        yield return new XElement(W + "r", new XElement(W + "br", new XAttribute(W + "type", (string)e.Attribute("data-w")!)));
+                        break;
+                    case "br": yield return new XElement(W + "r", rPr is null ? null : new XElement(rPr), new XElement(W + "br")); break;
+                    case "b" or "strong": foreach (var r in Korningar(e.Nodes(), true, kursiv, under, rPr)) yield return r; break;
+                    case "i" or "em": foreach (var r in Korningar(e.Nodes(), fet, true, under, rPr)) yield return r; break;
+                    case "u": foreach (var r in Korningar(e.Nodes(), fet, kursiv, true, rPr)) yield return r; break;
+                    case "span" when e.Attribute("data-rpr") is { } a:
+                        // Text med eget typsnitt/storlek. Tomt värde = inget eget format.
+                        foreach (var r in Korningar(e.Nodes(), fet, kursiv, under, a.Value.Length == 0 ? null : Xml(a.Value) ?? rPr)) yield return r;
+                        break;
+                    default: foreach (var r in Korningar(e.Nodes(), fet, kursiv, under, rPr)) yield return r; break;
                 }
             }
         }
 
-        private static XElement Korning(string text, bool fet, bool kursiv, bool under)
+        private static XElement Korning(string text, bool fet, bool kursiv, bool under, XElement? bas)
         {
             var r = new XElement(W + "r");
-            if (fet || kursiv || under)
-            {
-                var rPr = new XElement(W + "rPr");
-                if (fet) rPr.Add(new XElement(W + "b"));
-                if (kursiv) rPr.Add(new XElement(W + "i"));
-                if (under) rPr.Add(new XElement(W + "u", new XAttribute(W + "val", "single")));
-                r.Add(rPr);
-            }
+            var rPr = bas is not null && bas.Name == W + "rPr" ? new XElement(bas) : new XElement(W + "rPr");
+            if (fet) rPr.Add(new XElement(W + "b"));
+            if (kursiv) rPr.Add(new XElement(W + "i"));
+            if (under) rPr.Add(new XElement(W + "u", new XAttribute(W + "val", "single")));
+            Ordna(rPr);
+            if (rPr.HasElements) r.Add(rPr);
             r.Add(new XElement(W + "t", new XAttribute(XmlNs + "space", "preserve"), text));
             return r;
         }
@@ -418,26 +533,42 @@ public static partial class WordHtml
             var kolumner = Math.Max(1, rader.Select(tr => tr.Elements().Where(c => c.Name.LocalName is "td" or "th")
                 .Sum(c => int.TryParse((string?)c.Attribute("colspan"), out var s) ? s : 1)).DefaultIfEmpty(1).Max());
             var tbl = new XElement(W + "tbl");
-            var tblPr = new XElement(W + "tblPr");
-            var stil = TabellStil((string?)table.Attribute("data-stil"));
-            if (stil is not null) tblPr.Add(new XElement(W + "tblStyle", new XAttribute(W + "val", stil)));
-            tblPr.Add(new XElement(W + "tblW", new XAttribute(W + "w", 0), new XAttribute(W + "type", "auto")));
-            if (stil is null)
-                tblPr.Add(new XElement(W + "tblBorders",
-                    new[] { "top", "left", "bottom", "right", "insideH", "insideV" }.Select(k => new XElement(W + k,
-                        new XAttribute(W + "val", "single"), new XAttribute(W + "sz", 4), new XAttribute(W + "space", 0), new XAttribute(W + "color", "A0A0A0")))));
-            tbl.Add(tblPr);
-            tbl.Add(new XElement(W + "tblGrid", Enumerable.Range(0, kolumner).Select(_ => new XElement(W + "gridCol", new XAttribute(W + "w", 9000 / kolumner)))));
+            var sparadTbl = Xml(table, "data-tblpr");
+            if (sparadTbl is not null && sparadTbl.Name == W + "tblPr") tbl.Add(sparadTbl);
+            else
+            {
+                var tblPr = new XElement(W + "tblPr");
+                var stil = TabellStil((string?)table.Attribute("data-stil"));
+                if (stil is not null) tblPr.Add(new XElement(W + "tblStyle", new XAttribute(W + "val", stil)));
+                tblPr.Add(new XElement(W + "tblW", new XAttribute(W + "w", 0), new XAttribute(W + "type", "auto")));
+                if (stil is null)
+                    tblPr.Add(new XElement(W + "tblBorders",
+                        new[] { "top", "left", "bottom", "right", "insideH", "insideV" }.Select(k => new XElement(W + k,
+                            new XAttribute(W + "val", "single"), new XAttribute(W + "sz", 4), new XAttribute(W + "space", 0), new XAttribute(W + "color", "A0A0A0")))));
+                tbl.Add(tblPr);
+            }
+            // Kolumnbredderna som i originalet, annars lika breda.
+            var bredder = ((string?)table.Attribute("data-grid") ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(x => int.TryParse(x, out var b) ? b : 0).ToList();
+            if (bredder.Count == 0 || bredder.Any(b => b <= 0)) bredder = Enumerable.Repeat(9000 / kolumner, kolumner).ToList();
+            tbl.Add(new XElement(W + "tblGrid", bredder.Select(b => new XElement(W + "gridCol", new XAttribute(W + "w", b)))));
             foreach (var tr in rader)
             {
                 var wtr = new XElement(W + "tr");
+                var trPr = Xml(tr, "data-trpr");
+                if (trPr is not null && trPr.Name == W + "trPr") wtr.Add(trPr);
                 foreach (var td in tr.Elements().Where(c => c.Name.LocalName is "td" or "th"))
                 {
                     var tc = new XElement(W + "tc");
-                    var tcPr = new XElement(W + "tcPr");
-                    if (int.TryParse((string?)td.Attribute("colspan"), out var span) && span > 1)
-                        tcPr.Add(new XElement(W + "gridSpan", new XAttribute(W + "val", span)));
-                    if (tcPr.HasElements) tc.Add(tcPr);
+                    var sparadTc = Xml(td, "data-tcpr");
+                    if (sparadTc is not null && sparadTc.Name == W + "tcPr") tc.Add(sparadTc);
+                    else
+                    {
+                        var tcPr = new XElement(W + "tcPr");
+                        if (int.TryParse((string?)td.Attribute("colspan"), out var span) && span > 1)
+                            tcPr.Add(new XElement(W + "gridSpan", new XAttribute(W + "val", span)));
+                        if (tcPr.HasElements) tc.Add(tcPr);
+                    }
                     var stycken = Block(td).ToList();
                     if (stycken.Count == 0 || stycken[^1].Name.LocalName != "p") stycken.Add(new XElement(W + "p"));
                     foreach (var s in stycken) tc.Add(s);

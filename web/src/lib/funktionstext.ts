@@ -34,9 +34,11 @@ export function htmlTillText(html: string): string {
 export const textAv = (data: string) => (arFormaterad(data) ? htmlTillText(dela(data).html) : data);
 
 const BLOCK = new Set(["P", "H1", "H2", "H3", "UL", "OL", "LI", "TABLE", "TR", "TD", "TH"]);
+/** Words egen formatering från importen ligger i dolda attribut och följer med till exporten. */
+const STYCKE = ["data-stil", "data-ppr", "data-r"];
 const TILLATNA_ATTR: Record<string, string[]> = {
-  P: ["data-stil"], H1: ["data-stil"], H2: ["data-stil"], H3: ["data-stil"], LI: ["data-stil", "data-num"],
-  TABLE: ["data-stil"], TD: ["colspan"], TH: ["colspan"],
+  P: STYCKE, H1: STYCKE, H2: STYCKE, H3: STYCKE, LI: [...STYCKE, "data-num"],
+  TABLE: ["data-stil", "data-tblpr", "data-grid"], TR: ["data-trpr"], TD: ["colspan", "data-tcpr"], TH: ["colspan", "data-tcpr"],
 };
 
 /**
@@ -50,7 +52,11 @@ export function rensa(rot: HTMLElement): string {
     if (n.nodeType !== Node.ELEMENT_NODE) return;
     const e = n as HTMLElement;
     let tag = e.tagName;
-    if (tag === "BR") { ut.push("<br/>"); return; }
+    if (tag === "BR") {
+      const w = e.getAttribute("data-w");
+      ut.push(w === "page" || w === "column" ? `<br data-w="${w}"/>` : "<br/>");
+      return;
+    }
     if (tag === "STRONG") tag = "B";
     if (tag === "EM") tag = "I";
     if (tag === "DIV") tag = iBlock ? "" : "P";
@@ -62,11 +68,15 @@ export function rensa(rot: HTMLElement): string {
       const st = e.style;
       const fet = st.fontWeight === "bold" || Number(st.fontWeight) >= 600;
       const kursiv = st.fontStyle === "italic";
+      // Text med eget typsnitt/storlek från Word.
+      const rpr = e.getAttribute("data-rpr");
+      if (rpr !== null) ut.push(`<span data-rpr="${esc(rpr)}">`);
       if (fet) ut.push("<b>");
       if (kursiv) ut.push("<i>");
       e.childNodes.forEach((c) => nod(c, iBlock));
       if (kursiv) ut.push("</i>");
       if (fet) ut.push("</b>");
+      if (rpr !== null) ut.push("</span>");
       return;
     }
     const ok = ["B", "I", "U", "P", "H1", "H2", "H3", "UL", "OL", "LI", "TABLE", "TR", "TD"].includes(tag);
@@ -81,7 +91,9 @@ export function rensa(rot: HTMLElement): string {
   // Lös text direkt i roten läggs i stycken.
   let html = ut.join("");
   if (!/^\s*</.test(html) && html.trim()) html = `<p>${html}</p>`;
-  return html.replace(/<(b|i|u)><\/\1>/g, "");
+  return html.replace(/<(b|i|u)><\/\1>/g, "").replace(/<span data-rpr="[^"]*"><\/span>/g, "")
+    // Ett tomt stycke som webbläsaren fyllt med en radbrytning är fortfarande tomt (annars blir det dubbel höjd i Word).
+    .replace(/<(p|h1|h2|h3|li)([^>]*)><br\/><\/\1>/g, "<$1$2></$1>");
 }
 
 /* ---------- Komponenter i texten ---------- */

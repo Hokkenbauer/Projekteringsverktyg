@@ -40,6 +40,17 @@ jobs:
 
       - name: Kör tester
         run: dotnet test Projekteringsverktyg.slnx -c Release --no-build --verbosity normal
+        env:
+          ORDPROV_UT: ${{ github.workspace }}/ordprov
+
+      # Word-filen som testet av funktionstextexporten skapar, för granskning.
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ordprov
+          path: ordprov
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Paketera
         run: dotnet publish server/src/Projekteringsverktyg.Server/Projekteringsverktyg.Server.csproj -c Release --no-build -o app
