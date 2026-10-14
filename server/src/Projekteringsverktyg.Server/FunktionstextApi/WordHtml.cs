@@ -195,7 +195,10 @@ public static partial class WordHtml
     {
         if (rPr is null) return "";
         var k = Rensa(rPr);
-        k.Elements().Where(x => x.Name.LocalName is "b" or "bCs" or "i" or "iCs" or "u").Remove();
+        // Påslagen fet/kursiv/understruken blir taggar. Uttryckligen avslagen (w:val="0") behålls: den tar bort
+        // fetstil som tabellstilen annars lägger på, t.ex. i första kolumnen.
+        k.Elements().Where(x => x.Name.LocalName is "b" or "bCs" or "i" or "iCs" ? Pa(x)
+            : x.Name.LocalName == "u" && (string?)x.Attribute(W + "val") is not ("none" or "0")).Remove();
         return k.HasElements ? Xml(MedPrefix(k, rPr)) : "";
     }
 
@@ -535,9 +538,10 @@ public static partial class WordHtml
         {
             var r = new XElement(W + "r");
             var rPr = bas is not null && bas.Name == W + "rPr" ? new XElement(bas) : new XElement(W + "rPr");
-            if (fet) rPr.Add(new XElement(W + "b"));
-            if (kursiv) rPr.Add(new XElement(W + "i"));
-            if (under) rPr.Add(new XElement(W + "u", new XAttribute(W + "val", "single")));
+            // Samma element får bara finnas en gång: ett sparat "inte fet" ersätts när texten är fet.
+            if (fet) { rPr.Elements(W + "b").Remove(); rPr.Add(new XElement(W + "b")); }
+            if (kursiv) { rPr.Elements(W + "i").Remove(); rPr.Add(new XElement(W + "i")); }
+            if (under) { rPr.Elements(W + "u").Remove(); rPr.Add(new XElement(W + "u", new XAttribute(W + "val", "single"))); }
             Ordna(rPr);
             if (rPr.HasElements) r.Add(rPr);
             r.Add(new XElement(W + "t", new XAttribute(XmlNs + "space", "preserve"), text));

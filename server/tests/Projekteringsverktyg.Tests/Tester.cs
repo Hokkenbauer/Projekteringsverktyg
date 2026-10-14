@@ -518,8 +518,9 @@ public class FunktionstextWordTester
         string Format(System.Xml.Linq.XElement b) => string.Join(" ", b.Descendants(Wn + "r").Where(r => r.Element(Wn + "t") is not null)
             .GroupBy(r => ((string?)r.Element(Wn + "rPr")?.Element(Wn + "rFonts")?.Attribute(Wn + "ascii") ?? "-") + "/" +
                           ((string?)r.Element(Wn + "rPr")?.Element(Wn + "sz")?.Attribute(Wn + "val") ?? "-") + "/" +
-                          (r.Element(Wn + "rPr")?.Element(Wn + "b") is null ? "" : "b") + (r.Element(Wn + "rPr")?.Element(Wn + "u") is null ? "" : "u"))
+                          (Pa(r.Element(Wn + "rPr")?.Element(Wn + "b")) ? "b" : "") + (Pa(r.Element(Wn + "rPr")?.Element(Wn + "u")) ? "u" : ""))
             .OrderBy(g => g.Key).Select(g => g.Key + "=" + g.Sum(r => System.Text.RegularExpressions.Regex.Replace(r.Element(Wn + "t")!.Value, @"\s+", "").Length)));
+        static bool Pa(System.Xml.Linq.XElement? e) => e is not null && (string?)e.Attribute(Wn + "val") is not ("0" or "false" or "off" or "none");
         string Rakna(System.Xml.Linq.XElement b) =>
             $"p={b.Descendants(Wn + "p").Count()} tbl={b.Descendants(Wn + "tbl").Count()} tcW={b.Descendants(Wn + "tcW").Count()} " +
             $"trHeight={b.Descendants(Wn + "trHeight").Count()} brytningar={b.Descendants(Wn + "br").Count(x => (string?)x.Attribute(Wn + "type") is "page" or "column")} " +
@@ -532,6 +533,9 @@ public class FunktionstextWordTester
             $"'{(forsta >= 0 ? t2.Substring(Math.Max(0, forsta - 20), Math.Min(60, t2.Length - Math.Max(0, forsta - 20))) : "")}'");
         Assert.Equal(Rakna(fore), Rakna(efter));
         Assert.Equal(Format(fore), Format(efter));
+        int AvFet(System.Xml.Linq.XElement b) => b.Descendants(Wn + "r").Count(r => r.Element(Wn + "t") is not null &&
+            (string?)r.Element(Wn + "rPr")?.Element(Wn + "b")?.Attribute(Wn + "val") == "0");
+        Assert.True(AvFet(efter) > 0, "Uttryckligen avslagen fetstil (w:b w:val=0) ska följa med");
         Assert.Contains("data-ppr", imp.Html);
     }
 
