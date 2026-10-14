@@ -31,6 +31,9 @@ export function htmlTillText(html: string): string {
   return (d.textContent ?? "").replace(/\n{3,}/g, "\n\n").trim();
 }
 
+/** Importerad med Words formatering (typsnitt, storlekar, tabellbredder) som exporten kan återskapa. */
+export const harWordFormat = (data: string) => data.includes('data-ppr="&lt;w:') || data.includes("data-r=\"&lt;w:");
+
 export const textAv = (data: string) => (arFormaterad(data) ? htmlTillText(dela(data).html) : data);
 
 const BLOCK = new Set(["P", "H1", "H2", "H3", "UL", "OL", "LI", "TABLE", "TR", "TD", "TH"]);

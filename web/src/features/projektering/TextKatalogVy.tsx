@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiFel, laddaNer, skicka } from "../../lib/api";
-import { arFormaterad, dela, jamfor, sattIhop, textAv } from "../../lib/funktionstext";
+import { arFormaterad, dela, harWordFormat, jamfor, sattIhop, textAv } from "../../lib/funktionstext";
 import { useKatalog } from "../../lib/katalog";
 import type { Komponent, Projekt, ProjektDokument } from "../../lib/typer";
 import { skrivUt } from "../../lib/utskrift";
@@ -345,6 +345,9 @@ export function TextKatalogVy(p: Props) {
                     onDoubleClick={() => { if (!p.lasläge) void valjSparad(d).then(() => bytNamn(d)); }}
                   >
                     {d.namn}{arFormaterad(d.data) && <span className="dampad liten"> · {dela(d.data).meta.System ? `${dela(d.data).meta.System} · ` : ""}Word</span>}
+                    {arFormaterad(d.data) && !harWordFormat(d.data) && (
+                      <span className="liten" style={{ color: "var(--varning)" }} title="Texten importerades innan Words formatering sparades. Importera Word-filen igen för att få originalets typsnitt, storlekar och tabellbredder i exporten."> · importera om för originalformat</span>
+                    )}
                   </button>
                 ))}
             </div>
