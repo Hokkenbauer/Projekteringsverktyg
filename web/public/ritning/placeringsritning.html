@@ -481,7 +481,7 @@ body.ljust .comp text, body.ljust #overlay text{font-weight:700}
 </div></div>
 
 <div class="modal" id="mLayerExport"><div class="box" style="width:min(420px,92vw)">
-  <header>Installationslager i exporten<span style="flex:1"></span><button class="ghost" data-close>✕</button></header>
+  <header>Lager i exporten<span style="flex:1"></span><button class="ghost" data-close>✕</button></header>
   <div class="content" id="layerExportBody"></div>
   <footer><button data-close>Avbryt</button><button id="layerExportGo" class="on">Fortsätt</button></footer>
 </div></div>
@@ -1890,13 +1890,22 @@ function findCable(id){
 /// nu på skärmen, men går att ändra utan att behöva stänga av lager i
 /// panelen först). Returnerar en Promise som ger en array av
 /// lager-id:n att inkludera, eller null om man avbryter exporten.
+/// Kommentarslagret har id KOMM_LAGER.
 /// Om planet inte har några installationslager alls returneras en tom
 /// array direkt, utan att visa dialogen.
+const KOMM_LAGER='__kommentarer';
 function askCableLayers(floor){
   return new Promise(resolve=>{
-    if(!floor.instLayers.length){resolve([]);return;}
+    const nKomm=(floor.kommentarer||[]).filter(k=>(k.text||'').trim()).length;
+    if(!floor.instLayers.length&&!nKomm){resolve([]);return;}
     const body=$('#layerExportBody');
-    body.innerHTML=floor.instLayers.map(l=>
+    // Kommentarslagret väljs på samma sätt som kabellagren (id KOMM_LAGER i svaret).
+    body.innerHTML=(nKomm?`<label class="chk" style="display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:13px">
+        <input type="checkbox" data-lyr="${KOMM_LAGER}" ${P.settings.visaKomm!==false?'checked':''}>
+        <span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:${kommFarg()};flex:0 0 auto"></span>
+        <span style="font-size:11px">✎</span>
+        Kommentarer <span class="muted" style="font-size:11px">(${nKomm} st)</span>
+      </label>`:'')+floor.instLayers.map(l=>
       `<label class="chk" style="display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:13px">
         <input type="checkbox" data-lyr="${l.id}" ${l.visible?'checked':''}>
         <span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:${l.color};flex:0 0 auto"></span>
@@ -3026,7 +3035,8 @@ async function renderPlanCanvas(floor,box,scale,opts){
     }
   });
   /* kommentarer */
-  if(floor.ref&&floor.kommentarer&&floor.kommentarer.length&&P.settings.kommExport!==false&&P.settings.visaKomm!==false){
+  const medKomm=opts.cableLayerIds?opts.cableLayerIds.includes(KOMM_LAGER):P.settings.visaKomm!==false;
+  if(floor.ref&&floor.kommentarer&&floor.kommentarer.length&&medKomm){
     const kc=kommFarg(),kb=pick(BG_PRESETS,P.settings.bg,2),kk=Math.max(0.6,scale*0.6);
     floor.kommentarer.forEach(km=>{
       if(!(km.text||'').trim())return;
@@ -3681,7 +3691,7 @@ function setLager(l){
   const ny=ui.lager===l?null:l;
   kommStangEditor();
   if(ui.lager==='kabel'&&ny!=='kabel'&&(ui.tool==='cable'||ui.tool==='junction'))setTool('select');
-  if(ny==='komm'){setTool('select');if(ui.sel)select(null);}
+  if(ny==='komm'){setTool('select');if(ui.sel)select(null);if(P.settings.visaKomm===false)P.settings.visaKomm=true;}
   ui.lager=ny;ui.kommSel=null;ui.kommUtkast=null;
   $('#btnKabelLager').classList.toggle('on',ny==='kabel');
   $('#btnKommLager').classList.toggle('on',ny==='komm');
@@ -3716,7 +3726,7 @@ function kommLista(){const f=curFloor();if(!f)return [];if(!f.kommentarer)f.komm
 function ritaKommentarer(){
   const kg=svg.querySelector('#kg');if(!kg)return;
   const f=curFloor();
-  const visa=P.settings.visaKomm!==false||ui.lager==='komm';
+  const visa=P.settings.visaKomm!==false;
   if(!f||!ref||!visa){kg.innerHTML='';kommPlaceraEditor();return;}
   const c=kommFarg(),bg=pick(BG_PRESETS,P.settings.bg,2);
   const lista=kommLista().slice();
@@ -3829,14 +3839,17 @@ function kommTaBort(id){
 }
 function renderKommPanel(){
   const el=$('#kommPanel');if(!el)return;
-  const f=curFloor(),n=f&&f.kommentarer?f.kommentarer.length:0;
-  el.innerHTML=`<div class="lhead"><span class="lab">Kommentarer${f?' på '+esc(f.name):''}</span><span class="muted" style="font-size:10.5px;margin-left:auto">${n} st</span></div>
-    <label><input type="checkbox" id="kommVisa"${P.settings.visaKomm!==false?' checked':''}> Visa kommentarer på planen</label>
-    <label><input type="checkbox" id="kommExport"${P.settings.kommExport!==false?' checked':''}> Med i PDF-export</label>
-    <div class="lempty" style="text-align:left">Klicka på ✎ Kommentarslager och dra från t.ex. ett rum till där texten ska stå. Klicka på en ruta för att ändra texten, dra i den för att flytta. Markera och tryck Delete för att ta bort.</div>
+  const f=curFloor(),n=f&&f.kommentarer?f.kommentarer.length:0,tand=P.settings.visaKomm!==false;
+  el.innerHTML=`<div class="lhead"><span class="lab">Kommentarslager${f?' · '+esc(f.name):''}</span></div>
+    <div class="lrow${tand?'':' hidden'}"><div class="l1">
+      <button class="ghost${tand?'':' act'}" id="kommOga" title="${tand?'Släck':'Tänd'}">${ic(tand?'eye':'eyeOff')}</button>
+      <span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:${kommFarg()};margin:0 6px;flex:0 0 auto"></span>
+      <span class="lname">Kommentarer</span>
+      <span class="muted" style="font-size:10.5px;margin-left:4px">${n} st</span>
+    </div></div>
+    <div class="lempty" style="text-align:left">Klicka på ✎ Kommentarslager och dra från t.ex. ett rum till där texten ska stå. Klicka på en ruta för att ändra texten, dra i den för att flytta. Markera och tryck Delete för att ta bort. Vid PDF-export väljer du om kommentarerna ska med.</div>
     ${ui.kommSel?`<div style="padding:0 10px 8px"><button id="kommDel">Ta bort markerad kommentar</button></div>`:''}`;
-  $('#kommVisa').onchange=e=>{P.settings.visaKomm=e.target.checked;ritaKommentarer();};
-  $('#kommExport').onchange=e=>{P.settings.kommExport=e.target.checked;};
+  $('#kommOga').onclick=()=>{P.settings.visaKomm=!tand;if(tand&&ui.lager==='komm')setLager('komm');ritaKommentarer();renderKommPanel();};
   const del=$('#kommDel');if(del)del.onclick=()=>kommTaBort(ui.kommSel);
 }
 
