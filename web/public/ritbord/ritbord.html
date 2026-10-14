@@ -2630,6 +2630,17 @@ function cleanCopy(opt = {}){
      'hidden','anchor','op','noexp','io','mall']
       .forEach(d => n.removeAttribute('data-' + d));
   });
+  // Inkscape/Sodipodi-rester från inlästa SVG-filer (t.ex. inkscape:label) saknar namnrymd efter inklistring
+  // och gör filen ogiltig: då går den varken att rita som bild (driftkort, PDF) eller att öppna i SCADA.
+  c.querySelectorAll('*').forEach(n => {
+    if (n.isConnected === false && !c.contains(n)) return;
+    if (/:/.test(n.localName) || /^(sodipodi:|inkscape:)/.test(n.tagName) || n.localName === 'namedview') { n.remove(); return; }
+    [...n.attributes].forEach(a => {
+      if (a.name.includes(':') && !/^(xml|xlink|xmlns):/.test(a.name) && !a.namespaceURI) n.removeAttribute(a.name);
+      else if (a.namespaceURI && /inkscape|sodipodi/.test(a.namespaceURI)) n.removeAttributeNS(a.namespaceURI, a.localName);
+    });
+  });
+  c.querySelectorAll('flowRoot').forEach(n => n.remove());   // Inkscapes flödestext visas inte i webbläsare
   if ((ui().css || '').trim()){
     const st = document.createElementNS(NS, 'style');
     st.textContent = '\n' + ui().css.trim() + '\n';
@@ -2657,7 +2668,15 @@ function svgToPng(svgEl, w, h, scale = 2, bg = '#ffffff'){
       cx.drawImage(im, 0, 0, cv.width, cv.height);
       try { res(cv.toDataURL('image/png')); } catch(e){ rej(e); }
     };
-    im.onerror = () => rej(new Error('kunde inte rendera ritningen'));
+    im.onerror = () => {
+      // Tala om vad som är fel i ritningen, om webbläsaren kan säga det.
+      let orsak = '';
+      try {
+        const fel = new DOMParser().parseFromString(str, 'image/svg+xml').querySelector('parsererror');
+        if (fel) orsak = ': ' + (fel.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 160);
+      } catch(_){}
+      rej(new Error('kunde inte rendera ritningen' + orsak));
+    };
     im.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(str);
   });
 }
