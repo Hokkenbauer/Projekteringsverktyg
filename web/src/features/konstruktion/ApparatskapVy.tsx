@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, ApiFel, skicka } from "../../lib/api";
 import type { Komponent, Projekt, Skap } from "../../lib/typer";
+import { loggaRad } from "../../lib/utskrift";
 
 /** Samma värden som dagens program (DATA\DropDowns\ApparatskapLedningsfarg). */
 const LEDNINGSFARGER = ["Röd", "Violett", "Svart", "Ljusblå", "Orange", "Brun", "Grå", "Vit", "Gul/Grön", "Blå", "Grön", "Gul"];
@@ -122,6 +123,7 @@ export function ApparatskapVy({ projektId, projekt, skap, komponenter, lasläge,
       h2{font-size:11.5pt;color:#1E3450;border-bottom:1px solid #bbb;margin:14px 0 4px} .h{display:flex;justify-content:space-between;border-bottom:2px solid #1E3450;padding-bottom:6px}
       table{border-collapse:collapse;width:100%} th{text-align:left;width:40%;font-weight:normal;color:#555;padding:2px 4px} td{padding:2px 4px}
       .tva{columns:2;column-gap:20px} p{white-space:pre-wrap;margin:0}</style></head><body>
+${loggaRad()}
       <div class="h"><h1>Apparatskåp ${esc(skap.namn)}</h1><div>${esc(projekt?.namn ?? "")}<br>${esc([projekt?.nummer, projekt?.kund].filter(Boolean).join(" · "))}</div></div>
       <h2>Grundinformation</h2><table>${rad("Beteckning", f.beteckning)}${rad("Placering", f.placering)}${rad("Beskrivning", f.beskrivning)}</table>
       <h2>Ledningsfärger</h2><div class="tva"><table>${FARGER.map(([k, n]) => rad(n, f.farger[k] ?? "")).join("")}</table></div>

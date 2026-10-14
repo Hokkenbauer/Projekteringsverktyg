@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { skrivExcel } from "../../lib/excelFil";
 import { useKatalog } from "../../lib/katalog";
 import type { Anteckningar, Projekt } from "../../lib/typer";
+import { loggaRad } from "../../lib/utskrift";
 
 type Kategori = { id: string; namn: string; fragor: string[] };
 type FrageKatalog = { kategorier: Kategori[] };
@@ -89,6 +90,7 @@ h1{font-size:16pt;color:#1E3450;margin:0}h2{font-size:11.5pt;color:#1E3450;margi
 table{border-collapse:collapse;width:100%}th{background:#1E3450;color:#fff;text-align:left;padding:4px 6px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 td{border-bottom:1px solid #ccc;padding:4px 6px;vertical-align:top;white-space:pre-wrap}td:first-child{width:45%}tr{page-break-inside:avoid}
 .proj{text-align:right}.proj b{display:block}footer{margin-top:14px;font-size:8pt;color:#666;border-top:1px solid #ccc;padding-top:4px}</style></head><body>
+${loggaRad()}
 <header><h1>Teknisk beskrivning</h1><div class="proj"><b>${esc(p.projekt?.namn ?? "")}</b>${esc([p.projekt?.nummer, p.projekt?.kund].filter(Boolean).join(" · "))}</div></header>
 ${ivagMed.map((k) => `<h2>${esc(k.namn)}</h2><table><thead><tr><th>Fråga</th><th>Svar</th></tr></thead><tbody>${k.fragor.map((fr) => `<tr><td>${esc(fr)}</td><td>${esc(svarPa(k.id, fr))}</td></tr>`).join("")}</tbody></table>`).join("")}
 <footer>Utskrivet ${new Date().toLocaleDateString("sv-SE")} från Projekteringsverktyg</footer>

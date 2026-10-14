@@ -3,6 +3,14 @@ import type { Projekt } from "./typer";
 const esc = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
+/** HECO-loggan för utskrifter och PDF (svart, med fullständig adress eftersom utskriften öppnas i ett eget fönster). */
+export const loggaUrl = () => `${location.origin}/logga/heco-logga-svart.svg`;
+export const loggaHtml = (hojd = "11mm") =>
+  `<img class="pv-logga" src="${loggaUrl()}" alt="HECO Automation" style="height:${hojd};width:auto;display:block">`;
+
+/** Loggan högst upp till höger, för utskrifter som inte har ett eget sidhuvud med plats för den. */
+export const loggaRad = () => `<div style="display:flex;justify-content:flex-end;margin:0 0 3mm">${loggaHtml()}</div>`;
+
 type Innehall =
   | { typ: "tabell"; kolumner: string[]; rader: string[][]; sammanfattning?: string }
   | { typ: "text"; text: string }
@@ -38,6 +46,7 @@ export function skrivUt(titel: string, projekt: Projekt | null, innehall: Inneha
   header h1 { font-size: 15pt; margin: 0; color: #1E3450; }
   header .proj { text-align: right; font-size: 9pt; }
   header .proj b { display: block; font-size: 10.5pt; }
+  header .pv-logga { margin: 0 0 5px auto; }
   table { border-collapse: collapse; width: 100%; }
   th { background: #1E3450; color: #fff; text-align: left; padding: 4px 5px; font-weight: 600; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   td { border-bottom: 1px solid #ccc; padding: 4px 5px; vertical-align: top; }
@@ -53,7 +62,7 @@ export function skrivUt(titel: string, projekt: Projekt | null, innehall: Inneha
   .rik .ftnamn:first-child { page-break-before: auto; margin-top: 0; }
   footer { margin-top: 12px; font-size: 8pt; color: #666; border-top: 1px solid #ccc; padding-top: 4px; }
 </style></head><body>
-<header><h1>${esc(titel)}</h1><div class="proj"><b>${esc(projekt?.namn ?? "")}</b>${esc(huvud)}</div></header>
+<header><h1>${esc(titel)}</h1><div class="proj">${loggaHtml()}<b>${esc(projekt?.namn ?? "")}</b>${esc(huvud)}</div></header>
 ${kropp}
 <footer>Utskrivet ${datum} från Projekteringsverktyg</footer>
 <script>window.onload = () => { window.focus(); window.print(); };</script>

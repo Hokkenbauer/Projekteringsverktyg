@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useDokument } from "../../lib/dokument";
 import type { Projekt, ProjektDokument } from "../../lib/typer";
+import { loggaRad } from "../../lib/utskrift";
 
 const SERVICETYPER = ["Planerat underhåll", "Felavhjälpning", "Driftsättning", "Inspektion", "Rådgivning", "Uppgradering"];
 const STATUSAR = ["Utfört", "Pågående", "Beställt", "Krävs uppföljning"];
@@ -82,6 +83,7 @@ h1{margin:0;font-size:20pt;color:#1E3450}.nr{font-family:monospace;font-size:12p
 p{white-space:pre-wrap;margin:0;line-height:1.45}table{border-collapse:collapse;width:100%;margin-top:8px}
 th{text-align:left;font-size:8.5pt;color:#718096;border-bottom:1px solid #cbd5e0;padding:4px}td{border-bottom:1px solid #edf2f7;padding:5px 4px;vertical-align:top}
 .sign{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:26px}.sign div{border-top:1px solid #333;padding-top:4px;font-size:9pt}</style></head><body>
+${loggaRad()}
 <div class="topp"><h1>Servicerapport</h1><div class="nr">${esc(vald.namn)}</div></div>
 <div class="kort"><h2>Uppdrag</h2><div class="rutnat">${falt("Datum", r.datum)}${falt("Ankomst", r.tidAnkomst)}${falt("Avresa", r.tidAvresa)}${falt("Tekniker", r.tekniker)}${falt("Typ av service", r.serviceTyp)}${falt("Nästa planerade besök", r.nastaBesok)}</div></div>
 <div class="kort"><h2>Fastighet och kund</h2><div class="rutnat">${falt("Kund", r.kund)}${falt("Kontaktperson", r.kontakt)}${falt("Fastighetsbeteckning", r.fastighet)}${falt("Adress", r.adress)}${falt("Anläggning", r.anlaggning)}${falt("Ordernr", r.ordernr)}</div></div>

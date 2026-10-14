@@ -2900,6 +2900,22 @@ function drawSymbolCanvas(cx,t,x,y,k,fill,stroke){
   if(s.mk){cx.lineWidth=1.6;cx.stroke(new Path2D(s.mk));}
   cx.restore();
 }
+/* HECO-loggan i PDF-exporternas sidhuvud. SVG:n görs om till en bild en gång. */
+const PV_LOGGA={url:null};
+(function(){
+  const im=new Image();
+  im.onload=()=>{try{
+    const c=document.createElement('canvas');c.width=900;c.height=Math.round(900*im.naturalHeight/im.naturalWidth);
+    c.getContext('2d').drawImage(im,0,0,c.width,c.height);PV_LOGGA.url=c.toDataURL('image/png');PV_LOGGA.f=c.height/c.width;
+  }catch(_){}};
+  im.src='../logga/heco-logga-svart.svg';
+})();
+/** Loggan till höger på sidhuvudsraden (y = textraden, strecket ligger 6 pt under). */
+function pdfLogga(pdf,PW,M,y){
+  if(!PV_LOGGA.url)return;
+  const h=17,w=h/PV_LOGGA.f;
+  try{pdf.addImage(PV_LOGGA.url,'PNG',PW-M-w,y-h+1,w,h);}catch(_){}
+}
 async function renderPlanCanvas(floor,box,scale,opts){
   opts=opts||{};
   const W=Math.max(1,Math.round(box.w*scale)),H=Math.max(1,Math.round(box.h*scale));
@@ -3148,7 +3164,7 @@ async function exportPlanPDF(){
     let y=M;
     pdf.setFontSize(8);pdf.setTextColor(130);
     pdf.text((P.name||'Projekt')+'  ·  '+f.name,M,y);y+=6;
-    pdf.setDrawColor(200);pdf.line(M,y,PW-M,y);y+=20;
+    pdfLogga(pdf,PW,M,y-8);pdf.setDrawColor(200);pdf.line(M,y,PW-M,y);y+=20;
     pdf.setFontSize(15);pdf.setTextColor(20);
     pdf.text('Komponentförteckning',M,y);y+=22;
     ritaKomponentTabell(pdf,PW,PH,M,y,sorted,numbering,
@@ -3209,7 +3225,7 @@ async function exportAllPlansPDF(){
       let y=M;
       pdf.setFontSize(8);pdf.setTextColor(130);
       pdf.text((P.name||'Projekt')+'  ·  '+b.name+'  ·  '+f.name,M,y);y+=6;
-      pdf.setDrawColor(200);pdf.line(M,y,PW-M,y);y+=20;
+      pdfLogga(pdf,PW,M,y-8);pdf.setDrawColor(200);pdf.line(M,y,PW-M,y);y+=20;
       pdf.setFontSize(15);pdf.setTextColor(20);
       pdf.text('Komponentförteckning',M,y);y+=22;
       ritaKomponentTabell(pdf,PW,PH,M,y,sorted,numbering,
@@ -3254,7 +3270,7 @@ async function exportSectionPDF(){
       let y=M;
       pdf.setFontSize(8);pdf.setTextColor(130);
       pdf.text((P.name||'Projekt')+'  ·  Sektionsvy',M,y);y+=6;
-      pdf.setDrawColor(200);pdf.line(M,y,PW-M,y);y+=20;
+      pdfLogga(pdf,PW,M,y-8);pdf.setDrawColor(200);pdf.line(M,y,PW-M,y);y+=20;
       pdf.setFontSize(15);pdf.setTextColor(0);
       pdf.text(b.name,M,y);y+=14;
 
@@ -3382,7 +3398,7 @@ async function exportRoomsPDF(){
           let y=M;
           pdf.setFontSize(8);pdf.setTextColor(130);
           pdf.text((P.name||'Projekt')+'  ·  '+b.name+'  ·  '+f.name,M,y);y+=6;
-          pdf.setDrawColor(200);pdf.line(M,y,PW-M,y);y+=20;
+          pdfLogga(pdf,PW,M,y-8);pdf.setDrawColor(200);pdf.line(M,y,PW-M,y);y+=20;
           pdf.setFontSize(17);pdf.setTextColor(20);
           pdf.text(g.room?g.room.name:'Direkt på plan',M,y);
           if(g.room&&g.room.done){pdf.setFontSize(10);pdf.setTextColor(40,140,70);pdf.text('KLARMARKERAT',PW-M,y,{align:'right'});}

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { Anteckningar, Projekt } from "../../lib/typer";
+import { loggaRad } from "../../lib/utskrift";
 
 type Handling = { handling: string; beskrivning: string; datum: string; signProjektor: string; signProjekteringsledare: string };
 type Anvisning = { dokument: string; typ: string; daterad: string };
@@ -105,6 +106,7 @@ th{background:#1E3450;color:#fff;text-align:left;padding:4px;-webkit-print-color
 .ruta{display:inline-block;width:13px;height:13px;border:1px solid #333;text-align:center;line-height:13px;font-size:10px;margin-right:8px;vertical-align:middle}
 .kryss{display:flex;gap:6px;margin:6px 0;align-items:flex-start}.not{color:#555;font-size:9pt;margin-bottom:4px}
 .sign{display:grid;grid-template-columns:1fr 1fr;gap:30px;margin-top:24px}.sign div{border-top:1px solid #333;padding-top:4px}</style></head><body>
+${loggaRad()}
 <h1>Projekteringsintyg</h1>
 <div class="huvud">${rad("Objekt:", intyg.objekt)}${rad("Slutkund:", intyg.slutkund)}${rad("Beställare:", intyg.bestallare)}${rad("Projektnummer:", intyg.projektnummer)}${rad("Projekteringsledare:", intyg.projekteringsledare)}${rad("Projektör:", intyg.projektor)}</div>
 <h2>Omfattning</h2><p>${esc(intyg.omfattning)}</p>

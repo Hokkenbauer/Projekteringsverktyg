@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiFel, laddaNer, skicka } from "../../lib/api";
 import type { Komponent, Korttyp, ModulKort, Modulbelaggning, Projekt, Skap } from "../../lib/typer";
 import { Dialog } from "../../shell/Dialog";
+import { loggaRad } from "../../lib/utskrift";
 
 const MAX_MA = 2000;
 const tal = (v: number | undefined) => (Number.isFinite(v) ? v! : 0).toLocaleString("sv-SE", { maximumFractionDigits: 3 });
@@ -189,6 +190,7 @@ export function ModulbelaggningVy({ projektId, projekt, skap, allaSkap, komponen
       table{border-collapse:collapse;width:100%;margin-bottom:8px;page-break-inside:avoid} th,td{border:1px solid #bbb;padding:3px 5px;text-align:left}
       th{-webkit-print-color-adjust:exact;print-color-adjust:exact;background:#eee} .cpu{font-weight:bold;margin-bottom:8px}
       .sum{margin-top:10px;font-weight:bold}</style></head><body>
+${loggaRad()}
       <div class="h"><h1>Modulbeläggning ${esc(skap.namn)}</h1><div>${esc(projekt?.namn ?? "")}<br>${esc([projekt?.nummer, projekt?.kund].filter(Boolean).join(" · "))}</div></div>
       <div class="cpu">CPU1: ${esc(m.cpu1)}</div>${kortHtml}
       <div class="sum">Totalt: ${tal(totalBredd)} mm &nbsp; | &nbsp; ${tal(totalMa)} / ${tal(MAX_MA)} mA</div>

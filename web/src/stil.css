@@ -42,7 +42,7 @@ button { cursor: pointer; }
 h1 { font-size: 22px; font-weight: 600; margin: 2px 0 4px; text-wrap: balance; }
 h2 { font-size: 15px; font-weight: 600; margin: 0 0 10px; }
 .dampad { color: var(--dampad); }
-.laddar { display: grid; place-items: center; height: 100%; }
+.laddar { display: grid; place-items: center; align-content: center; gap: 18px; height: 100%; }
 .felruta { background: color-mix(in srgb, var(--fara) 14%, transparent); border: 1px solid var(--fara); padding: 10px 12px; border-radius: var(--r); }
 
 .app { display: grid; grid-template-rows: auto 1fr auto; height: 100%; min-height: 0; }
@@ -50,7 +50,10 @@ h2 { font-size: 15px; font-weight: 600; margin: 0 0 10px; }
 /* Topprad */
 .topprad { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 10px 16px; background: var(--yta); border-bottom: 1px solid var(--linje); }
 .varumarke { display: flex; align-items: center; gap: 10px; font-weight: 700; color: var(--text); text-decoration: none; }
-.logga { width: 26px; height: 26px; border-radius: 5px; background: var(--accent); color: var(--accent-text); display: grid; place-items: center; font-family: var(--font-mono); font-size: 12px; }
+/* HECO-loggan följer textfärgen (svart i ljust tema, ljus i mörkt) via en mask. */
+.logga { display: inline-block; flex: 0 0 auto; width: 86px; height: 26px; background: currentColor; -webkit-mask: url(/logga/heco-logga.svg) no-repeat center / contain; mask: url(/logga/heco-logga.svg) no-repeat center / contain; }
+.logga.stor { width: 240px; height: 72px; color: var(--text); }
+.varumarke-namn { padding-left: 10px; border-left: 1px solid var(--linje); font-weight: 600; }
 .flex { flex: 1; }
 .kontroll { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--dampad); }
 .kontroll select, .kontroll input { background: var(--yta-2); border: 1px solid var(--linje); border-radius: var(--r); padding: 5px 8px; color: var(--text); font-size: 13px; }

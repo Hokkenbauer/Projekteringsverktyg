@@ -75,19 +75,20 @@ export function App() {
   if (fel) {
     return (
       <div className="laddar">
+        <span className="logga stor" role="img" aria-label="HECO Automation" />
         <p className="felruta">Appen kunde inte starta: {fel}</p>
         {config?.auth && <button className="knapp primar" onClick={loggaInIgen}>Logga in igen</button>}
       </div>
     );
   }
   if (!config || !inloggning || !mig) {
-    return <div className="laddar"><p className="dampad">Startar…</p></div>;
+    return <div className="laddar"><span className="logga stor" role="img" aria-label="HECO Automation" /><p className="dampad">Startar Projekteringsverktyg…</p></div>;
   }
 
   return (
     <div className="app">
       <header className="topprad">
-        <a className="varumarke" href="#/"><span className="logga">PV</span>Projekteringsverktyg</a>
+        <a className="varumarke" href="#/" title="Till projektlistan"><span className="logga" role="img" aria-label="HECO Automation" /><span className="varumarke-namn">Projekteringsverktyg</span></a>
         <span className="flex" />
         {mig.rattigheter.hanteraAnvandare && <a className="knapp" href="#/admin">Användare och roller</a>}
         {inloggning.utvecklingslage ? (

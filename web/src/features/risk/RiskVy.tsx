@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api, skicka } from "../../lib/api";
 import type { Anteckningar, ListDef, ListRad, Projekt } from "../../lib/typer";
+import { loggaRad } from "../../lib/utskrift";
 
 export type RiskVariant = "projektering" | "produktion";
 
@@ -140,6 +141,7 @@ table.risk td { border-bottom: 1px solid #ccc; padding: 4px; vertical-align: top
 table.matris { border-collapse: collapse; margin-top: 6px; } table.matris td, table.matris th { width: 34px; height: 26px; text-align: center; border: 1px solid #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 footer { margin-top: 18px; font-size: 8pt; color: #666; border-top: 1px solid #ccc; padding-top: 4px; }
 </style></head><body>
+${loggaRad()}
 <h1>${esc(rubrik)}</h1>
 <div class="huvud">
 <b>Projekt</b><span>${esc([projekt?.namn, projekt?.nummer].filter(Boolean).join(" · "))}</span>
