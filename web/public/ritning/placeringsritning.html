@@ -131,6 +131,17 @@ main{flex:1;position:relative;min-width:0;background:var(--canvas)}
 /* Kommentarslagret: pil från rummet till en textruta. Klickbart bara när man arbetar i lagret. */
 #kg{pointer-events:none}
 #planWrap.kommlage #kg [data-kommbox],#planWrap.kommlage #kg [data-kommspets]{pointer-events:auto;cursor:move}
+#planWrap.kommlage #kg [data-kommdel]{pointer-events:auto;cursor:pointer}
+#overlay .kommDel{opacity:0;transition:opacity .12s}
+#overlay .komm:hover .kommDel,#overlay .komm.sel .kommDel{opacity:1}
+#overlay .kommDel circle{stroke:#fff;stroke-width:1.5px}
+#overlay .kommDel path{stroke:#fff;stroke-width:2px;stroke-linecap:round;fill:none}
+#overlay .kommDel:hover circle{fill:#c62828}
+#kommEditDel{position:absolute;z-index:7;font:600 11px/1 var(--sans);padding:4px 7px;border-radius:4px;border:1px solid #c62828;background:#c62828;color:#fff;cursor:pointer;display:flex;gap:4px;align-items:center}
+#kommEditDel:hover{background:#a31515}
+.kommRad{display:flex;align-items:center;gap:6px;padding:3px 10px;font-size:12px}
+.kommRad .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
+.kommRad .t:hover{color:var(--accent)}
 #planWrap.kommlage{cursor:crosshair}
 #overlay .komm text{stroke:none;fill:var(--komm);font-family:var(--sans);font-weight:600;font-size:13px}
 #overlay .komm .kommRuta{stroke-width:1.6px}
@@ -3760,6 +3771,12 @@ function ritaKommentarer(){
       const x=B.x-m.b/2,y=B.y-m.h/2;
       h+=`<g data-kommbox="1"><rect class="kommRuta" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${m.b.toFixed(1)}" height="${m.h.toFixed(1)}" rx="3" fill="${bg}" fill-opacity="0.94" stroke="${c}"/>`+
         `<text fill="${c}">${m.rader.map((r,i)=>`<tspan x="${(x+8).toFixed(1)}" y="${(y+5+13+i*17).toFixed(1)}">${esc(r)||' '}</tspan>`).join('')}</text></g>`;
+      // Ta bort-kryss i rutans övre högra hörn (syns när musen är över kommentaren eller den är markerad).
+      if(ui.lager==='komm'){
+        const dx=x+m.b,dy=y;
+        h+=`<g class="kommDel" data-kommdel="${k.id}"><title>Ta bort kommentaren</title><circle cx="${dx.toFixed(1)}" cy="${dy.toFixed(1)}" r="8" fill="#e53935"/>`+
+          `<path d="M${(dx-3).toFixed(1)} ${(dy-3).toFixed(1)}l6 6m0 -6l-6 6"/></g>`;
+      }
     }else if(k.id==='_utkast'){
       h+=`<circle cx="${B.x.toFixed(1)}" cy="${B.y.toFixed(1)}" r="4" fill="${c}"/>`;
     }
@@ -3772,7 +3789,8 @@ function kommNer(e,mx,my){
   kommStangEditor();
   const f=curFloor();if(!f||!ref)return;
   const p=s2w(mx,my);
-  const spets=e.target.closest('[data-kommspets]'),box=e.target.closest('[data-kommbox]');
+  const spets=e.target.closest('[data-kommspets]'),box=e.target.closest('[data-kommbox]'),del=e.target.closest('[data-kommdel]');
+  if(del){kommTaBort(del.dataset.kommdel);e.preventDefault();return;}
   if(spets){
     const k=kommLista().find(x=>x.id===spets.dataset.kommspets);
     if(k)drag={mode:'kommspets',k,start:p,o:{x:k.ax,y:k.ay}};
@@ -3833,8 +3851,19 @@ function kommPlaceraEditor(){
   const B=w2s(k.bx*ref.w,k.by*ref.h),m=kommStorlek(ta.value||ta.placeholder);
   const b=m.b+18,h=m.h+6;
   ta.style.left=(B.x-b/2)+'px';ta.style.top=(B.y-h/2)+'px';ta.style.width=b+'px';ta.style.height=h+'px';
+  let del=document.getElementById('kommEditDel');
+  if(!del){
+    del=document.createElement('button');del.id='kommEditDel';del.type='button';del.title='Ta bort kommentaren';
+    del.innerHTML='✕ Ta bort';
+    // pointerdown utan standardbeteende, annars tappar textrutan fokus och stängs innan klicket hinner fram.
+    del.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();});
+    del.addEventListener('click',e=>{e.stopPropagation();const id=ui.kommRed;kommStangEditor(true);kommTaBort(id);});
+    wrap.appendChild(del);
+  }
+  del.style.left=(B.x+b/2+6)+'px';del.style.top=(B.y-h/2)+'px';
 }
-function kommStangEditor(){
+function kommStangEditor(utanSpara){
+  const knapp=document.getElementById('kommEditDel');if(knapp)knapp.remove();
   const ta=document.getElementById('kommEdit');if(!ta||ta.dataset.stangs)return;
   ta.dataset.stangs='1'; // remove() nedan ger blur, som annars stänger en gång till
   const id=ui.kommRed;ui.kommRed=null;
@@ -3863,8 +3892,19 @@ function renderKommPanel(){
       <span class="lname">Kommentarer</span>
       <span class="muted" style="font-size:10.5px;margin-left:4px">${n} st</span>
     </div></div>
-    <div class="lempty" style="text-align:left">Klicka på ✎ Kommentarslager och dra från t.ex. ett rum till där texten ska stå. Klicka på en ruta för att ändra texten, dra i den för att flytta. Markera och tryck Delete för att ta bort. Vid PDF-export väljer du om kommentarerna ska med.</div>
+    ${n?`<div style="max-height:180px;overflow:auto;border-bottom:1px solid var(--line);padding:4px 0">${f.kommentarer.map(k=>
+      `<div class="kommRad"><span class="t" data-kommgo="${k.id}" title="Visa och ändra">${esc((k.text||'').split('\n')[0]||'(tom)')}</span><button class="ghost" data-kommtabort="${k.id}" title="Ta bort kommentaren">${ic('trash')}</button></div>`).join('')}</div>`:''}
+    <div class="lempty" style="text-align:left">Klicka på ✎ Kommentarslager och dra från t.ex. ett rum till där texten ska stå. Klicka på en ruta för att ändra texten, dra i den för att flytta. Ta bort med ✕ på rutan (håll musen över den), med Ta bort medan du skriver, med Delete när den är markerad eller i listan ovan. Vid PDF-export väljer du om kommentarerna ska med.</div>
     ${ui.kommSel?`<div style="padding:0 10px 8px"><button id="kommDel">Ta bort markerad kommentar</button></div>`:''}`;
+  el.querySelectorAll('[data-kommtabort]').forEach(b=>b.onclick=()=>kommTaBort(b.dataset.kommtabort));
+  el.querySelectorAll('[data-kommgo]').forEach(b=>b.onclick=()=>{
+    if(ui.lager!=='komm')setLager('komm');
+    const k=kommLista().find(x=>x.id===b.dataset.kommgo);if(!k||!ref)return;
+    // Centrera kommentaren och öppna den för ändring.
+    const r=wrap.getBoundingClientRect(),p=w2s(k.bx*ref.w,k.by*ref.h);
+    view.tx+=r.width/2-p.x;view.ty+=r.height/2-p.y;draw();scheduleDetail();
+    kommRedigera(k.id);
+  });
   $('#kommOga').onclick=()=>{P.settings.visaKomm=!tand;if(tand&&ui.lager==='komm')setLager('komm');ritaKommentarer();renderKommPanel();};
   const del=$('#kommDel');if(del)del.onclick=()=>kommTaBort(ui.kommSel);
 }

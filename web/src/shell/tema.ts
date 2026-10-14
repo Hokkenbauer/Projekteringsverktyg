@@ -5,7 +5,7 @@ export const TEMAN: { id: TemaNamn; namn: string }[] = [
   { id: "dag", namn: "Dag" },
   { id: "grafit", namn: "Grafit" },
   { id: "grafitkontrast", namn: "Grafit kontrast" },
-  { id: "desigo", namn: "Desigo (mellanljust)" },
+  { id: "desigo", namn: "Mellanljust" },
   { id: "fjall", namn: "Fjäll" },
   { id: "system", namn: "Följ datorns inställning" },
 ];

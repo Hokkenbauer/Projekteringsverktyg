@@ -27,11 +27,12 @@
   --text: #FFFFFF; --dampad: #DAD6CE; --accent: #FFC14D; --accent-text: #140E02; --accent-mjuk: #5A4419;
   --ok: #8BDCA0; --varning: #F5B847; --fara: #FF8C80; color-scheme: dark;
 }
-/* Mellanljust, i Siemens Desigo CC:s anda: blågrå ytor och blå accent (#3A6EA5). */
+/* Mellanljust (id "desigo"), i Siemens Desigo CC:s anda: blågrå ytor och blå accent (#3A6EA5).
+   Ytorna ca 15 % mörkare än första versionen och ca 15 % mer kontrast mot text och linjer. */
 :root[data-tema="desigo"] {
-  --bg: #B7C1CC; --yta: #D3DAE2; --yta-2: #C2CBD5; --linje: #8E9BAA;
-  --text: #0E1824; --dampad: #364657; --accent: #3A6EA5; --accent-text: #FFFFFF; --accent-mjuk: #A7BFDA;
-  --ok: #1D6A3C; --varning: #7E4B00; --fara: #9E2820; color-scheme: light;
+  --bg: #98A1AB; --yta: #B9C0C8; --yta-2: #A7AFB8; --linje: #6B7785;
+  --text: #050A10; --dampad: #212C38; --accent: #3A6EA5; --accent-text: #FFFFFF; --accent-mjuk: #8EA9C7;
+  --ok: #145530; --varning: #633A00; --fara: #861E17; color-scheme: light;
 }
 :root[data-tema="fjall"] {
   --bg: #F1F4F2; --yta: #FFFFFF; --yta-2: #E3EAE6; --linje: #CBD7D0;
