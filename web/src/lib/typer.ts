@@ -34,7 +34,7 @@ export type StatusUppgift = {
 };
 export type ProjektStatus = { rubriker: StatusRubrik[]; uppgifter: StatusUppgift[] };
 
-export type TemaNamn = "system" | "natt" | "dag" | "grafit" | "fjall";
+export type TemaNamn = "system" | "natt" | "dag" | "grafit" | "grafitkontrast" | "desigo" | "fjall";
 
 export type Projekt = {
   id: string;

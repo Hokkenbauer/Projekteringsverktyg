@@ -21,6 +21,18 @@
   --text: #ECEAE6; --dampad: #A3A09A; --accent: #E0A53B; --accent-text: #1A1306; --accent-mjuk: #3A2F1C;
   --ok: #7CC48E; --varning: #E0A53B; --fara: #EF8277; color-scheme: dark;
 }
+/* Som Grafit men med mörkare botten, ljusare text och tydligare linjer. */
+:root[data-tema="grafitkontrast"] {
+  --bg: #08090A; --yta: #18191C; --yta-2: #303237; --linje: #6A6E76;
+  --text: #FFFFFF; --dampad: #DAD6CE; --accent: #FFC14D; --accent-text: #140E02; --accent-mjuk: #5A4419;
+  --ok: #8BDCA0; --varning: #F5B847; --fara: #FF8C80; color-scheme: dark;
+}
+/* Mellanljust, i Siemens Desigo CC:s anda: blågrå ytor och blå accent (#3A6EA5). */
+:root[data-tema="desigo"] {
+  --bg: #B7C1CC; --yta: #D3DAE2; --yta-2: #C2CBD5; --linje: #8E9BAA;
+  --text: #0E1824; --dampad: #364657; --accent: #3A6EA5; --accent-text: #FFFFFF; --accent-mjuk: #A7BFDA;
+  --ok: #1D6A3C; --varning: #7E4B00; --fara: #9E2820; color-scheme: light;
+}
 :root[data-tema="fjall"] {
   --bg: #F1F4F2; --yta: #FFFFFF; --yta-2: #E3EAE6; --linje: #CBD7D0;
   --text: #14231C; --dampad: #566B60; --accent: #1F6F5C; --accent-text: #FFFFFF; --accent-mjuk: #D5E8E1;

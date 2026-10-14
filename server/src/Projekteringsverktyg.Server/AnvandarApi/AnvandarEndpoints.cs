@@ -10,7 +10,7 @@ public sealed record TemaVal(string Tema);
 public static class AnvandarEndpoints
 {
     public static readonly IReadOnlySet<string> Teman =
-        new HashSet<string> { "system", "natt", "dag", "grafit", "fjall" };
+        new HashSet<string> { "system", "natt", "dag", "grafit", "grafitkontrast", "desigo", "fjall" };
 
     public static IEndpointRouteBuilder MapAnvandarEndpoints(this IEndpointRouteBuilder app)
     {

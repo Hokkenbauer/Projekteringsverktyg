@@ -196,7 +196,7 @@ public static partial class WordHtml
         if (rPr is null) return "";
         var k = Rensa(rPr);
         k.Elements().Where(x => x.Name.LocalName is "b" or "bCs" or "i" or "iCs" or "u").Remove();
-        return k.HasElements ? Xml(k) : "";
+        return k.HasElements ? Xml(MedPrefix(k, rPr)) : "";
     }
 
     /// <summary>Det teckenformat som flest tecken i stycket har (styckets "vanliga" typsnitt och storlek).</summary>
@@ -227,7 +227,24 @@ public static partial class WordHtml
     private const string W14 = "http://schemas.microsoft.com/office/word/2010/wordml";
 
     /// <summary>Elementet som XML-text utan namnrymdsdeklarationer (prefixen, t.ex. w:, gäller i Word-filen).</summary>
-    private static string Spara(XElement e) => Xml(Rensa(e));
+    private static string Spara(XElement e) => Xml(MedPrefix(Rensa(e), e));
+
+    /// <summary>
+    /// En kopia ur dokumentet saknar dokumentets namnrymdsdeklarationer, och då hittar XML-skrivaren på egna prefix
+    /// (p1: …) som inte går att läsa tillbaka. Deklarera samma prefix som i dokumentet (w:, r:, …) på kopian.
+    /// </summary>
+    private static XElement MedPrefix(XElement kopia, XElement original)
+    {
+        var namnrymder = kopia.DescendantsAndSelf()
+            .SelectMany(x => x.Attributes().Where(a => !a.IsNamespaceDeclaration).Select(a => a.Name.Namespace).Append(x.Name.Namespace))
+            .Where(n => n != XNamespace.None && n != XNamespace.Xml).Distinct();
+        foreach (var ns in namnrymder)
+        {
+            var prefix = original.GetPrefixOfNamespace(ns) ?? (ns == W ? "w" : ns == R ? "r" : null);
+            if (prefix is not null) kopia.SetAttributeValue(XNamespace.Xmlns + prefix, ns.NamespaceName);
+        }
+        return kopia;
+    }
 
     private static string Xml(XElement e) =>
         NamnrymdRegex().Replace(e.ToString(SaveOptions.DisableFormatting), "");
