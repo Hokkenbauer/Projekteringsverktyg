@@ -261,6 +261,14 @@ main{flex:1;position:relative;min-width:0;background:var(--canvas)}
 .field label{display:block;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--txt3);margin-bottom:4px}
 .row{display:flex;gap:6px}
 .kv{display:flex;justify-content:space-between;gap:8px;padding:3px 0;font-size:12px}
+/* I/O-punkter i komponentens egenskaper (samma som kolumnen I/O i Komponenter) */
+.iorad{display:flex;gap:4px;align-items:center;margin-bottom:4px}
+.iorad select{width:96px;flex:0 0 96px;padding:4px 5px}
+.iorad input{flex:1;min-width:0;padding:4px 6px;font-family:var(--mono);font-size:11.5px;text-transform:uppercase}
+.iorad button{padding:3px 7px;flex:0 0 auto}
+.iosnabb{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}
+.iosnabb button{padding:3px 7px;font-size:11px}
+.iosum{float:right;text-transform:none;letter-spacing:0;font-family:var(--mono);color:var(--accent)}
 .kv b{color:var(--txt2);font-weight:500}
 .empty-note{padding:22px 14px;color:var(--txt3);text-align:center;font-size:12px}
 .chk{display:flex;align-items:center;gap:8px;font-size:12.5px;text-transform:none;letter-spacing:0;color:var(--txt2);cursor:pointer}
@@ -2403,7 +2411,7 @@ function renderInspector(){
       <div class="field"><label class="lab-s" style="margin-top:6px">Komponentens uppgifter (samma som i Komponenter)</label></div>
       <div class="field"><label>Komponenttyp</label><input type="text" id="iKomponenttyp" list="pvcat-komponenttyp" value="${esc(c.pvKomponenttyp||'')}"></div>
       <div class="field"><label>System</label><input type="text" id="iSystem" list="pvcat-system" value="${esc(c.pvSystem||'')}"></div>
-      <div class="field"><label>Signaltyp</label><input type="text" id="iSignaltyp" list="pvcat-signaltyp" value="${esc(c.pvSignaltyp||'')}"></div>
+      ${c.pvId&&pvVard()?ioHtml(c):`<div class="field"><label>Signaltyp</label><input type="text" id="iSignaltyp" list="pvcat-signaltyp" value="${esc(c.pvSignaltyp||'')}"></div>`}
       <div class="field"><label>Ansluts till</label><input type="text" id="iAnslutsTill" value="${esc(c.pvAnslutsTill||'')}"></div>
       <div class="field"><label>Kabeltyp</label><input type="text" id="iKabeltyp" list="pvcat-kabeltyp" value="${esc(c.pvKabeltyp||'')}"></div>
       <div class="field"><label>Produkttyp</label><input type="text" id="iProdukttyp" list="pvcat-produkttyp" value="${esc(c.pvProdukttyp||'')}"></div>
@@ -2428,7 +2436,8 @@ function renderInspector(){
     $('#iTag').onchange=e=>{c.tag=e.target.value.trim()||c.tag;refresh();pvNotify(c.pvId,{beteckning:c.tag});};
     $('#iKomponenttyp').onchange=e=>{c.pvKomponenttyp=e.target.value;pvNotify(c.pvId,{komponenttyp:c.pvKomponenttyp});};
     $('#iSystem').onchange=e=>{c.pvSystem=e.target.value;pvNotify(c.pvId,{system:c.pvSystem});};
-    $('#iSignaltyp').onchange=e=>{c.pvSignaltyp=e.target.value;pvNotify(c.pvId,{signaltyp:c.pvSignaltyp});};
+    if($('#iSignaltyp'))$('#iSignaltyp').onchange=e=>{c.pvSignaltyp=e.target.value;pvNotify(c.pvId,{signaltyp:c.pvSignaltyp});};
+    if(c.pvId&&pvVard())ioKoppla(c,box);
     $('#iAnslutsTill').onchange=e=>{c.pvAnslutsTill=e.target.value;pvNotify(c.pvId,{anslutsTill:c.pvAnslutsTill});};
     $('#iKabeltyp').onchange=e=>{c.pvKabeltyp=e.target.value;pvNotify(c.pvId,{kabeltyp:c.pvKabeltyp});};
     $('#iProdukttyp').onchange=e=>{c.pvProdukttyp=e.target.value;pvNotify(c.pvId,{produkttyp:c.pvProdukttyp});};
@@ -4139,6 +4148,46 @@ document.getElementById('pvRequestSync')?.addEventListener('click', ()=>{
   try{ host.postMessage(JSON.stringify({type:'requestSync'})); }catch(e){}
 });
 
+/* ---------- I/O-punkter (samma regler som webbappens lib/signaler.ts och serverns Signaler.cs) ---------- */
+const IO_TYPER=['DI','DU','AI','AU','Modbus RTU','Modbus TCP','M-bus','BACnet','KNX','DALI'];
+const IO_SNABB=['DI','DU','AI','AU','Modbus RTU','Modbus TCP','M-bus'];
+const IO_FUNK={DI:['DRIFT','LARM','LÄGE','NIVÅ','FLÖDE','SÄKERHET'],DU:['START','STOPP','ÖPPNA','STÄNG','STEG2'],AI:['VÄRDE','ÅTERKOPPLING','TEMP','TRYCK','FLÖDE'],AU:['STYR','VARVTAL','BÖRVÄRDE']};
+function ioTyp(t){const x=String(t||'').trim().toUpperCase().replace(/[\s_-]+/g,' ');
+  return {DI:'DI',DU:'DU',DO:'DU',AI:'AI',AU:'AU',AO:'AU',RTU:'Modbus RTU','MODBUS RTU':'Modbus RTU',MODBUS:'Modbus RTU',TCP:'Modbus TCP','MODBUS TCP':'Modbus TCP',MBUS:'M-bus','M BUS':'M-bus',BACNET:'BACnet',KNX:'KNX',DALI:'DALI'}[x]||null;}
+function ioNy(typ,lista){const f=IO_FUNK[typ]||[];const anv=new Set(lista.filter(s=>s.typ===typ).map(s=>s.funktion));
+  return {id:Math.random().toString(36).slice(2,12),typ,funktion:f.find(x=>!anv.has(x))||'',beskrivning:''};}
+function ioTolka(text,lista){const ut=[];const re=/(?<![A-ZÅÄÖ])(?:(\d{1,2})\s*[X×*]?\s*)?(MODBUS[\s_-]*RTU|MODBUS[\s_-]*TCP|MODBUS|M[\s_-]?BUS|BACNET|KNX|DALI|RTU|TCP|DI|DO|DU|AI|AO|AU)(?![A-ZÅÄÖ])/g;
+  for(const m of String(text).toUpperCase().matchAll(re)){const n=Math.min(64,Math.max(1,+(m[1]||1)));const t=ioTyp(m[2]);if(!t)continue;
+    for(let i=0;i<n;i++)ut.push(ioNy(t,lista.concat(ut)));}
+  return ut;}
+function ioSammanfatta(lista){const n=new Map();lista.forEach(s=>n.set(s.typ,(n.get(s.typ)||0)+1));
+  const o=t=>{const i=IO_TYPER.indexOf(t);return i<0?999:i;};
+  return [...n.entries()].sort((a,b)=>o(a[0])-o(b[0])||a[0].localeCompare(b[0],'sv')).map(([t,c])=>c>1?c+'×'+t:t).join(', ');}
+/** Sparar komponentens I/O och skickar ändringen till Komponenter (samma väg som övriga fält). */
+function ioSpara(c,lista){c.pvSignaler=lista;c.pvSignaltyp=ioSammanfatta(lista);pvNotify(c.pvId,{signaler:JSON.stringify(lista)});renderInspector();}
+function ioHtml(c){
+  const l=c.pvSignaler||[];
+  return `<div class="field"><label>I/O <span class="iosum">${esc(ioSammanfatta(l)||'')}</span></label>
+    ${l.map((s,i)=>`<div class="iorad" title="${esc([c.tag,s.funktion].filter(Boolean).join('-'))}${s.beskrivning?' – '+esc(s.beskrivning):''}">
+      <select data-io-typ="${i}">${[...new Set(IO_TYPER.concat([s.typ]))].map(t=>`<option${t===s.typ?' selected':''}>${esc(t)}</option>`).join('')}</select>
+      <input type="text" data-io-funk="${i}" value="${esc(s.funktion)}" list="pvio-${esc(s.typ)}" placeholder="Funktion" aria-label="Funktion">
+      <button class="ghost" data-io-del="${i}" title="Ta bort">✕</button></div>`).join('')||'<div class="muted" style="font-size:11.5px">Ingen I/O.</div>'}
+    <div class="iosnabb">${IO_SNABB.map(t=>`<button data-io-ny="${esc(t)}" title="Lägg till ${esc(t)}">+${esc(t.replace('Modbus ',''))}</button>`).join('')}</div>
+    <input type="text" id="iIoKort" placeholder="Kortform, t.ex. 2DI DU AO RTU – Enter" style="font-family:var(--mono)">
+    ${Object.entries(IO_FUNK).map(([t,f])=>`<datalist id="pvio-${t}">${f.map(x=>`<option value="${x}">`).join('')}</datalist>`).join('')}
+  </div>`;
+}
+function ioKoppla(c,box){
+  const l=()=>(c.pvSignaler||[]).map(s=>({...s}));
+  box.querySelectorAll('[data-io-typ]').forEach(el=>el.onchange=()=>{const x=l();x[+el.dataset.ioTyp].typ=el.value;ioSpara(c,x);});
+  box.querySelectorAll('[data-io-funk]').forEach(el=>el.onchange=()=>{const x=l();x[+el.dataset.ioFunk].funktion=el.value.trim().toUpperCase();ioSpara(c,x);});
+  box.querySelectorAll('[data-io-del]').forEach(el=>el.onclick=()=>{const x=l();x.splice(+el.dataset.ioDel,1);ioSpara(c,x);});
+  box.querySelectorAll('[data-io-ny]').forEach(el=>el.onclick=()=>{const x=l();x.push(ioNy(el.dataset.ioNy,x));ioSpara(c,x);});
+  const k=box.querySelector('#iIoKort');
+  if(k)k.onkeydown=e=>{if(e.key!=='Enter')return;e.preventDefault();const x=l();const nya=ioTolka(k.value,x);
+    if(nya.length){ioSpara(c,x.concat(nya));const ny=$('#iIoKort');if(ny)ny.focus();}};
+}
+
 function pvNotify(pvId, patch){
   if(!pvId) return; // komponenten kommer inte från en synkad KomponentRad (t.ex. skapad direkt i verktyget) – hanteras inte i denna demo än
   const host = pvHost();
@@ -4189,7 +4238,8 @@ function pvAssignId(localId, realId){
   // hela den kopierade informationen, inte bara Beteckning/Komponenttyp.
   const patch = {};
   if(comp.pvSystem) patch.system = comp.pvSystem;
-  if(comp.pvSignaltyp) patch.signaltyp = comp.pvSignaltyp;
+  if(comp.pvSignaler&&comp.pvSignaler.length) patch.signaler = JSON.stringify(comp.pvSignaler);
+  else if(comp.pvSignaltyp) patch.signaltyp = comp.pvSignaltyp;
   if(comp.pvAnslutsTill) patch.anslutsTill = comp.pvAnslutsTill;
   if(comp.pvKabeltyp) patch.kabeltyp = comp.pvKabeltyp;
   if(comp.pvProdukttyp) patch.produkttyp = comp.pvProdukttyp;
@@ -4247,6 +4297,7 @@ function pvSync(itemsJson){
     comp.pvKomponenttyp = item.komponenttyp || '';
     comp.pvSystem = item.system || '';
     comp.pvSignaltyp = item.signaltyp || '';
+    comp.pvSignaler = Array.isArray(item.signaler) ? item.signaler : [];
     comp.pvAnslutsTill = item.anslutsTill || '';
     comp.pvKabeltyp = item.kabeltyp || '';
     comp.pvProdukttyp = item.produkttyp || '';
@@ -4297,6 +4348,7 @@ function pvApplyUpdate(patchJson){
   if(patch.kontrollerad!==undefined) comp.done = !!patch.kontrollerad;
   if(patch.system!==undefined) comp.pvSystem = patch.system;
   if(patch.signaltyp!==undefined) comp.pvSignaltyp = patch.signaltyp;
+  if(Array.isArray(patch.signaler)) comp.pvSignaler = patch.signaler;
   if(patch.anslutsTill!==undefined) comp.pvAnslutsTill = patch.anslutsTill;
   if(patch.kabeltyp!==undefined) comp.pvKabeltyp = patch.kabeltyp;
   if(patch.produkttyp!==undefined) comp.pvProdukttyp = patch.produkttyp;

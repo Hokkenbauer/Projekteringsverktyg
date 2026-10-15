@@ -91,7 +91,7 @@ async function laddaUppLokala(projektId: string, data: string): Promise<string> 
 
 const KOMPONENTFALT = new Set([
   "beteckning", "system", "komponenttyp", "signaltyp", "placering", "beskrivning", "ovrigt",
-  "anslutsTill", "kabeltyp", "produkttyp", "produkt", "monteringsanvisning",
+  "anslutsTill", "kabeltyp", "produkttyp", "produkt", "monteringsanvisning", "signaler",
 ]);
 
 /**
