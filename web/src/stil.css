@@ -549,3 +549,14 @@ table.grid.fasta td.ro span { white-space: nowrap; overflow: hidden; text-overfl
 .loggrutnat img{display:block;width:100%;height:56px;object-fit:contain;background:#fff;border-radius:3px}
 .loggrutnat figcaption{display:flex;gap:4px;align-items:center;margin-top:6px;font-size:12px}
 .loggrutnat figcaption input{flex:1;min-width:0;background:var(--yta-2);border:1px solid var(--linje);border-radius:4px;padding:3px 5px;color:var(--text);font-size:12px}
+
+/* I/O-punkter */
+.grid td.egen{padding:2px 4px}
+.iocell{width:100%;text-align:left;border:1px dashed transparent;background:transparent;color:var(--text);padding:5px 6px;border-radius:4px;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;font-family:var(--font-mono)}
+.iocell:hover{border-color:var(--accent);background:var(--accent-mjuk)}
+.iocell.tom{color:var(--dampad);font-family:var(--font)}
+.kortform{flex:1 1 260px;background:var(--yta-2);border:1px solid var(--linje);border-radius:var(--r);padding:6px 8px;color:var(--text);font-family:var(--font-mono)}
+.signaltabell td select{min-width:120px}
+.signaltabell td .ro-text{display:block;padding:7px 8px;font-size:12.5px;color:var(--dampad);white-space:nowrap}
+.signaltabell td.signalknappar{white-space:nowrap;padding:0 6px}
+.signaltabell td.signalknappar .knapp{margin-left:3px}

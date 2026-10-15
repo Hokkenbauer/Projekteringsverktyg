@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { SignallistaVy } from "../listor/SignallistaVy";
+import { sammanfatta, type Signal } from "../../lib/signaler";
 import type { Blink } from "../../grid/DataGrid";
 import { api, ApiFel, laddaNer, skicka } from "../../lib/api";
 import { anslutTillProjekt } from "../../lib/synk";
@@ -420,7 +422,11 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
 
   const andra = async (k: Komponent, falt: keyof Komponent & string, varde: string) => {
     const fore = k;
-    lagg({ ...k, [falt]: varde });
+    if (falt === "signaler") {
+      // I/O-punkterna skickas som JSON; visa dem direkt med ny sammanfattning.
+      const lista = JSON.parse(varde) as Signal[];
+      lagg({ ...k, signaler: lista, signaltyp: sammanfatta(lista) });
+    } else lagg({ ...k, [falt]: varde });
     try {
       const svar = await api<Komponent>(`/api/projekt/${projektId}/komponenter/${k.id}`, {
         method: "PATCH",
@@ -594,7 +600,14 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
         {flik === "projektstatus" && <ProjektStatusVy projektId={projektId} rattigheter={mig.rattigheter} uppdaterad={statusVersion} visaMeddelande={visaMeddelande} />}
         {flik === "medlemmar" && <MedlemmarVy projektId={projektId} rattigheter={mig.rattigheter} visaMeddelande={visaMeddelande} />}
         {flik === "anteckningar" && anteckningar && <AnteckningarVy key={projektId} anteckningar={anteckningar} onSpara={sparaAnteckningar} lasläge={!mig.rattigheter.skriva} onPopUt={() => oppnaPopUt("anteckningar")} />}
-        {vald?.flik.lista && listVy(false)}
+        {vald?.flik.lista && flik !== "signallista" && listVy(false)}
+        {flik === "signallista" && (
+          <SignallistaVy
+            komponenter={komponenter} projekt={projekt} blinkar={blinkar} lasläge={!skrivbar} onAndra={andra}
+            onExcel={() => void laddaNer(`/api/projekt/${projektId}/komponenter/signaler/excel`, "Signallista.xlsx").catch((e) => visaMeddelande((e as Error).message))}
+            onInfo={setInfoId} fokusId={fokusHar}
+          />
+        )}
         {flik === "modbus-rtu" && (
           <ModbusSumma gateways={listor.modbusrtu} enheter={listor.modbus} komponenter={komponenter} onFlik={onFlik} />
         )}

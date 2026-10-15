@@ -14,7 +14,7 @@ public static class KomponentFalt
     [
         "system", "beteckning", "komponenttyp", "signaltyp", "beskrivning",
         "anslutsTill", "kabeltyp", "placering", "ovrigt",
-        "produkttyp", "produkt", "monteringsanvisning",
+        "produkttyp", "produkt", "monteringsanvisning", "signaler",
     ];
 
     public static bool ArTillatet(string falt) => Tillatna.Contains(falt);
@@ -33,19 +33,33 @@ public static class KomponentFalt
         "produkttyp" => k.Produkttyp,
         "produkt" => k.Produkt,
         "monteringsanvisning" => k.Monteringsanvisning,
+        "signaler" => System.Text.Json.JsonSerializer.Serialize(Signaler.Las(k), new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web)),
         _ => throw new ArgumentException($"Okänt fält: {falt}", nameof(falt)),
     };
+
+    /// <summary>Värdet som visas i ändringsloggen (I/O-punkterna som sammanfattning, inte som JSON).</summary>
+    public static string LoggVarde(Komponent k, string falt) => falt == "signaler" ? k.Signaltyp : Hamta(k, falt);
 
     public static void Satt(Komponent k, string falt, string varde)
     {
         varde = (varde ?? "").Trim();
+        // I/O-punkterna: JSON-listan sparas och Signaltyp blir sammanfattningen. Kortform ("2DI DU AO") går också.
+        if (falt == "signaler")
+        {
+            Signaler.Satt(k, varde.StartsWith('[') ? Signaler.LasJson(varde) : Signaler.Tolka(varde));
+            return;
+        }
         if (varde.Length > MaxLangd) varde = varde[..MaxLangd];
         switch (falt)
         {
             case "system": k.System = varde; break;
             case "beteckning": k.Beteckning = varde; break;
             case "komponenttyp": k.Komponenttyp = varde; break;
-            case "signaltyp": k.Signaltyp = varde; break;
+            case "signaltyp":
+                // Skrivs signaltypen som text (tabell, import, mall) tolkas I/O-punkterna ur den.
+                if (varde == "") { k.Signaltyp = ""; k.Signaler = ""; }
+                else Signaler.Satt(k, Signaler.Tolka(varde));
+                break;
             case "beskrivning": k.Beskrivning = varde; break;
             case "anslutsTill": k.AnslutsTill = varde; break;
             case "kabeltyp": k.Kabeltyp = varde; break;

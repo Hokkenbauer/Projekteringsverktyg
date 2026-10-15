@@ -17,6 +17,8 @@ export type Kolumn<T> = {
   fyll?: boolean;
   /** För typ text: förslag som visas medan man skriver (fritt värde går ändå). */
   forslag?: string[];
+  /** Egen cell (t.ex. en knapp som öppnar en ruta). Sökning och sortering använder fortfarande värdet i nyckel. */
+  cell?: (rad: T) => ReactNode;
 };
 
 export type Blink = { radId: string; nyckel: string; farg: string; tid: number };
@@ -262,6 +264,7 @@ export function DataGrid<T extends Rad>({
                 )}
                 {kolumner.map((k) => {
                   const blink = blinkar.find((b) => b.radId === r.id && b.nyckel === k.nyckel);
+                  if (k.cell) return <td key={k.nyckel} className={`egen${blink ? " blinkar" : ""}`}>{k.cell(r)}</td>;
                   return (
                     <Cell
                       key={k.nyckel}

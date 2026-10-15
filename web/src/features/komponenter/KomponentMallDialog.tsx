@@ -14,7 +14,7 @@ type Props = {
 };
 
 const KOLUMNER: [string, string][] = [
-  ["beteckning", "Beteckning"], ["system", "System"], ["komponenttyp", "Komponenttyp"], ["signaltyp", "Signal"],
+  ["beteckning", "Beteckning"], ["system", "System"], ["komponenttyp", "Komponenttyp"], ["signaltyp", "I/O"],
   ["beskrivning", "Beskrivning"], ["anslutsTill", "Ansluts till"], ["ovrigt", "Övrigt"],
 ];
 

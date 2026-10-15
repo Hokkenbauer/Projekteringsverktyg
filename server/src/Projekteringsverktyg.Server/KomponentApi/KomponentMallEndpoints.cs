@@ -32,7 +32,7 @@ public static partial class KomponentMallEndpoints
         ["beteckning"] = "beteckning", ["komponentnamn"] = "beteckning",
         ["system"] = "system",
         ["komponenttyp"] = "komponenttyp", ["typ"] = "komponenttyp",
-        ["signaltyp"] = "signaltyp", ["signal"] = "signaltyp",
+        ["signaltyp"] = "signaltyp", ["signal"] = "signaltyp", ["i/o"] = "signaltyp", ["io"] = "signaltyp",
         ["placering"] = "placering",
         ["beskrivning"] = "beskrivning",
         ["övrigt"] = "ovrigt", ["ovrigt"] = "ovrigt",
@@ -152,6 +152,23 @@ public static partial class KomponentMallEndpoints
             var fil = Excel.Tabell("Komponenter", $"Komponenter – {projekt.Namn} {projekt.Nummer}".Trim(), rubriker,
                 lista.Select(k => falt.Select(f => (object?)KomponentFalt.Hamta(k, f)).ToArray()));
             return Results.File(fil, Excel.MimeTyp, Excel.Filnamn($"Komponenter {projekt.Nummer}".Trim()));
+        });
+
+        // Signallistan: en rad per I/O-punkt.
+        g.MapGet("/signaler/excel", async (Guid projektId, PvDbContext db) =>
+        {
+            var projekt = await db.Projekt.FirstOrDefaultAsync(p => p.Id == projektId);
+            if (projekt is null) return Results.NotFound();
+            var lista = await db.Komponenter.Where(k => k.ProjektId == projektId).ToListAsync();
+            var rader = lista.SelectMany(k => Signaler.Las(k).Select(s => new object?[]
+                {
+                    string.Join("-", new[] { k.Beteckning.Trim(), s.Funktion.Trim() }.Where(x => x != "")),
+                    s.Typ, s.Funktion, s.Beskrivning, k.Beteckning, k.Komponenttyp, k.AnslutsTill,
+                }))
+                .OrderBy(r => (string?)r[0], StringComparer.Create(new System.Globalization.CultureInfo("sv-SE"), false));
+            string[] rubriker = ["Signalnamn", "Typ", "Funktion", "Beskrivning", "Komponent", "Komponenttyp", "Ansluts till"];
+            var fil = Excel.Tabell("Signallista", $"Signallista (I/O) – {projekt.Namn} {projekt.Nummer}".Trim(), rubriker, rader);
+            return Results.File(fil, Excel.MimeTyp, Excel.Filnamn($"Signallista {projekt.Nummer}".Trim()));
         });
 
         return app;

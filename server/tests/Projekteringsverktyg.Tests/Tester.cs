@@ -645,3 +645,53 @@ public class DriftkortSidfotTester
         Assert.Same(fil, Projekteringsverktyg.Server.DriftkortApi.DriftkortSidfot.Tillampa(fil, new("ARBETSKOPIA", null, null, null, null, null, null, null)));
     }
 }
+
+public class SignalTester
+{
+    [Fact]
+    public void Kortform_tolkas_till_IO_punkter_med_foreslagna_funktioner()
+    {
+        var s = Signaler.Tolka("2DI DU AO RTU");
+        Assert.Equal(["DI", "DI", "DU", "AU", "Modbus RTU"], s.Select(x => x.Typ));
+        Assert.Equal(["DRIFT", "LARM", "START", "STYR", ""], s.Select(x => x.Funktion));
+        Assert.Equal("2×DI, DU, AU, Modbus RTU", Signaler.Sammanfatta(s));
+        // Sammanfattningen går att tolka tillbaka till samma typer.
+        Assert.Equal(s.Select(x => x.Typ), Signaler.Tolka(Signaler.Sammanfatta(s)).Select(x => x.Typ));
+    }
+
+    [Theory]
+    [InlineData("DI", "DI")]
+    [InlineData("di+do", "DI, DU")]
+    [InlineData("Modbus RTU", "Modbus RTU")]
+    [InlineData("Modbus TCP", "Modbus TCP")]
+    [InlineData("M-bus", "M-bus")]
+    [InlineData("3 x AI", "3×AI")]
+    [InlineData("Givare", "Givare")]
+    public void Befintlig_signaltyp_tolkas(string text, string sammanfattning) =>
+        Assert.Equal(sammanfattning, Signaler.Sammanfatta(Signaler.Tolka(text)));
+
+    [Fact]
+    public void Komponent_utan_sparade_IO_far_punkter_ur_signaltyp_med_fasta_id()
+    {
+        var k = new Komponent { Beteckning = "LB01-TF01", Signaltyp = "2DI AO" };
+        var a = Signaler.Las(k); var b = Signaler.Las(k);
+        Assert.Equal(3, a.Count);
+        Assert.Equal(a.Select(x => x.Id), b.Select(x => x.Id));
+    }
+
+    [Fact]
+    public void IO_sparas_som_lista_och_signaltyp_blir_sammanfattning()
+    {
+        var k = new Komponent { Beteckning = "LB01-TF01" };
+        KomponentFalt.Satt(k, "signaler", """[{"id":"a","typ":"DI","funktion":"DRIFT","beskrivning":"Drift"},{"id":"b","typ":"AO","funktion":"VARVTAL","beskrivning":""}]""");
+        Assert.Equal("DI, AU", k.Signaltyp);
+        var l = Signaler.Las(k);
+        Assert.Equal("Drift", l[0].Beskrivning);
+        Assert.Equal("AU", l[1].Typ);
+        // Signaltyp skriven som text (import, mall) ersätter punkterna.
+        KomponentFalt.Satt(k, "signaltyp", "DI DU");
+        Assert.Equal("DI, DU", k.Signaltyp);
+        Assert.Equal(2, Signaler.Las(k).Count);
+        Assert.Throws<ArgumentException>(() => KomponentFalt.Satt(k, "signaler", "[{trasig"));
+    }
+}

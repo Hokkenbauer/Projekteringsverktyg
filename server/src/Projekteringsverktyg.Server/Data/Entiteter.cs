@@ -56,6 +56,8 @@ public class Komponent
     public string Produkttyp { get; set; } = "";
     public string Produkt { get; set; } = "";
     public string Monteringsanvisning { get; set; } = "";
+    /// <summary>I/O-punkterna som JSON (se KomponentApi.Signaler). Tom = tolkas ur Signaltyp.</summary>
+    public string Signaler { get; set; } = "";
 
     /// <summary>Räknas upp vid varje ändring. Skyddar mot att två personer skriver över varandra.</summary>
     public int Version { get; set; } = 1;

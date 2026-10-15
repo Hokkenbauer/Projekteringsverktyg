@@ -3,6 +3,7 @@ import { DataGrid, type Blink, type Kolumn } from "../../grid/DataGrid";
 import { api, laddaNer, skicka } from "../../lib/api";
 import type { Kataloger, Komponent } from "../../lib/typer";
 import { KomponentMallDialog } from "./KomponentMallDialog";
+import { SignalDialog } from "./SignalDialog";
 import { SokErsattDialog } from "./SokErsattDialog";
 
 type Props = {
@@ -39,6 +40,8 @@ export function KomponenterVy({
   projektId, kanHanteraMallar, onUppdatera, visaMeddelande, komponenter, kataloger, blinkar, onAndra, onNy, onTaBort, lasläge, onInfo, fokusId,
 }: Props) {
   const [mallOppen, setMallOppen] = useState(false);
+  const [ioId, setIoId] = useState<string | null>(null);
+  const ioKomponent = ioId ? komponenter.find((k) => k.id === ioId) ?? null : null;
   const [sokErsatt, setSokErsatt] = useState(false);
   const [importerar, setImporterar] = useState(false);
   const filval = useRef<HTMLInputElement>(null);
@@ -63,7 +66,11 @@ export function KomponenterVy({
     const valda = komponenter.filter((k) => ids.includes(k.id));
     const namn = window.prompt(`Namn på mallen (${valda.length} komponenter). Skriv xx där numret ska bytas, t.ex. LBxx-GT11.`);
     if (!namn?.trim()) return;
-    const rader = valda.map((k) => Object.fromEntries(MALLFALT.map((f) => [f, k[f]]).filter(([, v]) => v)));
+    // I/O-punkterna följer med i mallen (som JSON), så att en mall kan ge t.ex. DRIFT, LARM, START och VARVTAL.
+    const rader = valda.map((k) => ({
+      ...Object.fromEntries(MALLFALT.map((f) => [f, k[f]]).filter(([, v]) => v)),
+      ...(k.signaler.length ? { signaler: JSON.stringify(k.signaler) } : {}),
+    }));
     try {
       await api("/api/komponentmallar", { method: "POST", body: skicka({ namn, rader }) });
       visaMeddelande(`Mallen ${namn} är sparad.`);
@@ -85,7 +92,15 @@ export function KomponenterVy({
       { nyckel: "system", rubrik: "System", typ: "text", forslag: f("system"), bredd: 90 },
       { nyckel: "beteckning", rubrik: "Beteckning", typ: "text", mono: true, bredd: 130 },
       { nyckel: "komponenttyp", rubrik: "Komponenttyp", typ: "text", forslag: f("komponenttyp"), bredd: 150 },
-      { nyckel: "signaltyp", rubrik: "Signal", typ: "text", forslag: f("signaltyp"), bredd: 70 },
+      {
+        nyckel: "signaltyp", rubrik: "I/O", typ: "text", bredd: 150,
+        cell: (k) => (
+          <button type="button" className={`iocell${k.signaler.length ? "" : " tom"}`} title={k.signaler.length ? `${k.signaler.length} I/O-punkter – klicka för att ändra` : "Lägg till I/O"}
+            onClick={() => setIoId(k.id)}>
+            {k.signaltyp || "+ I/O"}
+          </button>
+        ),
+      },
       { nyckel: "placering", rubrik: "Placering", typ: "text", forslag: f("placering"), bredd: 160 },
       { nyckel: "beskrivning", rubrik: "Beskrivning", typ: "text", bredd: 220 },
       { nyckel: "anslutsTill", rubrik: "Ansluts till", typ: "text", mono: true },
@@ -131,6 +146,10 @@ export function KomponenterVy({
           )}
           <button className="knapp" onClick={() => void laddaNer(`/api/projekt/${projektId}/komponenter/excel`, "Komponenter.xlsx").catch((e) => visaMeddelande((e as Error).message))}>Exportera Excel</button>
         </>}
+      />
+      <SignalDialog
+        komponent={ioKomponent} lasläge={!!lasläge} onStang={() => setIoId(null)}
+        onSpara={(k, lista) => onAndra(k, "signaler", JSON.stringify(lista))}
       />
       <SokErsattDialog
         projektId={projektId} oppen={sokErsatt} onStang={() => setSokErsatt(false)} komponenter={komponenter}

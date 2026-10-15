@@ -1,3 +1,4 @@
+import type { Signal } from "./signaler";
 /** Typer som speglar serverns DTO:er. */
 
 export type Rattigheter = {
@@ -65,6 +66,8 @@ export type Komponent = {
   version: number;
   andrad: string;
   andradAv: string;
+  /** I/O-punkterna. Signaltyp är en sammanfattning av dem. */
+  signaler: Signal[];
 };
 
 export type KomponentHandelse = {

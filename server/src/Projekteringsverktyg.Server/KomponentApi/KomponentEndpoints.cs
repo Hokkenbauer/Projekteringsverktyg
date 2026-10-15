@@ -12,13 +12,13 @@ public sealed record KomponentDto(
     Guid Id, Guid ProjektId, string System, string Beteckning, string Komponenttyp, string Signaltyp,
     string Beskrivning, string AnslutsTill, string Kabeltyp, string Placering, string Ovrigt,
     string Produkttyp, string Produkt, string Monteringsanvisning,
-    int Version, DateTimeOffset Andrad, string AndradAv)
+    int Version, DateTimeOffset Andrad, string AndradAv, List<Signal> Signaler)
 {
     public static KomponentDto Fran(Komponent k) => new(
         k.Id, k.ProjektId, k.System, k.Beteckning, k.Komponenttyp, k.Signaltyp,
         k.Beskrivning, k.AnslutsTill, k.Kabeltyp, k.Placering, k.Ovrigt,
         k.Produkttyp, k.Produkt, k.Monteringsanvisning,
-        k.Version, k.Andrad, k.AndradAv);
+        k.Version, k.Andrad, k.AndradAv, KomponentApi.Signaler.Las(k));
 }
 
 /// <summary>Ny komponent. Alla fält är frivilliga; tomma fält fylls i efterhand i tabellen.</summary>
@@ -89,7 +89,9 @@ public static class KomponentEndpoints
                 return Results.Conflict(new { meddelande = "Komponenten har ändrats av någon annan.", komponent = KomponentDto.Fran(k) });
 
             var fore = KomponentFalt.Hamta(k, andring.Falt);
-            KomponentFalt.Satt(k, andring.Falt, andring.Varde ?? "");
+            var foreLogg = KomponentFalt.LoggVarde(k, andring.Falt);
+            try { KomponentFalt.Satt(k, andring.Falt, andring.Varde ?? ""); }
+            catch (ArgumentException e) { return Results.ValidationProblem(new Dictionary<string, string[]> { ["varde"] = [e.Message] }); }
             var efter = KomponentFalt.Hamta(k, andring.Falt);
             if (fore == efter) return Results.Ok(KomponentDto.Fran(k));
 
@@ -98,7 +100,8 @@ public static class KomponentEndpoints
             k.Andrad = DateTimeOffset.UtcNow;
             k.AndradAv = av.Namn;
             var namn = string.IsNullOrEmpty(k.Beteckning) ? "en komponent" : k.Beteckning;
-            Andringslogg.Logga(db, projektId, av, "Komponent", k.Id, $"ändrade {andring.Falt} på {namn}", andring.Falt, fore, efter);
+            var vad = andring.Falt == "signaler" ? "I/O" : andring.Falt;
+            Andringslogg.Logga(db, projektId, av, "Komponent", k.Id, $"ändrade {vad} på {namn}", andring.Falt, foreLogg, KomponentFalt.LoggVarde(k, andring.Falt));
 
             try
             {
