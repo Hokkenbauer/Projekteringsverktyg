@@ -25,10 +25,41 @@ public static class Excel
         return $"{rent} {DateTime.UtcNow:yyyy-MM-dd}.xlsx";
     }
 
-    public static byte[] Tabell(string bladnamn, string titel, IReadOnlyList<string> kolumner, IEnumerable<object?[]> rader)
+    /// <summary>Ett blad i en arbetsbok: bladnamn, titel, kolumnrubriker och rader.</summary>
+    public sealed record Blad(string Namn, string Titel, IReadOnlyList<string> Kolumner, IEnumerable<object?[]> Rader);
+
+    public static byte[] Tabell(string bladnamn, string titel, IReadOnlyList<string> kolumner, IEnumerable<object?[]> rader) =>
+        Arbetsbok([new Blad(bladnamn, titel, kolumner, rader)]);
+
+    /// <summary>En Excel-fil med flera blad (t.ex. projektexporten). Bladnamnen görs unika och högst 31 tecken.</summary>
+    public static byte[] Arbetsbok(IEnumerable<Blad> blad)
     {
         using var wb = new XLWorkbook();
-        var ws = wb.Worksheets.Add(bladnamn.Length > 31 ? bladnamn[..31] : bladnamn);
+        var anvanda = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var b in blad) LaggTill(wb, UniktNamn(b.Namn, anvanda), b.Titel, b.Kolumner, b.Rader);
+        if (wb.Worksheets.Count == 0) wb.Worksheets.Add("Tom");
+        using var ström = new MemoryStream();
+        wb.SaveAs(ström);
+        return ström.ToArray();
+    }
+
+    private static string UniktNamn(string namn, HashSet<string> anvanda)
+    {
+        var ren = new string(namn.Select(c => "[]:*?/\\".Contains(c) ? '-' : c).ToArray()).Trim();
+        if (ren == "") ren = "Blad";
+        var bas = ren.Length > 31 ? ren[..31] : ren;
+        var kandidat = bas;
+        for (var i = 2; !anvanda.Add(kandidat); i++)
+        {
+            var suffix = $" ({i})";
+            kandidat = (bas.Length + suffix.Length > 31 ? bas[..(31 - suffix.Length)] : bas) + suffix;
+        }
+        return kandidat;
+    }
+
+    private static void LaggTill(XLWorkbook wb, string bladnamn, string titel, IReadOnlyList<string> kolumner, IEnumerable<object?[]> rader)
+    {
+        var ws = wb.Worksheets.Add(bladnamn);
         ws.Style.Font.FontName = "Arial";
         ws.Style.Font.FontSize = 10;
 
@@ -63,12 +94,8 @@ public static class Excel
         }
 
         var sista = Math.Max(r - 1, rubrikRad);
-        ws.Range(rubrikRad, 1, sista, kolumner.Count).SetAutoFilter();
+        if (kolumner.Count > 0) ws.Range(rubrikRad, 1, sista, kolumner.Count).SetAutoFilter();
         ws.SheetView.FreezeRows(rubrikRad);
         for (var c = 1; c <= kolumner.Count; c++) ws.Column(c).Width = c == 1 ? 18 : 30;
-
-        using var ström = new MemoryStream();
-        wb.SaveAs(ström);
-        return ström.ToArray();
     }
 }

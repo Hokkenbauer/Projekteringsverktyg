@@ -36,7 +36,9 @@ export function ProjektLista({ onOppna, kanSkapa, kanTaBort }: { onOppna: (id: s
     setImporterar(true);
     setFel(null);
     try {
-      const svar = await api<{ projekt: Projekt; rapport: string[]; varningar: string[] }>("/api/projekt/import", { method: "POST", body: form });
+      // .zip = projektexport från det här verktyget, annars projektfil (.projxml) från dagens program.
+      const url = /\.zip$/i.test(fil.name) ? "/api/projekt/import-export" : "/api/projekt/import";
+      const svar = await api<{ projekt: Projekt; rapport: string[]; varningar: string[] }>(url, { method: "POST", body: form });
       setImporterat(svar);
       setProjekt((l) => [svar.projekt, ...(l ?? [])]);
     } catch (err) {
@@ -81,16 +83,20 @@ export function ProjektLista({ onOppna, kanSkapa, kanTaBort }: { onOppna: (id: s
       </section>}
 
       {kanSkapa && <section className="panel">
-        <h2>Importera från dagens program</h2>
+        <h2>Importera projekt</h2>
         <p className="dampad">
-          Välj projektfilen (.projxml) från ProjektVerktyg 2.2. Ett nytt projekt skapas med komponenter, listor, kontroller,
+          <b>Projektexport (.zip)</b> från Exportera projektet på Översikt: ett nytt projekt skapas med allt som exporterades –
+          komponenter med I/O, listor, kontroller, apparatskåp, funktionstexter, ritningar och projektfiler. Det exporterade projektet påverkas inte.
+        </p>
+        <p className="dampad">
+          <b>Projektfil (.projxml)</b> från ProjektVerktyg 2.2: ett nytt projekt skapas med komponenter, listor, kontroller,
           apparatskåp, modulbeläggning, texter och övrigt. Placeringsritningen (.sro.json) läser du in efteråt under
           Placeringsritningar → Mer → Importera ritning från dagens program; komponenterna kopplas då ihop på beteckningen.
         </p>
         <button className="knapp primar" disabled={importerar} onClick={() => importFil.current?.click()}>
-          {importerar ? "Importerar…" : "Välj projektfil (.projxml)…"}
+          {importerar ? "Importerar…" : "Välj projektexport (.zip) eller projektfil (.projxml)…"}
         </button>
-        <input ref={importFil} type="file" accept=".projxml,.xml" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void importera(f); }} />
+        <input ref={importFil} type="file" accept=".zip,.projxml,.xml" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void importera(f); }} />
         {importerat && (
           <div className="importrapport">
             <p><b>{importerat.projekt.namn}</b> är importerat.</p>

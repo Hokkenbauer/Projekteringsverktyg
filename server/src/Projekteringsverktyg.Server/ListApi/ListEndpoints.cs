@@ -190,57 +190,66 @@ public static class ListEndpoints
 
         g.MapGet("/excel", async (Guid projektId, string lista, PvDbContext db) =>
         {
-            var def = Listdefinitioner.Hitta(lista);
-            if (def is null) return Results.NotFound();
             var projekt = await db.Projekt.FirstOrDefaultAsync(p => p.Id == projektId);
             if (projekt is null) return Results.NotFound();
-
-            var kolumner = def.ExportKolumner is { } ek
-                ? def.Kolumner.Where(k => ek.Contains(k.Nyckel)).ToList()
-                : def.Kolumner.ToList();
-            var sparade = await db.ListRader.Where(r => r.ProjektId == projektId && r.Lista == lista)
-                .OrderBy(r => r.Ordning).ThenBy(r => r.Andrad).ToListAsync();
-
-            var rader = new List<object?[]>();
-            if (def.Kopplad)
-            {
-                var perKomponent = sparade.Where(r => r.KomponentId is not null).ToDictionary(r => r.KomponentId!.Value);
-                var komponenter = await db.Komponenter.Where(k => k.ProjektId == projektId)
-                    .OrderBy(k => k.System).ThenBy(k => k.Beteckning).ToListAsync();
-                var nr = 0;
-                foreach (var k in komponenter.Where(k => Listdefinitioner.Omfattar(def, k.Komponenttyp)))
-                {
-                    var data = perKomponent.TryGetValue(k.Id, out var r) ? LasData(r.Data) : new();
-                    nr++;
-                    rader.Add(kolumner.Select(c => (object?)Cell(c, data, k, nr, def.Bindestreck)).ToArray());
-                }
-            }
-            else
-            {
-                var nr = 0;
-                List<Komponent>? allaKomponenter = def.Kolumner.Any(k => k.Typ is "antal" or "fran" or "koppling")
-                    ? await db.Komponenter.AsNoTracking().Where(k => k.ProjektId == projektId).ToListAsync() : null;
-                foreach (var r in sparade)
-                {
-                    nr++;
-                    var data = LasData(r.Data);
-                    KolumnDef.BeraknaAlla(def.Kolumner, data, allaKomponenter);
-                    foreach (var kk in def.Kolumner.Where(x => x.Typ == "koppling"))
-                        if (KolumnDef.HittaKoppling(data.GetValueOrDefault(kk.Nyckel, ""), allaKomponenter) is { } kp) data[kk.Nyckel] = kp.Beteckning;
-                    rader.Add(kolumner.Select(c => (object?)Cell(c, data, null, nr, false)).ToArray());
-                }
-            }
-
-            var namn = def.Namn;
-            if (lista.StartsWith(Listdefinitioner.KontrollPrefix) && Guid.TryParse(lista[Listdefinitioner.KontrollPrefix.Length..], out var kid))
-                namn = await db.Kontroller.Where(k => k.Id == kid && k.ProjektId == projektId).Select(k => k.Namn).FirstOrDefaultAsync() ?? namn;
-            if (lista.StartsWith(Listdefinitioner.KraftPrefix) && Guid.TryParse(lista[Listdefinitioner.KraftPrefix.Length..], out var sid))
-                namn = "Kraftberäkning " + (await db.Skap.Where(k => k.Id == sid && k.ProjektId == projektId).Select(k => k.Namn).FirstOrDefaultAsync() ?? "");
-            var fil = Excel.Tabell(namn, $"{namn} – {projekt.Namn} {projekt.Nummer}".Trim(), kolumner.Select(c => c.Rubrik).ToList(), rader);
+            var tabell = await ExportTabellAsync(db, projektId, lista);
+            if (tabell is null) return Results.NotFound();
+            var (namn, rubriker, rader) = tabell.Value;
+            var fil = Excel.Tabell(namn, $"{namn} – {projekt.Namn} {projekt.Nummer}".Trim(), rubriker, rader);
             return Results.File(fil, Excel.MimeTyp, Excel.Filnamn($"{namn} {projekt.Nummer}".Trim()));
         });
 
         return app;
+    }
+
+    /// <summary>En lista som rubriker och rader för export (Excel-fil eller blad i projektexporten). Null = okänd lista.</summary>
+    public static async Task<(string Namn, List<string> Rubriker, List<object?[]> Rader)?> ExportTabellAsync(PvDbContext db, Guid projektId, string lista)
+    {
+        var def = Listdefinitioner.Hitta(lista);
+        if (def is null) return null;
+
+        var kolumner = def.ExportKolumner is { } ek
+            ? def.Kolumner.Where(k => ek.Contains(k.Nyckel)).ToList()
+            : def.Kolumner.ToList();
+        var sparade = await db.ListRader.Where(r => r.ProjektId == projektId && r.Lista == lista)
+            .OrderBy(r => r.Ordning).ThenBy(r => r.Andrad).ToListAsync();
+
+        var rader = new List<object?[]>();
+        if (def.Kopplad)
+        {
+            var perKomponent = sparade.Where(r => r.KomponentId is not null).GroupBy(r => r.KomponentId!.Value).ToDictionary(g => g.Key, g => g.First());
+            var komponenter = await db.Komponenter.Where(k => k.ProjektId == projektId)
+                .OrderBy(k => k.System).ThenBy(k => k.Beteckning).ToListAsync();
+            var nr = 0;
+            foreach (var k in komponenter.Where(k => Listdefinitioner.Omfattar(def, k.Komponenttyp)))
+            {
+                var data = perKomponent.TryGetValue(k.Id, out var r) ? LasData(r.Data) : new();
+                nr++;
+                rader.Add(kolumner.Select(c => (object?)Cell(c, data, k, nr, def.Bindestreck)).ToArray());
+            }
+        }
+        else
+        {
+            var nr = 0;
+            List<Komponent>? allaKomponenter = def.Kolumner.Any(k => k.Typ is "antal" or "fran" or "koppling")
+                ? await db.Komponenter.AsNoTracking().Where(k => k.ProjektId == projektId).ToListAsync() : null;
+            foreach (var r in sparade)
+            {
+                nr++;
+                var data = LasData(r.Data);
+                KolumnDef.BeraknaAlla(def.Kolumner, data, allaKomponenter);
+                foreach (var kk in def.Kolumner.Where(x => x.Typ == "koppling"))
+                    if (KolumnDef.HittaKoppling(data.GetValueOrDefault(kk.Nyckel, ""), allaKomponenter) is { } kp) data[kk.Nyckel] = kp.Beteckning;
+                rader.Add(kolumner.Select(c => (object?)Cell(c, data, null, nr, false)).ToArray());
+            }
+        }
+
+        var namn = def.Namn;
+        if (lista.StartsWith(Listdefinitioner.KontrollPrefix) && Guid.TryParse(lista[Listdefinitioner.KontrollPrefix.Length..], out var kid))
+            namn = await db.Kontroller.Where(k => k.Id == kid && k.ProjektId == projektId).Select(k => k.Namn).FirstOrDefaultAsync() ?? namn;
+        if (lista.StartsWith(Listdefinitioner.KraftPrefix) && Guid.TryParse(lista[Listdefinitioner.KraftPrefix.Length..], out var sid))
+            namn = "Kraftberäkning " + (await db.Skap.Where(k => k.Id == sid && k.ProjektId == projektId).Select(k => k.Namn).FirstOrDefaultAsync() ?? "");
+        return (namn, kolumner.Select(c => c.Rubrik).ToList(), rader);
     }
 
     private static string Cell(KolumnDef c, Dictionary<string, string> data, Komponent? k, int nr, bool bindestreck) => c.Typ switch

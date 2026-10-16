@@ -17,6 +17,38 @@ type OversiktProps = {
   anmarkningar?: ListRad[];
 };
 
+/**
+ * Projektexport: en ZIP med Excel (alla listor), funktionstexter i Word, texter, ritningar,
+ * projektfiler och hela projektet maskinläsbart (projekt.json).
+ */
+function ProjektExportKnapp({ projekt }: { projekt: Projekt }) {
+  const [medFiler, setMedFiler] = useState(true);
+  const [arbetar, setArbetar] = useState(false);
+  const [fel, setFel] = useState<string | null>(null);
+  const exportera = async () => {
+    setArbetar(true); setFel(null);
+    try {
+      await laddaNer(`/api/projekt/${projekt.id}/export?filer=${medFiler}`, `Projektexport ${projekt.nummer} ${projekt.namn}.zip`.replace(/\s+/g, " "));
+    } catch (e) {
+      setFel(`Exporten misslyckades: ${(e as Error).message}`);
+    } finally {
+      setArbetar(false);
+    }
+  };
+  return (
+    <div className="knappar projektexport">
+      <label className="kontroll liten" title="PDF-ritningar, driftkort, Word-filer m.m. i Projektfiler. Kan göra filen stor.">
+        <input type="checkbox" checked={medFiler} onChange={(e) => setMedFiler(e.target.checked)} /> Med projektfiler
+      </label>
+      <button className="knapp primar" disabled={arbetar} onClick={() => void exportera()}
+        title="Allt viktigt i projektet i en ZIP-fil: Excel med alla listor, funktionstexter i Word, texter, ritningar och projektfiler">
+        {arbetar ? "Exporterar…" : "Exportera projektet"}
+      </button>
+      {fel && <span className="felruta liten">{fel}</span>}
+    </div>
+  );
+}
+
 export function Oversikt({ projekt, komponenter, attGora, anteckningar, logg, narvaro, onFlik, egenkontroll, anmarkningar }: OversiktProps) {
   const oppna = attGora.filter((a) => !a.klar);
   const komponentIds = new Set(komponenter.map((k) => k.id));
@@ -27,7 +59,10 @@ export function Oversikt({ projekt, komponenter, attGora, anteckningar, logg, na
   return (
     <>
       <div className="brodsmula">Projekt</div>
-      <h1>{projekt.namn}</h1>
+      <div className="rubrikrad">
+        <h1>{projekt.namn}</h1>
+        <ProjektExportKnapp projekt={projekt} />
+      </div>
       <p className="ingress">
         {[projekt.nummer, projekt.kund, projekt.ansvarig && `Ansvarig ${projekt.ansvarig}`].filter(Boolean).join(" · ")}
       </p>

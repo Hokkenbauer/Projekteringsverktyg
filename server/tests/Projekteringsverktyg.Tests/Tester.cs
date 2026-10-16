@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Projekteringsverktyg.Server.Auth;
 using Projekteringsverktyg.Server.Data;
 using Projekteringsverktyg.Server.DriftkortApi;
@@ -694,5 +695,86 @@ public class SignalTester
         Assert.Equal("DI, DU", k.Signaltyp);
         Assert.Equal(2, Signaler.Las(k).Count);
         Assert.Throws<ArgumentException>(() => KomponentFalt.Satt(k, "signaler", "[{trasig"));
+    }
+}
+
+public class ProjektExportTester
+{
+    [Fact]
+    public void Arbetsbok_far_unika_och_korta_bladnamn()
+    {
+        var fil = Projekteringsverktyg.Server.Export.Excel.Arbetsbok([
+            new("Egenkontroll", "t", ["A"], [new object?[] { "x" }]),
+            new("Egenkontroll", "t", ["A"], [new object?[] { "y" }]),
+            new("Ett väldigt långt namn på en kontroll: el/styr [del 2]", "t", ["A", "B"], []),
+        ]);
+        using var wb = new ClosedXML.Excel.XLWorkbook(new MemoryStream(fil));
+        var namn = wb.Worksheets.Select(w => w.Name).ToList();
+        Assert.Equal(3, namn.Count);
+        Assert.Equal(namn.Count, namn.Distinct(StringComparer.OrdinalIgnoreCase).Count());
+        Assert.All(namn, n => Assert.True(n.Length <= 31));
+        Assert.Equal("y", wb.Worksheet(2).Cell(5, 1).GetString());
+    }
+}
+
+public class ProjektExportImportTester
+{
+    private static PvDbContext NyDb() => new(new DbContextOptionsBuilder<PvDbContext>()
+        .UseInMemoryDatabase("pv-" + Guid.NewGuid())
+        .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning))
+        .Options);
+
+    [Fact]
+    public async Task Export_kan_lasas_in_som_nytt_projekt_med_alla_kopplingar()
+    {
+        using var db = NyDb();
+        var lagring = new Projekteringsverktyg.Server.FilApi.DiskLagring(Path.Combine(Path.GetTempPath(), "pv-test-" + Guid.NewGuid()));
+        var p = new Projekt { Namn = "Support Wing", Nummer = "24117", Kund = "Siemens" };
+        var k = new Komponent { ProjektId = p.Id, Beteckning = "LB01-TF01", Komponenttyp = "Fläkt" };
+        Signaler.Satt(k, Signaler.Tolka("2DI DU AO RTU"));
+        var skap = new Skap { ProjektId = p.Id, Namn = "AS01", Moduler = $$"""{"kort":[{"kanaler":[{"komponentId":"{{k.Id}}"}]}]}""" };
+        var fil = new ProjektFil { ProjektId = p.Id, Mapp = "Ritningar", Namn = "plan1.pdf", Version = 1, Typ = "application/pdf" };
+        fil.BlobNamn = $"{p.Id}/{fil.Id}";
+        await lagring.SparaAsync(fil.BlobNamn, new MemoryStream([1, 2, 3]), fil.Typ, CancellationToken.None);
+        db.AddRange(p, k, skap, fil,
+            new ListRad { ProjektId = p.Id, Lista = "egenkontroll", KomponentId = k.Id, Data = """{"kontrollerad":"true"}""" },
+            new Ritning { ProjektId = p.Id, Data = $$"""{"buildings":[{"floors":[{"layers":[{"fileId":"{{fil.Id}}"}],"components":[{"pvId":"{{k.Id}}"}]}]}]}""" },
+            new AttGoraPost { ProjektId = p.Id, Text = "Beställ givare" });
+        await db.SaveChangesAsync();
+
+        var minne = new MemoryStream();
+        using (var zip = new System.IO.Compression.ZipArchive(minne, System.IO.Compression.ZipArchiveMode.Create, leaveOpen: true))
+            await Projekteringsverktyg.Server.Export.ProjektExport.SkrivAsync(zip, db, lagring, p, true, true,
+                Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance, CancellationToken.None);
+        minne.Position = 0;
+        using var las = new System.IO.Compression.ZipArchive(minne, System.IO.Compression.ZipArchiveMode.Read);
+        Assert.NotNull(las.GetEntry("Projektdata.xlsx"));
+        Assert.NotNull(las.GetEntry("Projektfiler/Ritningar/plan1.pdf"));
+
+        var r = await Projekteringsverktyg.Server.Export.ProjektImport.LasInAsync(las, "", new Anvandare("u1", "Test"), "u1", "x.zip", db, lagring, CancellationToken.None);
+        Assert.NotEqual(p.Id, r.Projekt.Id);
+        Assert.Equal("Support Wing", r.Projekt.Namn);
+
+        var nyK = await db.Komponenter.SingleAsync(x => x.ProjektId == r.Projekt.Id);
+        Assert.NotEqual(k.Id, nyK.Id);
+        Assert.Equal("2×DI, DU, AU, Modbus RTU", nyK.Signaltyp);
+        Assert.Equal(5, Signaler.Las(nyK).Count);
+        var nyRad = await db.ListRader.SingleAsync(x => x.ProjektId == r.Projekt.Id);
+        Assert.Equal(nyK.Id, nyRad.KomponentId);
+        var nyFil = await db.Filer.SingleAsync(x => x.ProjektId == r.Projekt.Id);
+        var nyRitning = await db.Ritningar.SingleAsync(x => x.ProjektId == r.Projekt.Id);
+        Assert.Contains(nyK.Id.ToString(), nyRitning.Data);
+        Assert.Contains(nyFil.Id.ToString(), nyRitning.Data);
+        Assert.DoesNotContain(k.Id.ToString(), nyRitning.Data);
+        var nyttSkap = await db.Skap.SingleAsync(x => x.ProjektId == r.Projekt.Id);
+        Assert.Contains(nyK.Id.ToString(), nyttSkap.Moduler);
+        await using (var s = await lagring.OppnaAsync(nyFil.BlobNamn, CancellationToken.None))
+        {
+            using var m = new MemoryStream(); await s!.CopyToAsync(m);
+            Assert.Equal(new byte[] { 1, 2, 3 }, m.ToArray());
+        }
+        Assert.Equal(1, await db.AttGora.CountAsync(a => a.ProjektId == r.Projekt.Id));
+        // Originalet är orört.
+        Assert.Equal(k.Id, (await db.ListRader.SingleAsync(x => x.ProjektId == p.Id)).KomponentId);
     }
 }
