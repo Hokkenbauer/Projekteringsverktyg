@@ -112,6 +112,31 @@ public class AnvandarPost
     public DateTimeOffset SenastInloggad { get; set; } = DateTimeOffset.UtcNow;
 }
 
+/// <summary>Inbjudan av en extern deltagare. Följer med till första inloggningen: då får personen rollen och projekten.</summary>
+public class Inbjudan
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    /// <summary>E-postadressen i gemener.</summary>
+    public string Epost { get; set; } = "";
+    public string Namn { get; set; } = "";
+    public string Roll { get; set; } = Roller.Lasare;
+    /// <summary>Projektens Id, kommaseparerade.</summary>
+    public string ProjektIds { get; set; } = "";
+    /// <summary>Gästens objekt-Id i Entra ID (samma som oid vid inloggning), när Microsoft skapat gästen.</summary>
+    public string GastId { get; set; } = "";
+    /// <summary>Vantar, Accepterad.</summary>
+    public string Status { get; set; } = "Vantar";
+    /// <summary>Senaste svar från Microsoft (t.ex. varför mejlet inte kunde skickas).</summary>
+    public string Meddelande { get; set; } = "";
+    public DateTimeOffset Skapad { get; set; } = DateTimeOffset.UtcNow;
+    public string SkapadAv { get; set; } = "";
+    public DateTimeOffset? Accepterad { get; set; }
+    public string AnvandarId { get; set; } = "";
+
+    public List<Guid> Projekt() => ProjektIds.Split(',', StringSplitOptions.RemoveEmptyEntries)
+        .Select(x => Guid.TryParse(x, out var g) ? g : Guid.Empty).Where(g => g != Guid.Empty).Distinct().ToList();
+}
+
 public class ProjektMedlem
 {
     public Guid ProjektId { get; set; }

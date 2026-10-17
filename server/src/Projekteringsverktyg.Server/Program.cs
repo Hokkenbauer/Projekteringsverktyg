@@ -83,6 +83,10 @@ builder.Services.AddDbContext<PvDbContext>(o => o.UseNpgsql(anslutning));
 builder.Services.AddSignalR();
 builder.Services.AddSingleton<NarvaroRegister>();
 builder.Services.AddScoped<Behorighet>();
+// Inbjudan av externa deltagare: gästinbjudan via Microsoft när inloggningen är påslagen.
+builder.Services.AddHttpClient("graph");
+if (entraPaslagen) builder.Services.AddSingleton<IGastInbjudan, GraphGastInbjudan>();
+else builder.Services.AddSingleton<IGastInbjudan, IngenGastInbjudan>();
 builder.Services.AddProblemDetails();
 
 // ---------------------------------------------------------------------------
@@ -154,6 +158,7 @@ app.MapProjektEndpoints();
 app.MapKomponentEndpoints();
 app.MapAttGoraEndpoints();
 app.MapRollEndpoints();
+app.MapInbjudanEndpoints();
 app.MapStatusEndpoints();
 app.MapListEndpoints();
 app.MapTextEndpoints();

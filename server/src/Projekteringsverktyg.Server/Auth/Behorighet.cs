@@ -7,7 +7,7 @@ namespace Projekteringsverktyg.Server.Auth;
 /// <summary>
 /// Vem är inloggad, vilken roll har hen och vad får hen göra.
 /// Användaren registreras automatiskt vid första anropet. Finns ingen admin än blir den
-/// första användaren admin, annars Tekniker tills en admin ändrar rollen.
+/// första användaren admin, annars Tekniker tills en admin ändrar rollen. En inbjuden extern deltagare får inbjudans roll och projekt.
 /// </summary>
 public sealed class Behorighet(PvDbContext db)
 {
@@ -31,6 +31,8 @@ public sealed class Behorighet(PvDbContext db)
                 Roll = finnsAdmin ? Roller.Tekniker : Roller.Admin,
             };
             db.Anvandare.Add(post);
+            // Inbjuden extern deltagare: rollen och projekten från inbjudan.
+            if (finnsAdmin) await AnvandarApi.Inbjudningar.TillampaAsync(db, post, AnvandarApi.Inbjudningar.EpostFran(user), nyAnvandare: true);
             await db.SaveChangesAsync();
         }
         else if (post.Namn != anv.Namn || (epost != "" && post.Epost != epost) || post.SenastInloggad < DateTimeOffset.UtcNow.AddMinutes(-10))
@@ -38,6 +40,8 @@ public sealed class Behorighet(PvDbContext db)
             post.Namn = anv.Namn;
             if (epost != "") post.Epost = epost;
             post.SenastInloggad = DateTimeOffset.UtcNow;
+            // En befintlig användare kan ha bjudits in till fler projekt sedan sist.
+            await AnvandarApi.Inbjudningar.TillampaAsync(db, post, AnvandarApi.Inbjudningar.EpostFran(user), nyAnvandare: false);
             await db.SaveChangesAsync();
         }
 

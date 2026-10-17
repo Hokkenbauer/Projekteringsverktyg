@@ -817,3 +817,39 @@ public class AutoRaderTester
         Assert.Equal("Värme", Projekteringsverktyg.Server.ListApi.AutoRader.MatareForslag(K("G-RAD01-MQ41"))["medie"]);
     }
 }
+
+public class InbjudanTester
+{
+    private static PvDbContext NyDb() => new(new DbContextOptionsBuilder<PvDbContext>()
+        .UseInMemoryDatabase("pv-" + Guid.NewGuid()).Options);
+
+    [Fact]
+    public void Gastens_anvandarnamn_ger_riktig_epost()
+    {
+        var user = new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity(
+            [new System.Security.Claims.Claim("preferred_username", "Anna.Berg_Foretaget.se#EXT#@heco.onmicrosoft.com")], "test"));
+        var e = Projekteringsverktyg.Server.AnvandarApi.Inbjudningar.EpostFran(user);
+        Assert.Contains("anna.berg@foretaget.se", e);
+    }
+
+    [Fact]
+    public async Task Inbjudan_ger_roll_och_projekt_vid_forsta_inloggningen()
+    {
+        using var db = NyDb();
+        var p = new Projekt { Namn = "Husby" };
+        db.Projekt.Add(p);
+        db.Inbjudningar.Add(new Inbjudan { Epost = "anna@foretaget.se", Roll = Roller.Lasare, ProjektIds = p.Id.ToString(), SkapadAv = "Håkan" });
+        await db.SaveChangesAsync();
+
+        var post = new AnvandarPost { Id = "oid-1", Namn = "Anna", Roll = Roller.Tekniker };
+        db.Anvandare.Add(post);
+        Assert.True(await Projekteringsverktyg.Server.AnvandarApi.Inbjudningar.TillampaAsync(db, post, new HashSet<string> { "anna@foretaget.se" }, nyAnvandare: true));
+        await db.SaveChangesAsync();
+
+        Assert.Equal(Roller.Lasare, post.Roll);
+        Assert.True(await db.Medlemmar.AnyAsync(m => m.ProjektId == p.Id && m.AnvandarId == "oid-1"));
+        Assert.Equal("Accepterad", (await db.Inbjudningar.SingleAsync()).Status);
+        // Andra gången händer inget.
+        Assert.False(await Projekteringsverktyg.Server.AnvandarApi.Inbjudningar.TillampaAsync(db, post, new HashSet<string> { "anna@foretaget.se" }, nyAnvandare: false));
+    }
+}

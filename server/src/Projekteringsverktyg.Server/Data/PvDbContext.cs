@@ -11,6 +11,7 @@ public class PvDbContext(DbContextOptions<PvDbContext> options) : DbContext(opti
     public DbSet<AttGoraPost> AttGora => Set<AttGoraPost>();
     public DbSet<AnvandarPost> Anvandare => Set<AnvandarPost>();
     public DbSet<ProjektMedlem> Medlemmar => Set<ProjektMedlem>();
+    public DbSet<Inbjudan> Inbjudningar => Set<Inbjudan>();
     public DbSet<StatusRubrik> StatusRubriker => Set<StatusRubrik>();
     public DbSet<StatusUppgift> StatusUppgifter => Set<StatusUppgift>();
     public DbSet<ListRad> ListRader => Set<ListRad>();
@@ -71,6 +72,8 @@ public class PvDbContext(DbContextOptions<PvDbContext> options) : DbContext(opti
             e.ToTable("anvandare");
             e.HasKey(a => a.Id);
         });
+
+        b.Entity<Inbjudan>(e => { e.ToTable("inbjudan"); e.HasKey(i => i.Id); });
 
         b.Entity<ProjektMedlem>(e =>
         {
