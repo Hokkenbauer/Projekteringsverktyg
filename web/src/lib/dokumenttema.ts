@@ -50,8 +50,9 @@ body{font-family:Calibri,Carlito,"Segoe UI",Arial,sans-serif;font-size:9.5pt;col
 .pv-sida{width:100%;border-collapse:collapse}.pv-sida>thead>tr>td,.pv-sida>tbody>tr>td{padding:0;border:0;background:none}
 .pv-sida>thead>tr>td{padding-bottom:4mm}
 .rh{display:grid;grid-template-columns:24% 1fr 33%;border:1px solid #000}
-.rh-logga{display:flex;align-items:center;justify-content:center;border-right:1px solid #000;padding:2mm}
-.rh-logga img{height:auto;width:auto;max-height:11mm;max-width:100%;display:block;object-fit:contain}
+/* Loggan fyller hela rutan men behåller sina proportioner (ingen förvrängning). */
+.rh-logga{position:relative;border-right:1px solid #000;min-height:20mm}
+.rh-logga img{position:absolute;left:2mm;top:1.5mm;width:calc(100% - 4mm);height:calc(100% - 3mm);object-fit:contain;display:block}
 .rh-mitt{display:grid;grid-template-rows:1fr 1fr;border-right:1px solid #000}
 .rh-cell{padding:.8mm 1.6mm;display:flex;flex-direction:column}.rh-cell+.rh-cell{border-top:1px solid #000}
 .rh-cell small{font-size:6.5pt}.rh-cell .v{font-size:11pt}

@@ -5,6 +5,40 @@ import type { Projekt, ProjektDokument } from "../../lib/typer";
 import { STATUSAR, hamtaLoggor, hamtaSidfot, lasBild, type Logga, type Sidfot } from "../ritning/DriftkortSidfot";
 
 const TYP = "dokumenthuvud";
+
+/**
+ * Skär bort tom kant (vit eller genomskinlig) runt en PNG/JPG-logga, så att själva loggan fyller rutan på utskrifterna.
+ * SVG lämnas som den är. Returnerar ny base64 (PNG) eller den gamla om inget behövde skäras bort.
+ */
+async function beskar(data: string, typ: string): Promise<{ data: string; typ: string }> {
+  if (!/png|jpe?g/i.test(typ)) return { data, typ };
+  const bild = await new Promise<HTMLImageElement>((ok, fel) => {
+    const im = new Image(); im.onload = () => ok(im); im.onerror = () => fel(new Error("Bilden kunde inte läsas."));
+    im.src = `data:${typ};base64,${data}`;
+  });
+  const b = bild.naturalWidth, h = bild.naturalHeight;
+  if (!b || !h || b * h > 25_000_000) return { data, typ };
+  const c = document.createElement("canvas"); c.width = b; c.height = h;
+  const ctx = c.getContext("2d"); if (!ctx) return { data, typ };
+  ctx.drawImage(bild, 0, 0);
+  const px = ctx.getImageData(0, 0, b, h).data;
+  let x0 = b, y0 = h, x1 = -1, y1 = -1;
+  for (let y = 0; y < h; y++) for (let x = 0; x < b; x++) {
+    const i = (y * b + x) * 4;
+    const tom = px[i + 3]! < 16 || (px[i]! > 240 && px[i + 1]! > 240 && px[i + 2]! > 240);
+    if (tom) continue;
+    if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+  }
+  if (x1 < 0) return { data, typ };
+  const marg = Math.round(Math.max(x1 - x0, y1 - y0) * 0.02);
+  x0 = Math.max(0, x0 - marg); y0 = Math.max(0, y0 - marg); x1 = Math.min(b - 1, x1 + marg); y1 = Math.min(h - 1, y1 + marg);
+  const nb = x1 - x0 + 1, nh = y1 - y0 + 1;
+  if (nb >= b - 2 && nh >= h - 2) return { data, typ };
+  const u = document.createElement("canvas"); u.width = nb; u.height = nh;
+  u.getContext("2d")!.drawImage(c, x0, y0, nb, nh, 0, 0, nb, nh);
+  const url = u.toDataURL("image/png");
+  return { data: url.slice(url.indexOf(",") + 1), typ: "image/png" };
+}
 const tom: DokUppgifter = { foretag: "", adress: "", postadress: "", epost: "", telefon: "", orgnr: "", ansvarig: "", revidering: "", loggaNamn: "", loggaTyp: "", loggaData: "" };
 
 /** Läser projektets dokumentuppgifter och lägger dem i utskriftstemat. */
@@ -41,7 +75,8 @@ export function DokumentUppgifter({ projektId, projekt, lasläge, uppdaterad, vi
     if (f.size > 1024 * 1024) { visaMeddelande("Loggan får vara högst 1 MB."); return; }
     try {
       const l = await lasBild(f);
-      andra({ ...u, loggaNamn: l.namn, loggaTyp: f.type || l.typ, loggaData: l.data }, null);
+      const k = await beskar(l.data, f.type || l.typ);
+      andra({ ...u, loggaNamn: l.namn, loggaTyp: k.typ, loggaData: k.data }, null);
     } catch (e) { visaMeddelande((e as Error).message); }
   };
 
@@ -131,7 +166,7 @@ export function DokumentUppgifter({ projektId, projekt, lasläge, uppdaterad, vi
               {bibliotek.length > 0 && (
                 <select aria-label="Välj ur loggbiblioteket" value="" onChange={(e) => {
                   const l = bibliotek.find((x) => x.id === e.target.value);
-                  if (l) andra({ ...u, loggaNamn: l.namn, loggaTyp: l.typ, loggaData: l.data }, null);
+                  if (l) void beskar(l.data, l.typ).then((k) => andra({ ...u, loggaNamn: l.namn, loggaTyp: k.typ, loggaData: k.data }, null)).catch(() => andra({ ...u, loggaNamn: l.namn, loggaTyp: l.typ, loggaData: l.data }, null));
                 }}>
                   <option value="">Välj ur loggbiblioteket…</option>
                   {bibliotek.map((l) => <option key={l.id} value={l.id}>{l.namn}</option>)}

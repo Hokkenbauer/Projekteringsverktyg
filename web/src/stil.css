@@ -582,6 +582,6 @@ table.grid.fasta th:last-child, table.grid.fasta td:last-child { border-right: 1
 .dokumentuppgifter p{margin:0}
 .dokumentuppgifter .riskhuvud{margin-bottom:0}
 .projektlogga{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
-.projektlogga .loggaruta{width:170px;height:64px;background:#fff;border:1px solid var(--linje);border-radius:var(--r);display:flex;align-items:center;justify-content:center;padding:6px}
+.projektlogga .loggaruta{width:190px;height:88px;background:#fff;border:1px solid var(--linje);border-radius:var(--r);display:flex;align-items:center;justify-content:center;padding:6px}
 .projektlogga .loggaruta img{max-width:100%;max-height:100%;object-fit:contain}
 .projektlogga .loggaval{display:flex;flex-direction:column;gap:6px;min-width:0}
