@@ -248,6 +248,7 @@
   <input type="file" id="fileIn" accept=".svg,image/svg+xml" hidden>
   <input type="file" id="fileCfg" accept=".json,application/json" hidden>
   <input type="file" id="fileLib" accept=".svg,image/svg+xml" hidden>
+  <input type="file" id="fileMallar" accept=".json,application/json" hidden>
   <input type="file" id="fileImg" accept="image/png,image/jpeg,image/webp,.pdf,application/pdf" hidden>
 </header>
 
@@ -488,6 +489,8 @@
       <h3 id="libTitle">Symbolbibliotek</h3>
       <div class="spacer"></div>
       <input type="text" id="libSearch" class="searchbar" placeholder="Sök…">
+      <button class="btn ghost sm" id="libExport" title="Spara de mallar som visas (vald kategori och sökning) till en fil">Exportera…</button>
+      <button class="btn ghost sm" id="libImport" title="Läs in mallar från en exporterad fil">Importera…</button>
       <button class="btn ghost sm" id="libEdit">Redigera…</button>
       <button class="btn ghost" id="libClose">Stäng</button>
     </header>
@@ -2168,6 +2171,65 @@ $('btnSymLib').onclick = () => openLib('symbol');
 $('btnTplLib').onclick = () => openLib('template');
 $('libClose').onclick = closeLib;
 $('libEdit').onclick = () => { closeLib(); openSettings(libMode === 'symbol' ? 'sym' : 'tpl'); };
+
+/* ---- Export och import av mallar/symboler (fil som kan läsas in i ett annat Ritbord) ---- */
+const MALLFORMAT = 'Ritbord mallbibliotek';
+/** Det som visas i biblioteket just nu: vald kategori och sökning. */
+function synligaIBibliotek(){
+  const data = libMode === 'symbol' ? store.symbols : mallar();
+  const q = $('libSearch').value.trim().toLowerCase();
+  return data.filter(d => (!libCat || d.cat === libCat) && (!q || d.name.toLowerCase().includes(q) || (d.cat||'').toLowerCase().includes(q)));
+}
+function exporteraBibliotek(lista, typ, etikett){
+  if (!lista.length){ setMsg('Inget att exportera'); return; }
+  const fil = { format: MALLFORMAT, version: 1, typ, exporterad: new Date().toISOString(),
+    poster: lista.map(d => { const o = { id: d.id, cat: d.cat || '', name: d.name, svg: d.svg }; if (d.vb) o.vb = d.vb; return o; }) };
+  const namn = `Ritbord ${typ === 'symboler' ? 'symboler' : 'mallar'} ${etikett} ${new Date().toISOString().slice(0,10)}.json`.replace(/[\\/:*?"<>|]+/g, '-');
+  download(new Blob([JSON.stringify(fil, null, 2)], { type: 'application/json' }), namn);
+  setMsg(lista.length + (typ === 'symboler' ? ' symboler' : ' mallar') + ' exporterade');
+}
+$('libExport').onclick = () => {
+  const lista = synligaIBibliotek();
+  const q = $('libSearch').value.trim();
+  exporteraBibliotek(lista, libMode === 'symbol' ? 'symboler' : 'mallar', [libCat || 'alla', q ? 'sök ' + q : ''].filter(Boolean).join(' '));
+};
+let importTill = 'template';
+$('libImport').onclick = () => { importTill = libMode; $('fileMallar').click(); };
+/**
+ * Läser in mallar eller symboler. Godtar en mallexport, en lista med poster eller en hel inställningsfil.
+ * Samma id ersätter befintlig post (en dold grundmall visas igen), nya läggs till.
+ */
+function importeraBibliotek(text, fname, mode){
+  const inc = JSON.parse(text);
+  const sym = mode === 'symbol';
+  let poster = Array.isArray(inc) ? inc : Array.isArray(inc.poster) ? inc.poster : (sym ? inc.symbols : inc.templates);
+  if (inc && inc.format === MALLFORMAT && inc.typ && (inc.typ === 'symboler') !== sym)
+    throw new Error('filen innehåller ' + inc.typ + ', öppna ' + (inc.typ === 'symboler' ? 'Symbolbiblioteket' : 'Mallbiblioteket') + ' och importera där');
+  if (!Array.isArray(poster)) throw new Error('hittar inga ' + (sym ? 'symboler' : 'mallar') + ' i filen');
+  poster = poster.filter(d => d && typeof d.svg === 'string' && d.svg.trim());
+  if (!poster.length) throw new Error('filen innehåller inga ' + (sym ? 'symboler' : 'mallar'));
+  const lista = sym ? store.symbols : (store.templates = store.templates || []);
+  let nya = 0, ersatta = 0;
+  for (const d of poster){
+    const post = { id: d.id || uid(sym ? 'sym' : 'tpl'), cat: d.cat || 'Importerade', name: d.name || 'Namnlös', svg: d.svg };
+    if (d.vb) post.vb = d.vb;
+    const i = lista.findIndex(x => x.id === post.id);
+    if (i >= 0){ lista[i] = post; ersatta++; } else { lista.push(post); nya++; }
+    if (!sym && store.doldaMallar) store.doldaMallar = store.doldaMallar.filter(x => x !== post.id);
+  }
+  if (sym) rensaSymboler(store);
+  const v = rbVard();
+  setMsg(`${nya} nya och ${ersatta} uppdaterade ${sym ? 'symboler' : 'mallar'} från ${fname}` + (v && v.kanInstallningar ? ' — spara som gemensamma inställningar (Redigera… → Filer) för att dela dem' : ''));
+}
+$('fileMallar').onchange = e => {
+  const f = e.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try { importeraBibliotek(r.result, f.name, importTill); if (!$('lib').hidden) paintLib(); if (!$('settings').hidden) renderSettings(); }
+    catch(err){ alert('Kunde inte läsa filen: ' + err.message); }
+  };
+  r.readAsText(f); e.target.value = '';
+};
 $('lib').addEventListener('click', e => { if (e.target.id === 'lib') closeLib(); });
 $('libSearch').addEventListener('input', paintLib);
 $('libSearch').addEventListener('keydown', e => { if (e.key === 'Escape') closeLib(); });
@@ -2413,7 +2475,21 @@ function renderLibTab(kind){
     }
     renderLibTab(kind);
   };
-  foot.append(add, imp, del);
+  const ut = el('button','btn sm','Spara som SVG');
+  ut.title = 'Spara vald ' + (isSym ? 'symbol' : 'mall') + ' som SVG-fil';
+  ut.onclick = () => {
+    const v = data[idx]; if (!v) return;
+    const vb = v.vb || ('0 0 ' + bw + ' ' + bh);
+    const [, , w, h] = vb.split(/[\s,]+/).map(Number);
+    const svg = `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vb}" width="${w}" height="${h}">${v.svg}</svg>`;
+    download(new Blob([svg], { type: 'image/svg+xml' }), (v.name || 'mall').replace(/[\\/:*?"<>|]+/g, '-') + '.svg');
+  };
+  const allaUt = el('button','btn sm','Exportera alla');
+  allaUt.title = 'Spara alla ' + (isSym ? 'symboler' : 'mallar') + ' till en fil som kan läsas in igen';
+  allaUt.onclick = () => exporteraBibliotek(data, isSym ? 'symboler' : 'mallar', 'alla');
+  const allaIn = el('button','btn sm','Importera');
+  allaIn.onclick = () => { importTill = isSym ? 'symbol' : 'template'; $('fileMallar').click(); };
+  foot.append(add, imp, del, ut, allaUt, allaIn);
   if (!isSym && (store.doldaMallar || []).length){
     const ater = el('button','btn sm','Visa borttagna grundmallar (' + store.doldaMallar.length + ')');
     ater.onclick = () => { store.doldaMallar = []; renderLibTab(kind); };
@@ -2560,7 +2636,7 @@ function renderFiles(){
   if (v){
     const gem = el('div','stack');
     gem.style.cssText = 'max-width:520px;margin-top:14px';
-    const spara = el('button','btn primary', v.kanInstallningar ? 'Spara som gemensamma inställningar för alla' : 'Gemensamma inställningar (bara Admin, Projektledare och System kan spara)');
+    const spara = el('button','btn primary', v.kanInstallningar ? 'Spara som gemensamma inställningar för alla' : 'Gemensamma inställningar (bara Admin och de som får ändra mallar kan spara)');
     spara.disabled = !v.kanInstallningar;
     spara.onclick = async () => {
       spara.disabled = true;
