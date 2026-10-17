@@ -34,28 +34,47 @@ public interface IGastInbjudan
 /// </summary>
 public sealed class GraphGastInbjudan(IConfiguration config, IHttpClientFactory http, ILogger<GraphGastInbjudan> log) : IGastInbjudan
 {
-    private TokenCredential? Credential()
+    /// <summary>Inloggningen mot Microsoft och en beskrivning av vilken som används (för felmeddelanden).</summary>
+    private (TokenCredential? Cred, string Satt) Credential()
     {
         var tenant = config["AzureAd:TenantId"];
         var klient = config["AzureAd:ClientId"];
         var hemlighet = config["AzureAd:ClientSecret"] ?? config["Graph:ClientSecret"];
-        if (string.IsNullOrWhiteSpace(tenant) || string.IsNullOrWhiteSpace(klient)) return null;
+        if (string.IsNullOrWhiteSpace(tenant) || string.IsNullOrWhiteSpace(klient)) return (null, "");
         return !string.IsNullOrWhiteSpace(hemlighet)
-            ? new ClientSecretCredential(tenant, klient, hemlighet)
-            : new DefaultAzureCredential();
+            ? (new ClientSecretCredential(tenant, klient, hemlighet.Trim()), $"klienthemligheten för appen {klient[..Math.Min(8, klient.Length)]}…")
+            : (new DefaultAzureCredential(), "serverns hanterade identitet (AzureAd__ClientSecret saknas i serverns miljövariabler)");
+    }
+
+    /// <summary>Behörigheterna (roles) i en åtkomsttoken, för att kunna säga exakt vad som saknas.</summary>
+    private static List<string> TokenRoller(string token)
+    {
+        try
+        {
+            var del = token.Split('.')[1].Replace('-', '+').Replace('_', '/');
+            del = del.PadRight(del.Length + (4 - del.Length % 4) % 4, '=');
+            using var doc = JsonDocument.Parse(Convert.FromBase64String(del));
+            return doc.RootElement.TryGetProperty("roles", out var r) && r.ValueKind == JsonValueKind.Array
+                ? r.EnumerateArray().Select(x => x.GetString() ?? "").ToList() : [];
+        }
+        catch (Exception) { return []; }
     }
 
     public async Task<GastSvar> BjudInAsync(string epost, string namn, string tillbakaUrl, string meddelande, CancellationToken ct)
     {
-        var cred = Credential();
+        var (cred, satt) = Credential();
         if (cred is null) return new GastSvar(false, "", "Inloggning via Microsoft är inte inställd på servern.");
         string token;
         try { token = (await cred.GetTokenAsync(new TokenRequestContext(["https://graph.microsoft.com/.default"]), ct)).Token; }
         catch (Exception e)
         {
             log.LogWarning(e, "Ingen token till Microsoft Graph");
-            return new GastSvar(false, "", "Programmet har inte fått behörighet att bjuda in gäster i Microsoft (klienthemlighet eller behörigheten User.Invite.All saknas).");
+            return new GastSvar(false, "", $"Servern kunde inte logga in mot Microsoft med {satt}: {e.Message.Split('\n')[0]}");
         }
+        var roller = TokenRoller(token);
+        if (!roller.Contains("User.Invite.All"))
+            return new GastSvar(false, "", $"Servern loggar in med {satt}, men den inloggningen har inte behörigheten User.Invite.All"
+                + (roller.Count > 0 ? $" (har bara: {string.Join(", ", roller)})." : ". Kontrollera att behörigheten är beviljad på samma app som AzureAd__ClientId pekar på, och vänta några minuter efter att den beviljats."));
 
         var klient = http.CreateClient("graph");
         using var req = new HttpRequestMessage(HttpMethod.Post, "https://graph.microsoft.com/v1.0/invitations")
@@ -87,7 +106,7 @@ public sealed class GraphGastInbjudan(IConfiguration config, IHttpClientFactory 
         try { using var doc = JsonDocument.Parse(text); fel = doc.RootElement.GetProperty("error").GetProperty("message").GetString() ?? ""; }
         catch (Exception) { /* inget läsbart fel */ }
         return svar.StatusCode is System.Net.HttpStatusCode.Forbidden or System.Net.HttpStatusCode.Unauthorized
-            ? new GastSvar(false, "", "Programmet saknar behörigheten User.Invite.All i Microsoft Entra ID.")
+            ? new GastSvar(false, "", $"Microsoft nekade inbjudan ({(int)svar.StatusCode}) trots behörigheten User.Invite.All: {fel}. Kontrollera inställningarna för externt samarbete i Entra ID.")
             : new GastSvar(false, "", $"Microsoft kunde inte skicka inbjudan: {fel}".Trim());
     }
 }
