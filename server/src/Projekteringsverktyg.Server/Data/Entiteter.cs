@@ -129,6 +129,8 @@ public class AnvandarPost
     public bool FarSkapaProjekt { get; set; }
     /// <summary>Får ändra gemensamma kataloger och mallar (admin får alltid).</summary>
     public bool FarAndraMallar { get; set; }
+    /// <summary>Verktygets ägare: kontot kan ingen annan ändra, och bara ägaren kan göra någon till Admin eller ta bort Admin.</summary>
+    public bool Agare { get; set; }
     public DateTimeOffset Skapad { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset SenastInloggad { get; set; } = DateTimeOffset.UtcNow;
 }

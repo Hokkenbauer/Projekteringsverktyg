@@ -4,6 +4,8 @@ import type { Signal } from "./signaler";
 export type Rattigheter = {
   skapaProjekt: boolean;
   hanteraAnvandare: boolean;
+  /** Verktygets ägare: bara ägaren kan göra någon till Admin. */
+  agare?: boolean;
   hanteraMedlemmar: boolean;
   redigeraStatusRubriker: boolean;
   redigeraUnderrubriker: boolean;
@@ -32,7 +34,7 @@ export const PROJEKTROLLER: { id: ProjektRoll; namn: string; text: string }[] = 
 
 export type Mig = { id: string; namn: string; tema: TemaNamn; roll: Roll; rattigheter: Rattigheter };
 
-export type AnvandarInfo = { id: string; namn: string; epost: string; roll: Roll; senastInloggad: string; farSkapaProjekt: boolean; farAndraMallar: boolean };
+export type AnvandarInfo = { id: string; namn: string; epost: string; roll: Roll; senastInloggad: string; farSkapaProjekt: boolean; farAndraMallar: boolean; agare: boolean };
 export type Medlem = { anvandarId: string; namn: string; epost: string; roll: ProjektRoll; verktygsRoll: Roll; tillagd: string; tillagdAv: string };
 
 export type StatusRubrik = { id: string; namn: string; ordning: number };

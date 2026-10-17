@@ -7,6 +7,8 @@ export function AdminVy({ mig, visaMeddelande }: { mig: Mig; visaMeddelande: (t:
   const [anvandare, setAnvandare] = useState<AnvandarInfo[] | null>(null);
   const [rubriker, setRubriker] = useState<StatusRubrik[]>([]);
   const [nyRubrik, setNyRubrik] = useState("");
+  // Bara ägaren kan göra någon till Admin eller ändra en administratör.
+  const agare = !!mig.rattigheter.agare;
 
   const hamta = async () => {
     try {
@@ -67,6 +69,7 @@ export function AdminVy({ mig, visaMeddelande }: { mig: Mig; visaMeddelande: (t:
           (Projektledare, Tekniker eller Läsare) väljs under Medlemmar i projektet.
           HECO-användare ser alla projekt och kan skapa projekt. Externa deltagare (inbjudna eller gäster från andra företag) ser bara
           projekt där de är medlemmar. Inbjudningar från ett projekt kan aldrig göra någon till Admin.
+          Ägarens konto kan inte ändras av någon, och bara ägaren kan utse eller ta bort administratörer.
         </p>
         {anvandare === null ? <p className="dampad">Hämtar…</p> : (
           <table className="enkel">
@@ -77,22 +80,24 @@ export function AdminVy({ mig, visaMeddelande }: { mig: Mig; visaMeddelande: (t:
                   <td>{a.namn}{a.id === mig.id && <span className="dampad"> (du)</span>}</td>
                   <td className="mono">{a.epost}</td>
                   <td>
+                    {a.agare ? <b title="Verktygets ägare. Kontot kan inte ändras av någon.">Ägare (Admin)</b> : (
                     <select aria-label={`Roll för ${a.namn}`} value={a.roll} title={ROLLER.find((r) => r.id === a.roll)?.text}
+                      disabled={!agare && a.roll === "Admin"}
                       onChange={(e) => {
                         const roll = e.target.value as Roll;
                         if (roll === "Admin" && !window.confirm(`Göra ${a.namn} till Admin i hela verktyget? Admin ser och ändrar allt, även användare och mallar.`)) return;
                         void andra(a, { roll }, `${a.namn} är nu ${ROLLER.find((r) => r.id === roll)?.namn}.`);
                       }}>
-                      {ROLLER.map((r) => <option key={r.id} value={r.id}>{r.namn}</option>)}
-                    </select>
+                      {ROLLER.filter((r) => r.id !== "Admin" || agare || a.roll === "Admin").map((r) => <option key={r.id} value={r.id}>{r.namn}</option>)}
+                    </select>)}
                   </td>
                   <td className="mitt">
-                    <input type="checkbox" aria-label={`${a.namn} får skapa projekt`} disabled={a.roll !== "Extern"}
+                    <input type="checkbox" aria-label={`${a.namn} får skapa projekt`} disabled={a.agare || a.roll !== "Extern"}
                       checked={a.roll !== "Extern" || a.farSkapaProjekt}
                       onChange={(e) => void andra(a, { farSkapaProjekt: e.target.checked }, `${a.namn} ${e.target.checked ? "får nu" : "får inte längre"} skapa egna projekt.`)} />
                   </td>
                   <td className="mitt">
-                    <input type="checkbox" aria-label={`${a.namn} får ändra mallar och kataloger`} disabled={a.roll === "Admin"}
+                    <input type="checkbox" aria-label={`${a.namn} får ändra mallar och kataloger`} disabled={a.agare || a.roll === "Admin"}
                       checked={a.roll === "Admin" || a.farAndraMallar}
                       onChange={(e) => void andra(a, { farAndraMallar: e.target.checked }, `${a.namn} ${e.target.checked ? "får nu" : "får inte längre"} ändra mallar och kataloger.`)} />
                   </td>

@@ -6,7 +6,7 @@ using Projekteringsverktyg.Server.ProjektApi;
 
 namespace Projekteringsverktyg.Server.AnvandarApi;
 
-public sealed record AnvandarDto(string Id, string Namn, string Epost, string Roll, DateTimeOffset SenastInloggad, bool FarSkapaProjekt, bool FarAndraMallar);
+public sealed record AnvandarDto(string Id, string Namn, string Epost, string Roll, DateTimeOffset SenastInloggad, bool FarSkapaProjekt, bool FarAndraMallar, bool Agare);
 public sealed record RollVal(string? Roll, bool? FarSkapaProjekt, bool? FarAndraMallar);
 /// <summary>Roll = projektroll i det här projektet. VerktygsRoll = Admin, Intern eller Extern.</summary>
 public sealed record MedlemDto(string AnvandarId, string Namn, string Epost, string Roll, string VerktygsRoll, DateTimeOffset Tillagd, string TillagdAv);
@@ -18,7 +18,7 @@ public sealed record ProjektRollVal(string Roll);
 /// </summary>
 public static class RollEndpoints
 {
-    private static AnvandarDto Dto(AnvandarPost a) => new(a.Id, a.Namn, a.Epost, a.Roll, a.SenastInloggad, a.FarSkapaProjekt, a.FarAndraMallar);
+    private static AnvandarDto Dto(AnvandarPost a) => new(a.Id, a.Namn, a.Epost, a.Roll, a.SenastInloggad, a.FarSkapaProjekt, a.FarAndraMallar, a.Agare);
     private static IResult Fel(string falt, string text) => Results.ValidationProblem(new Dictionary<string, string[]> { [falt] = [text] });
 
     public static IEndpointRouteBuilder MapRollEndpoints(this IEndpointRouteBuilder app)
@@ -37,11 +37,15 @@ public static class RollEndpoints
             if (!await beh.ArAdmin(user)) return Results.Forbid();
             var a = await db.Anvandare.FindAsync(id);
             if (a is null) return Results.NotFound();
+            var agare = await beh.ArAgare(user);
+            // Ägarens konto kan ingen ändra (inte heller ägaren själv, så att verktyget alltid har en ägare).
+            if (a.Agare) return Results.Problem(statusCode: 403, title: "Ägarens konto kan inte ändras.");
+            // Bara ägaren kan ändra en administratör eller göra någon till Admin.
+            if (!agare && (a.Roll == Roller.Admin || val.Roll == Roller.Admin))
+                return Results.Problem(statusCode: 403, title: "Bara verktygets ägare kan göra någon till Admin eller ändra en administratör.");
             if (val.Roll is { } roll)
             {
                 if (!Roller.Verktyg.Contains(roll)) return Fel("roll", "Välj Admin, Intern eller Extern.");
-                if (a.Roll == Roller.Admin && roll != Roller.Admin && await db.Anvandare.CountAsync(x => x.Roll == Roller.Admin) <= 1)
-                    return Results.Conflict(new { meddelande = "Det måste finnas minst en admin." });
                 a.Roll = roll;
             }
             if (val.FarSkapaProjekt is { } sk) a.FarSkapaProjekt = sk;

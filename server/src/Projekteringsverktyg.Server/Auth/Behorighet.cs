@@ -36,6 +36,8 @@ public sealed class Behorighet(PvDbContext db)
                 Namn = anv.Namn,
                 Epost = epost,
                 Roll = !finnsAdmin ? Roller.Admin : gast || inbjuden ? Roller.Extern : Roller.Intern,
+                // Den allra första användaren äger verktyget.
+                Agare = !finnsAdmin && !await db.Anvandare.AnyAsync(a => a.Agare),
             };
             db.Anvandare.Add(post);
             // Inbjuden: medlem i projekten med inbjudans projektroll.
@@ -64,6 +66,7 @@ public sealed class Behorighet(PvDbContext db)
     }
 
     public async Task<bool> ArAdmin(ClaimsPrincipal user) => (await AktuellAsync(user)).Roll == Roller.Admin;
+    public async Task<bool> ArAgare(ClaimsPrincipal user) => (await AktuellAsync(user)).Agare;
 
     public async Task<bool> KanSkapaProjekt(ClaimsPrincipal user) => FarSkapaProjekt(await AktuellAsync(user));
     public static bool FarSkapaProjekt(AnvandarPost a) => a.Roll is Roller.Admin or Roller.Intern || a.FarSkapaProjekt;
@@ -101,6 +104,7 @@ public sealed class Behorighet(PvDbContext db)
     {
         skapaProjekt = FarSkapaProjekt(a),
         hanteraAnvandare = a.Roll == Roller.Admin,
+        agare = a.Agare,
         redigeraStatusRubriker = a.Roll == Roller.Admin,
         redigeraKataloger = FarAndraMallar(a),
         hanteraMallar = FarAndraMallar(a),
