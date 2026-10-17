@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
-import { api, laddaNer } from "../../lib/api";
+import { useEffect, useRef, useState } from "react";
+import { api, ApiFel, laddaNer } from "../../lib/api";
+import { Dialog } from "../../shell/Dialog";
 import type { Anteckningar, AttGora, Komponent, ListRad, Logg, Narvarande, Projekt } from "../../lib/typer";
 
 const tid = (iso: string) =>
@@ -15,7 +16,80 @@ type OversiktProps = {
   onFlik: (f: string) => void;
   egenkontroll?: ListRad[];
   anmarkningar?: ListRad[];
+  /** Projektledare och Admin får komplettera projektet från en importfil. */
+  kanKomplettera?: boolean;
+  onKompletterat?: () => void;
 };
+
+type KompletteringSvar = { rapport: string[]; varningar: string[]; sparad: boolean };
+
+function felText(e: unknown): string {
+  const data = e instanceof ApiFel ? (e.data as { errors?: Record<string, string[]> } | undefined) : undefined;
+  return data?.errors ? Object.values(data.errors).flat().join(" ") : (e as Error).message;
+}
+
+/**
+ * Komplettera projekt från importfil: en projektexport (.zip) läses in i DET HÄR projektet.
+ * Det som finns känns igen (komponenter på beteckning, skåp och dokument på namn …) och uppdateras, nytt läggs till,
+ * inget tas bort. Först visas vad som kommer att hända; inget sparas förrän man bekräftar.
+ */
+function KompletteraKnapp({ projekt, onKompletterat }: { projekt: Projekt; onKompletterat?: () => void }) {
+  const filval = useRef<HTMLInputElement>(null);
+  const [fil, setFil] = useState<File | null>(null);
+  const [prov, setProv] = useState<KompletteringSvar | null>(null);
+  const [klar, setKlar] = useState<KompletteringSvar | null>(null);
+  const [arbetar, setArbetar] = useState(false);
+  const [fel, setFel] = useState<string | null>(null);
+
+  const skicka = async (f: File, provkor: boolean) => {
+    const form = new FormData();
+    form.append("fil", f, f.name);
+    return api<KompletteringSvar>(`/api/projekt/${projekt.id}/komplettera?provkor=${provkor}`, { method: "POST", body: form });
+  };
+  const valj = async (f: File) => {
+    setFil(f); setProv(null); setKlar(null); setFel(null); setArbetar(true);
+    try { setProv(await skicka(f, true)); }
+    catch (e) { setFel(`Filen kunde inte läsas: ${felText(e)}`); }
+    finally { setArbetar(false); }
+  };
+  const genomfor = async () => {
+    if (!fil) return;
+    setArbetar(true); setFel(null);
+    try { setKlar(await skicka(fil, false)); setProv(null); onKompletterat?.(); }
+    catch (e) { setFel(`Kompletteringen misslyckades: ${felText(e)}`); }
+    finally { setArbetar(false); }
+  };
+  const stang = () => { if (!arbetar) { setFil(null); setProv(null); setKlar(null); setFel(null); } };
+  const visad = klar ?? prov;
+
+  return (
+    <>
+      <button className="knapp" disabled={arbetar} onClick={() => filval.current?.click()}
+        title="Läs in en projektexport (.zip) i det här projektet: befintligt uppdateras, nytt läggs till, inget tas bort">
+        Komplettera från fil…
+      </button>
+      <input ref={filval} type="file" accept=".zip" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void valj(f); }} />
+      <Dialog titel={klar ? "Projektet är kompletterat" : "Komplettera projektet från fil"} oppen={!!fil} onStang={stang} bred
+        fot={<>
+          {!klar && <button className="knapp primar" disabled={arbetar || !prov} onClick={() => void genomfor()}>{arbetar && prov ? "Kompletterar…" : "Komplettera projektet"}</button>}
+          <button className="knapp" disabled={arbetar} onClick={stang}>{klar ? "Stäng" : "Avbryt"}</button>
+        </>}>
+        <p className="dampad">
+          <b>{fil?.name}</b> läses in i <b>{projekt.namn}</b>. Komponenter känns igen på beteckning, apparatskåp, funktionstexter
+          och ritbordsbilder på namn, att göra på text. Ifyllda uppgifter i filen ersätter projektets, nytt läggs till och ingenting tas bort.
+          Allt loggas i ändringsloggen.
+        </p>
+        {arbetar && !prov && !klar && <p>Läser filen…</p>}
+        {visad && <>
+          <h3>{klar ? "Det här gjordes" : "Det här kommer att hända"}</h3>
+          <ul>{visad.rapport.map((r) => <li key={r}>{r}</li>)}</ul>
+          {visad.varningar.length > 0 && <><h3>Att observera</h3><ul>{visad.varningar.map((v) => <li key={v}>{v}</li>)}</ul></>}
+        </>}
+        {fel && <p className="felruta">{fel}</p>}
+      </Dialog>
+    </>
+  );
+}
 
 /**
  * Projektexport: en ZIP med Excel (alla listor), funktionstexter i Word, texter, ritningar,
@@ -49,7 +123,7 @@ function ProjektExportKnapp({ projekt }: { projekt: Projekt }) {
   );
 }
 
-export function Oversikt({ projekt, komponenter, attGora, anteckningar, logg, narvaro, onFlik, egenkontroll, anmarkningar }: OversiktProps) {
+export function Oversikt({ projekt, komponenter, attGora, anteckningar, logg, narvaro, onFlik, egenkontroll, anmarkningar, kanKomplettera, onKompletterat }: OversiktProps) {
   const oppna = attGora.filter((a) => !a.klar);
   const komponentIds = new Set(komponenter.map((k) => k.id));
   const klaraEk = (egenkontroll ?? []).filter((r) => r.komponentId && komponentIds.has(r.komponentId) && r.data.kontrollerad === "true").length;
@@ -61,7 +135,10 @@ export function Oversikt({ projekt, komponenter, attGora, anteckningar, logg, na
       <div className="brodsmula">Projekt</div>
       <div className="rubrikrad">
         <h1>{projekt.namn}</h1>
-        <ProjektExportKnapp projekt={projekt} />
+        <div className="knappar">
+          {kanKomplettera && <KompletteraKnapp projekt={projekt} onKompletterat={onKompletterat} />}
+          <ProjektExportKnapp projekt={projekt} />
+        </div>
       </div>
       <p className="ingress">
         {[projekt.nummer, projekt.kund, projekt.ansvarig && `Ansvarig ${projekt.ansvarig}`].filter(Boolean).join(" · ")}

@@ -177,6 +177,7 @@ app.MapVerktygEndpoints();
 app.MapImportEndpoints();
 app.MapProjektExportEndpoints();
 app.MapProjektImportEndpoints();
+app.MapProjektKompletteringEndpoints();
 app.MapHub<ProjektHub>("/hubs/projekt");
 
 // Alla andra adresser hör till webbappen (React sköter sin egen navigering).

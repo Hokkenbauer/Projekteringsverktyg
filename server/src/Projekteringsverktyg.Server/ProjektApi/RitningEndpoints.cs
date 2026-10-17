@@ -95,7 +95,7 @@ public static class RitningEndpoints
     /// Sparar ritningen som den var innan den skrivs över: högst en kopia per tio minuter (alltid vid återställning).
     /// Gallrar samtidigt: allt från de senaste två dygnen behålls, äldre en per dag, inget äldre än 30 dagar.
     /// </summary>
-    private static async Task SparaHistorikAsync(PvDbContext db, Ritning r, bool alltid)
+    internal static async Task SparaHistorikAsync(PvDbContext db, Ritning r, bool alltid)
     {
         var nu = DateTimeOffset.UtcNow;
         var senast = await db.RitningHistorik.Where(h => h.ProjektId == r.ProjektId)

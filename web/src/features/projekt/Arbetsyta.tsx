@@ -139,6 +139,20 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
     }
   }, [projektId]);
 
+  // Efter en komplettering från fil kan allt i projektet ha ändrats: hämta om allt och be öppna vyer läsa om sitt.
+  const uppdateraEfterKomplettering = useCallback(() => {
+    void hamtaAllt();
+    setRitningVersion((v) => v + 1);
+    setKontrollVersion((v) => v + 1);
+    setRitbordVersion((v) => v + 1);
+    setFilVersion((v) => v + 1);
+    setStatusVersion((v) => v + 1);
+    setDokumentVersion((v) => Object.fromEntries([...new Set([...Object.keys(v), "funktionstext", "driftkort"])].map((k) => [k, (v[k] ?? 0) + 1])));
+    void hamtaSkapRef.current();
+  }, [hamtaAllt]);
+  const uppdateraEfterKompletteringRef = useRef(uppdateraEfterKomplettering);
+  uppdateraEfterKompletteringRef.current = uppdateraEfterKomplettering;
+
   const hamtaLogg = useCallback(async () => {
     try {
       setLogg(await api<Logg[]>(`/api/projekt/${projektId}/andringslogg?antal=20`));
@@ -242,6 +256,8 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
       setAnteckningar(h.rad as Anteckningar);
     } else if (h.lista === "projektStatus" && h.avId !== mig.id) {
       setStatusVersion((v) => v + 1);
+    } else if (h.lista === "komplettering") {
+      uppdateraEfterKompletteringRef.current();
     }
     hamtaLoggSnart();
   }, [laggAttGora, laggListRad, blinka, hamtaLoggSnart, mig.id]);
@@ -620,6 +636,7 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
           <Oversikt
             projekt={projekt} komponenter={komponenter} attGora={attGora} anteckningar={anteckningar} logg={logg} narvaro={narvaro} onFlik={onFlik}
             egenkontroll={listor.egenkontroll} anmarkningar={listor.anmarkningar}
+            kanKomplettera={!!ratt.hanteraMedlemmar} onKompletterat={uppdateraEfterKomplettering}
           />
         )}
         {flik === "andringslogg" && <LoggVy projektId={projektId} komponenter={komponenter} uppdaterad={loggVersion} />}

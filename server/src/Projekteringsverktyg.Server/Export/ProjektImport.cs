@@ -249,19 +249,19 @@ public static partial class ProjektImport
         }
     }
 
-    private static IEnumerable<JsonElement> Arr(JsonElement e, string falt) =>
+    internal static IEnumerable<JsonElement> Arr(JsonElement e, string falt) =>
         e.TryGetProperty(falt, out var x) && x.ValueKind == JsonValueKind.Array ? x.EnumerateArray() : [];
-    private static string Str(JsonElement e, string falt) =>
+    internal static string Str(JsonElement e, string falt) =>
         e.TryGetProperty(falt, out var x) && x.ValueKind == JsonValueKind.String ? x.GetString() ?? "" : "";
-    private static int Int(JsonElement e, string falt) => e.TryGetProperty(falt, out var x) && x.TryGetInt32(out var i) ? i : 0;
-    private static bool Bool(JsonElement e, string falt) => e.TryGetProperty(falt, out var x) && x.ValueKind == JsonValueKind.True;
+    internal static int Int(JsonElement e, string falt) => e.TryGetProperty(falt, out var x) && x.TryGetInt32(out var i) ? i : 0;
+    internal static bool Bool(JsonElement e, string falt) => e.TryGetProperty(falt, out var x) && x.ValueKind == JsonValueKind.True;
     /// <summary>JSON-värdet som text (objekt/listor som JSON, strängar som de är). Saknas = tom text.</summary>
-    private static string Raw(JsonElement e, string falt) =>
+    internal static string Raw(JsonElement e, string falt) =>
         !e.TryGetProperty(falt, out var x) || x.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined ? ""
         : x.ValueKind == JsonValueKind.String ? x.GetString() ?? "" : x.GetRawText();
 
     [GeneratedRegex(@"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")]
-    private static partial Regex GuidRegex();
+    internal static partial Regex GuidRegex();
 
     private static IResult Fel(string text) => Results.ValidationProblem(new Dictionary<string, string[]> { ["fil"] = [text] });
 }

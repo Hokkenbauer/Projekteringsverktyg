@@ -889,3 +889,89 @@ public class InbjudanTester
         Assert.False(await Projekteringsverktyg.Server.AnvandarApi.Inbjudningar.TillampaAsync(db, post, new HashSet<string> { "anna@foretaget.se" }));
     }
 }
+
+public class ProjektKompletteringTester
+{
+    private static PvDbContext NyDb() => new(new DbContextOptionsBuilder<PvDbContext>()
+        .UseInMemoryDatabase("pv-" + Guid.NewGuid())
+        .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning))
+        .Options);
+
+    private static MemoryStream Zip(string json, params (string Sokvag, byte[] Data)[] filer)
+    {
+        var m = new MemoryStream();
+        using (var z = new System.IO.Compression.ZipArchive(m, System.IO.Compression.ZipArchiveMode.Create, leaveOpen: true))
+        {
+            using (var w = new StreamWriter(z.CreateEntry("projekt.json").Open())) w.Write(json);
+            foreach (var (s, d) in filer) using (var st = z.CreateEntry(s).Open()) st.Write(d);
+        }
+        m.Position = 0;
+        return m;
+    }
+
+    [Fact]
+    public async Task Komplettering_uppdaterar_befintligt_och_lagger_till_nytt_utan_dubbletter()
+    {
+        using var db = NyDb();
+        var lagring = new Projekteringsverktyg.Server.FilApi.DiskLagring(Path.Combine(Path.GetTempPath(), "pv-test-" + Guid.NewGuid()));
+        var p = new Projekt { Namn = "Karlsängskolan", Nummer = "2025033" };
+        var tf = new Komponent { ProjektId = p.Id, Beteckning = "LB01-TF301", Komponenttyp = "Fläkt", Placering = "Fläktrum" };
+        db.AddRange(p, tf, new AttGoraPost { ProjektId = p.Id, Text = "Beställ givare", Ordning = 1 });
+        await db.SaveChangesAsync();
+
+        // Filens id är andra än projektets: komponenten känns igen på beteckningen.
+        var filTf = Guid.NewGuid(); var filGt = Guid.NewGuid(); var filDok = Guid.NewGuid(); var filFil = Guid.NewGuid();
+        var json = $$"""
+        {"format":"Projekteringsverktyg projektexport","formatVersion":1,
+         "projekt":{"id":"{{Guid.NewGuid()}}","namn":"Karlsängskolan","nummer":"2025033","kund":"Bravida"},
+         "komponenter":[
+           {"id":"{{filTf}}","system":"LB01","beteckning":"lb01-tf301","beskrivning":"Tilluftsfläkt","placering":"","signaler":[{"id":"a","typ":"DU","funktion":"MANÖVER","beskrivning":""},{"id":"b","typ":"DI","funktion":"DRIFT","beskrivning":""}]},
+           {"id":"{{filGt}}","system":"LB01","beteckning":"LB01-GT101","komponenttyp":"Temperaturgivare","signaltyp":"AI"}],
+         "listor":{"skyltlista":[{"id":"{{Guid.NewGuid()}}","komponentId":"{{filTf}}","data":{"textfarg":"Svart"},"ordning":1}]},
+         "apparatskap":[{"id":"{{Guid.NewGuid()}}","namn":"AS001","placering":"Undercentral","data":{"farger":{}}}],
+         "attGora":[{"id":"{{Guid.NewGuid()}}","text":"beställ givare"},{"id":"{{Guid.NewGuid()}}","text":"Kontrollera VAV-urvalet"}],
+         "dokument":[{"id":"{{filDok}}","typ":"funktionstext","namn":"VAV.docx","data":"<!--pv {\"Kalla\":\"{{filFil}}\",\"System\":\"VAV\"}--><p>Text om {{filGt}}</p>"}],
+         "texter":{"projektinformation":"Nybyggnad skola"},
+         "filer":[{"id":"{{filFil}}","mapp":"Funktionstexter","namn":"VAV.docx","typ":"application/octet-stream","sokvag":"Projektfiler/Funktionstexter/VAV.docx"}]}
+        """;
+        var av = new Anvandare("u1", "Test");
+
+        // Provkörning: rapport men inget sparas.
+        using (var zip = new System.IO.Compression.ZipArchive(Zip(json, ("Projektfiler/Funktionstexter/VAV.docx", [1, 2, 3])), System.IO.Compression.ZipArchiveMode.Read))
+        {
+            var prov = await Projekteringsverktyg.Server.Export.ProjektKomplettering.KompletteraAsync(zip, p.Id, av, "k.zip", true, db, lagring, CancellationToken.None);
+            Assert.False(prov.Sparad);
+            Assert.Contains(prov.Rapport, r => r.StartsWith("Komponenter: 1 nya, 1 uppdateras"));
+        }
+        Assert.Equal(1, await db.Komponenter.CountAsync(k => k.ProjektId == p.Id));
+
+        for (var gang = 0; gang < 2; gang++)
+        {
+            using var zip = new System.IO.Compression.ZipArchive(Zip(json, ("Projektfiler/Funktionstexter/VAV.docx", [1, 2, 3])), System.IO.Compression.ZipArchiveMode.Read);
+            var r = await Projekteringsverktyg.Server.Export.ProjektKomplettering.KompletteraAsync(zip, p.Id, av, "k.zip", false, db, lagring, CancellationToken.None);
+            Assert.True(r.Sparad);
+        }
+
+        var komp = await db.Komponenter.Where(k => k.ProjektId == p.Id).ToListAsync();
+        Assert.Equal(2, komp.Count);
+        var befintlig = komp.Single(k => k.Id == tf.Id);
+        Assert.Equal("Tilluftsfläkt", befintlig.Beskrivning);
+        Assert.Equal("LB01-TF301", befintlig.Beteckning);       // stavningen behålls
+        Assert.Equal("Fläktrum", befintlig.Placering);          // tomt fält i filen tömmer inte
+        Assert.Equal("Fläkt", befintlig.Komponenttyp);
+        Assert.Equal("DI, DU", befintlig.Signaltyp);
+        var gt = komp.Single(k => k.Beteckning == "LB01-GT101");
+        Assert.Equal("AI", gt.Signaltyp);
+
+        var rad = await db.ListRader.SingleAsync(x => x.ProjektId == p.Id && x.Lista == "skyltlista");
+        Assert.Equal(tf.Id, rad.KomponentId);
+        Assert.Single(await db.Skap.Where(x => x.ProjektId == p.Id).ToListAsync());
+        Assert.Equal(2, await db.AttGora.CountAsync(x => x.ProjektId == p.Id));
+        var fil = await db.Filer.SingleAsync(x => x.ProjektId == p.Id);   // samma innehåll andra gången = ingen ny version
+        var dok = await db.Dokument.SingleAsync(x => x.ProjektId == p.Id);
+        Assert.Contains(fil.Id.ToString(), dok.Data);
+        Assert.Contains(gt.Id.ToString(), dok.Data);
+        Assert.Equal("Nybyggnad skola", (await db.Texter.SingleAsync(x => x.ProjektId == p.Id && x.Nyckel == "projektinformation")).Text);
+        Assert.Equal("Bravida", (await db.Projekt.SingleAsync(x => x.Id == p.Id)).Kund);   // tomt fält i projektet fylls i
+    }
+}
