@@ -141,6 +141,8 @@ export type ListDef = {
   kopplad: boolean;
   komponenttypInnehaller: string[] | null;
   bindestreck: boolean;
+  /** Fri lista som själv hämtar rader från Komponenter ("kraft" eller "matare"). */
+  hamtar?: string | null;
   kolumner: ListKolumn[];
 };
 

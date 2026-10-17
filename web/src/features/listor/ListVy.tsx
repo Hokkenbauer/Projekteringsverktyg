@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { DataGrid, type Blink, type Kolumn } from "../../grid/DataGrid";
 import type { Kataloger, Komponent, ListDef, ListRad, Projekt } from "../../lib/typer";
 import { skrivUt } from "../../lib/utskrift";
@@ -14,6 +14,17 @@ export const omfattar = (def: ListDef, komponenttyp: string) =>
 export function tal(text: string): number | null {
   const m = /-?\d+(?:[.,]\d+)?/.exec(text ?? "");
   return m ? Number(m[0].replace(",", ".")) : null;
+}
+
+/**
+ * Datum i utskrift och export: bara ett valt datum visas. Inget valt blir helt tomt (även "nolldatum" som 0001-01-01),
+ * så att teknikern kan fylla i rutan för hand på papper.
+ */
+export function valtDatum(v: string | undefined): string {
+  const t = (v ?? "").trim();
+  const m = /^(\d{4})-\d{2}-\d{2}/.exec(t);
+  if (!t) return "";
+  return m ? (Number(m[1]) < 1900 ? "" : m[0]) : t;
 }
 
 /** Kolumnnyckeln i tabellens rader. "id" är upptaget av radens id, så kolumnen ID heter id_ i tabellen. */
@@ -104,6 +115,9 @@ type Props = {
 
 export function ListVy({ def, grupp, rader, komponenter, projekt, blinkar, lasläge, onAndra, onNy, onTaBort, onExcel, onFlik, inbaddad, utanUtskrift, onInfo, fokusId, kataloger, forslagExtra, extraKnappar }: Props) {
   const visade = useMemo(() => byggRader(def, rader ?? [], komponenter), [def, rader, komponenter]);
+  // Anmärkningsbilagan: bara ikryssade rader skrivs ut (inga ikryssade = alla).
+  const valForUtskrift = def.id === "anmarkningar";
+  const [markerade, setMarkerade] = useState<string[]>([]);
 
   const kopplingsForslag = (signaltyp: string | null | undefined) => komponenter
     .filter((k) => !signaltyp || k.signaltyp.toLowerCase().includes(signaltyp.toLowerCase()))
@@ -174,11 +188,17 @@ export function ListVy({ def, grupp, rader, komponenter, projekt, blinkar, lasl�
 
   const utskrift = () => {
     const ut = def.kolumner;
-    skrivUt(def.namn, projekt, {
+    const valda = valForUtskrift && markerade.length ? visade.filter((r) => markerade.includes(r.id)) : visade;
+    const titel = def.id === "iplista" && projekt?.namn ? `${def.namn} ${projekt.namn}` : def.namn;
+    skrivUt(titel, projekt, {
       typ: "tabell",
       kolumner: ut.map((k) => k.rubrik),
-      rader: visade.map((r) => ut.map((k) => (k.typ === "kryss" ? (r[vn(k.nyckel)] === "true" ? "✔" : "") : r[vn(k.nyckel)] ?? ""))),
+      rader: valda.map((r) => ut.map((k) => (k.typ === "kryss" ? (r[vn(k.nyckel)] === "true" ? "✔" : "")
+        : k.typ === "datum" ? valtDatum(r[vn(k.nyckel)]) : r[vn(k.nyckel)] ?? ""))),
       sammanfattning: summering ? summering.map(([t, n]) => `${t}: ${n}`).join("   ·   ") : undefined,
+    }, {
+      liggande: valForUtskrift || undefined,
+      kolumnlinjer: def.id === "iplista" || valForUtskrift || undefined,
     });
   };
 
@@ -200,7 +220,7 @@ export function ListVy({ def, grupp, rader, komponenter, projekt, blinkar, lasl�
           {!utanUtskrift && <button className="knapp" onClick={utskrift}>Skriv ut / PDF</button>}
         </div>
       </div>
-      <p className="ingress">{def.ingress}</p>
+      <p className="ingress">{def.ingress}{valForUtskrift && " Bocka i rutan För utskrift på de rader som ska med i utskriften (inga ikryssade = alla). Utskriften blir liggande A4."}</p>
       {summering && summering.length > 0 && (
         <div className="summering" aria-label="Antal per signaltyp">
           <span className="chip">Totalt <b>{visade.length}</b></span>
@@ -220,6 +240,8 @@ export function ListVy({ def, grupp, rader, komponenter, projekt, blinkar, lasl�
           tomText={tomText}
           onInfo={def.kopplad && onInfo ? (r) => onInfo(r.id) : undefined}
           fokusId={fokusId}
+          markeraRubrik={valForUtskrift ? "För utskrift" : undefined}
+          onMarkerade={valForUtskrift ? setMarkerade : undefined}
           cellKlass={(r, nyckel) => {
             const kol = def.kolumner.find((k) => vn(k.nyckel) === nyckel);
             if (kol?.typ === "differens") {

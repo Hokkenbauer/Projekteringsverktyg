@@ -655,7 +655,7 @@ public class SignalTester
     {
         var s = Signaler.Tolka("2DI DU AO RTU");
         Assert.Equal(["DI", "DI", "DU", "AU", "Modbus RTU"], s.Select(x => x.Typ));
-        Assert.Equal(["DRIFT", "LARM", "START", "STYR", ""], s.Select(x => x.Funktion));
+        Assert.Equal(["DRIFT", "LARM", "MANÖVER", "STYRSIGNAL", ""], s.Select(x => x.Funktion));
         Assert.Equal("2×DI, DU, AU, Modbus RTU", Signaler.Sammanfatta(s));
         // Sammanfattningen går att tolka tillbaka till samma typer.
         Assert.Equal(s.Select(x => x.Typ), Signaler.Tolka(Signaler.Sammanfatta(s)).Select(x => x.Typ));
@@ -776,5 +776,44 @@ public class ProjektExportImportTester
         Assert.Equal(1, await db.AttGora.CountAsync(a => a.ProjektId == r.Projekt.Id));
         // Originalet är orört.
         Assert.Equal(k.Id, (await db.ListRader.SingleAsync(x => x.ProjektId == p.Id)).KomponentId);
+    }
+}
+
+public class AutoRaderTester
+{
+    private static Komponent K(string bet, string typ = "", string signaler = "") =>
+        new() { Beteckning = bet, Komponenttyp = typ, Signaltyp = signaler };
+
+    [Theory]
+    [InlineData("VS01-P01", "", true)]
+    [InlineData("VS01-PU01", "", true)]
+    [InlineData("VS01-PV601", "", true)]
+    [InlineData("VS01_P201", "", true)]
+    [InlineData("LB01-TF01", "", true)]
+    [InlineData("LB01-FF1", "", true)]
+    [InlineData("LB01-GT11", "", false)]
+    [InlineData("LB01-PT01", "", false)]
+    [InlineData("LB01-X1", "Cirkulationspump", true)]
+    [InlineData("LB01-TF01", "Fläktvakt", false)]
+    public void Laster_kanns_igen_pa_namn_och_typ(string bet, string typ, bool last) =>
+        Assert.Equal(last, Projekteringsverktyg.Server.ListApi.AutoRader.ArLast(K(bet, typ)));
+
+    [Theory]
+    [InlineData("G-LB01-MQ41", "", "", true)]
+    [InlineData("H-KV01-MF41", "", "", true)]
+    [InlineData("A1-ME01", "", "", true)]
+    [InlineData("LB01-X9", "Elmätare", "", true)]
+    [InlineData("LB01-X9", "", "M-bus", true)]
+    [InlineData("LB01-GT11", "Temperaturgivare", "AI", false)]
+    public void Matare_kanns_igen_pa_mbus_namn_och_typ(string bet, string typ, string sig, bool matare) =>
+        Assert.Equal(matare, Projekteringsverktyg.Server.ListApi.AutoRader.ArMatare(K(bet, typ, sig)));
+
+    [Fact]
+    public void Matare_far_forslag_pa_medie()
+    {
+        var d = Projekteringsverktyg.Server.ListApi.AutoRader.MatareForslag(K("G-A1H-MQ51", "Energimätare", "M-bus"));
+        Assert.Equal("El", d["medie"]);
+        Assert.Equal("M-bus", d["kommunikation"]);
+        Assert.Equal("Värme", Projekteringsverktyg.Server.ListApi.AutoRader.MatareForslag(K("G-RAD01-MQ41"))["medie"]);
     }
 }

@@ -104,7 +104,9 @@ public sealed record ListDef(
     string[]? KomponenttypInnehaller = null,
     string[]? ExportKolumner = null,
     /// <summary>Visa och exportera komponentens fält med - i stället för _ (skyltar).</summary>
-    bool Bindestreck = false)
+    bool Bindestreck = false,
+    /// <summary>Fri lista som själv hämtar rader från Komponenter: "kraft" (laster i skåpet) eller "matare" (se AutoRader).</summary>
+    string? Hamtar = null)
 {
     public KolumnDef? Kolumn(string nyckel) => Kolumner.FirstOrDefault(k => k.Nyckel == nyckel);
 }
@@ -240,30 +242,38 @@ public static class Listdefinitioner
             Kolumner:
             [
                 new("enhet", "Enhet", Bredd: 180),
+                new("mac", "MAC-adress", Mono: true),
                 new("ip", "IP-adress", Mono: true),
                 new("natmask", "Nätmask", Mono: true, Standard: "255.255.255.0"),
                 new("gateway", "Gateway", Mono: true),
                 new("dns1", "DNS 1", Mono: true),
                 new("dns2", "DNS 2", Mono: true),
                 new("portar", "Portar", Mono: true),
-                new("mac", "MAC-ID", Mono: true),
                 new("lanport", "LAN-port"),
                 new("ansluterTill", "Ansluter till"),
                 new("ovrigt", "Övrigt"),
             ]),
 
         new("matplan", "Mätplan", "Driftsättning",
-            "Projektets mätare och kontroll av dem.",
+            "Projektets mätare och kontroll av dem. Mätare i Komponenter läggs in automatiskt: M-bus-punkter, beteckningar som slutar på ME, MQ eller MF (t.ex. LB01-MQ41) och komponenttyper med \"mätare\". Beskrivning och placering hämtas från komponenten.",
             Kopplad: false,
+            Hamtar: "matare",
             Kolumner:
             [
-                new("matare", "Mätarbeteckning", Mono: true),
+                new("matare", "Beteckning", "koppling", Mono: true, Bredd: 150),
+                new("betjanar", "Mätpunkt", Bredd: 170),
+                new("beskrivning", "Beskrivning", "fran", KomponentFalt: "beskrivning", Faktorer: ["matare"]),
+                new("fabrikat", "Fabrikat och modell", "val", Kat("FabrikatTyp")),
                 new("medie", "Medie", "val", Kat("Medie")),
-                new("betjanar", "Betjänar"),
-                new("fabrikat", "Fabrikat/Typ", "val", Kat("FabrikatTyp")),
+                new("enhet", "Enhet", "val", ["kWh / MWh", "kWh / MWh / m³/h / m³", "m³/h / m³", "MWh", "m³"], Bredd: 120),
+                new("placering", "Placering", "fran", KomponentFalt: "placering", Faktorer: ["matare"]),
+                new("kommunikation", "Kommunikation", "val", ["M-bus", "Trådlös M-bus", "Modbus RTU", "Modbus TCP", "Puls", "BACnet", "Ingen"]),
+                new("levereras", "Levereras av", Bredd: 80),
+                new("monteras", "Monteras av", Bredd: 80),
+                new("kommunicerarMed", "Kommunicerar med", Bredd: 90),
                 new("sekundarId", "Sekundär-ID", Mono: true),
                 new("matarstallning", "Mätarställning vid kontroll", Mono: true),
-                new("ovrigt", "Övrigt"),
+                new("ovrigt", "Kommentar"),
                 new("kontrollerad", "Kontrollerad", "kryss", SatterDatum: "datum", SatterSign: "sign"),
                 new("datum", "Datum för kontroll", "datum"),
                 new("sign", "Sign.", Mono: true, Bredd: 52),
@@ -425,12 +435,14 @@ public static class Listdefinitioner
 
     /// <summary>Kraftberäkning per apparatskåp (lista "kraft-{skåpets Id}").</summary>
     public static readonly ListDef Kraft = new("kraft", "Kraftberäkning", "Konstruktion",
-        "Strömmen per fas för det som matas från skåpet. Summan per fas räknas ut längst ned.",
+        "Strömmen per fas för det som matas från skåpet. Pumpar och fläktar i Komponenter som är anslutna till skåpet (P01, PU01, PV601, TF01, FF01 m.fl. eller komponenttyp pump/fläkt) läggs in automatiskt. Summan per fas räknas ut längst ned.",
         Kopplad: false,
+        Hamtar: "kraft",
         Kolumner:
         [
-            new("beteckning", "Beteckning", Mono: true, Bredd: 140),
-            new("komponent", "Komponent", Bredd: 180),
+            new("beteckning", "Beteckning", "koppling", Mono: true, Bredd: 150),
+            new("komponenttyp", "Komponenttyp", "fran", KomponentFalt: "komponenttyp", Faktorer: ["beteckning"]),
+            new("komponent", "Benämning", Bredd: 160),
             new("l1", "L1 (A)", Mono: true, Bredd: 80),
             new("l2", "L2 (A)", Mono: true, Bredd: 80),
             new("l3", "L3 (A)", Mono: true, Bredd: 80),

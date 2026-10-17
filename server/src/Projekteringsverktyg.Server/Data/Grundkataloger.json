@@ -266,7 +266,9 @@
   "Varmvatten",
   "Kallvatten",
   "El",
-  "Kyla"
+  "Kyla",
+  "Varmvattencirkulation",
+  "Övrigt"
  ],
  "ModbusBaudrate": [
   "1200",

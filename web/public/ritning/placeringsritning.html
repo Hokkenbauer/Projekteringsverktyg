@@ -4151,7 +4151,7 @@ document.getElementById('pvRequestSync')?.addEventListener('click', ()=>{
 /* ---------- I/O-punkter (samma regler som webbappens lib/signaler.ts och serverns Signaler.cs) ---------- */
 const IO_TYPER=['DI','DU','AI','AU','Modbus RTU','Modbus TCP','M-bus','BACnet','KNX','DALI'];
 const IO_SNABB=['DI','DU','AI','AU','Modbus RTU','Modbus TCP','M-bus'];
-const IO_FUNK={DI:['DRIFT','LARM','LÄGE','NIVÅ','FLÖDE','SÄKERHET'],DU:['START','STOPP','ÖPPNA','STÄNG','STEG2'],AI:['VÄRDE','ÅTERKOPPLING','TEMP','TRYCK','FLÖDE'],AU:['STYR','VARVTAL','BÖRVÄRDE']};
+const IO_FUNK={DI:['DRIFT','LARM','INDIKERING','NIVÅ','FLÖDE','SÄKERHET'],DU:['MANÖVER','STOPP','ÖPPNA','STÄNG','STEG2'],AI:['MÄTVÄRDE','ÅTERKOPPLING','TEMP','TRYCK','FLÖDE'],AU:['STYRSIGNAL','VARVTAL','BÖRVÄRDE']};
 function ioTyp(t){const x=String(t||'').trim().toUpperCase().replace(/[\s_-]+/g,' ');
   return {DI:'DI',DU:'DU',DO:'DU',AI:'AI',AU:'AU',AO:'AU',RTU:'Modbus RTU','MODBUS RTU':'Modbus RTU',MODBUS:'Modbus RTU',TCP:'Modbus TCP','MODBUS TCP':'Modbus TCP',MBUS:'M-bus','M BUS':'M-bus',BACNET:'BACnet',KNX:'KNX',DALI:'DALI'}[x]||null;}
 function ioNy(typ,lista){const f=IO_FUNK[typ]||[];const anv=new Set(lista.filter(s=>s.typ===typ).map(s=>s.funktion));

@@ -216,7 +216,7 @@ ${sorterade.map((r, i) => { const v = Number(r.data.sannolikhet) * Number(r.data
         {SEKTIONER.map(([k, rub]) => (
           <label key={k} className="risksektion">
             <span>{rub}</span>
-            <textarea value={huvud[k]} readOnly={lasläge} rows={k === "metodik" || k === "riskhantering" ? 5 : 3} onChange={(e) => andra(k, e.target.value)} />
+            <textarea value={huvud[k]} readOnly={lasläge} rows={10} onChange={(e) => andra(k, e.target.value)} />
           </label>
         ))}
       </div>

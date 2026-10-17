@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import type { Anteckningar, Projekt } from "../../lib/typer";
-import { loggaRad } from "../../lib/utskrift";
+import { api } from "../../lib/api";
+import type { Anteckningar, ListRad, Projekt } from "../../lib/typer";
+import { loggaHtml } from "../../lib/utskrift";
+import { valtDatum } from "../listor/ListVy";
 
 type Handling = { handling: string; beskrivning: string; datum: string; signProjektor: string; signProjekteringsledare: string };
 type Anvisning = { dokument: string; typ: string; daterad: string };
@@ -31,6 +33,7 @@ function las(text: string | undefined, projekt: Projekt | null): Intyg {
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 type Props = {
+  projektId?: string;
   projekt: Projekt | null;
   grupp: string;
   rubrik: string;
@@ -40,7 +43,7 @@ type Props = {
   visaMeddelande: (t: string) => void;
 };
 
-/** Projekteringsintyg: ett formulär per projekt, utskrift/PDF. */
+/** Projekteringsintyg: ett formulär per projekt. Utskrift/PDF enligt mallen Projekteringsintyg och egenkontroll, med projekteringsegenkontrollen som bilaga. */
 export function ProjekteringsintygVy(p: Props) {
   const [intyg, setIntyg] = useState<Intyg>(() => las(p.text?.text, p.projekt));
   const [status, setStatus] = useState<"sparat" | "osparat" | "sparar">("sparat");
@@ -92,39 +95,98 @@ export function ProjekteringsintygVy(p: Props) {
     </table>
   );
 
-  const skrivUt = () => {
+  const [medEgenkontroll, setMedEgenkontroll] = useState(true);
+
+  /** Projekteringsegenkontrollerna i projektet (för bilagan i utskriften). */
+  const hamtaEgenkontroller = async () => {
+    if (!p.projektId) return [];
+    const kontroller = await api<{ id: string; namn: string }[]>(`/api/projekt/${p.projektId}/kontroller?typ=projektering`);
+    return Promise.all(kontroller.map(async (k) => ({
+      namn: k.namn,
+      rader: (await api<ListRad[]>(`/api/projekt/${p.projektId}/listor/kontroll-${k.id}`)).sort((a, b) => a.ordning - b.ordning),
+    })));
+  };
+
+  /** Utskrift enligt mallen "Projekteringsintyg och egenkontroll": samma rubriker, rutor och tomma rader att fylla i för hand. */
+  const skrivUt = async () => {
     const f = window.open("", "_blank");
     if (!f) { alert("Webbläsaren stoppade utskriftsfönstret. Tillåt popup-fönster för sidan."); return; }
-    const ruta = (b: boolean) => `<span class="ruta">${b ? "✔" : ""}</span>`;
-    const rad = (e: string, v: string) => `<b>${esc(e)}</b><span>${esc(v)}</span>`;
-    f.document.write(`<!doctype html><html lang="sv"><head><meta charset="utf-8"><title>Projekteringsintyg – ${esc(intyg.objekt)}</title>
-<style>@page{size:A4;margin:16mm 14mm 18mm}body{font-family:Arial,sans-serif;font-size:10pt;color:#111}
-h1{font-size:18pt;color:#1E3450;margin:0 0 10px;border-bottom:2px solid #1E3450;padding-bottom:6px}h2{font-size:12pt;color:#1E3450;margin:16px 0 6px}
-.huvud{display:grid;grid-template-columns:150px 1fr 150px 1fr;gap:4px 10px}.huvud b{color:#444}
-p{white-space:pre-wrap;margin:0;line-height:1.45}table{border-collapse:collapse;width:100%;font-size:9pt}
-th{background:#1E3450;color:#fff;text-align:left;padding:4px;-webkit-print-color-adjust:exact;print-color-adjust:exact}td{border-bottom:1px solid #ccc;padding:4px;vertical-align:top}
-.ruta{display:inline-block;width:13px;height:13px;border:1px solid #333;text-align:center;line-height:13px;font-size:10px;margin-right:8px;vertical-align:middle}
-.kryss{display:flex;gap:6px;margin:6px 0;align-items:flex-start}.not{color:#555;font-size:9pt;margin-bottom:4px}
-.sign{display:grid;grid-template-columns:1fr 1fr;gap:30px;margin-top:24px}.sign div{border-top:1px solid #333;padding-top:4px}</style></head><body>
-${loggaRad()}
-<h1>Projekteringsintyg</h1>
-<div class="huvud">${rad("Objekt:", intyg.objekt)}${rad("Slutkund:", intyg.slutkund)}${rad("Beställare:", intyg.bestallare)}${rad("Projektnummer:", intyg.projektnummer)}${rad("Projekteringsledare:", intyg.projekteringsledare)}${rad("Projektör:", intyg.projektor)}</div>
-<h2>Omfattning</h2><p>${esc(intyg.omfattning)}</p>
+    f.document.write("<p style='font-family:Arial'>Förbereder utskriften…</p>");
+    let egen: { namn: string; rader: ListRad[] }[] = [];
+    if (medEgenkontroll) {
+      try { egen = await hamtaEgenkontroller(); } catch { egen = []; }
+    }
+    const ruta = (b: boolean) => (b ? "✔" : "");
+    const fyll = <T,>(lista: T[], minst: number, tom: T) => [...lista, ...Array.from({ length: Math.max(0, minst - lista.length) }, () => tom)];
+    const info = ([["Objekt", intyg.objekt], ["Slutkund", intyg.slutkund], ["Beställare", intyg.bestallare],
+      ["Projekteringsledare", intyg.projekteringsledare], ["Projektör", intyg.projektor], ["Projektnummer", intyg.projektnummer]] as const)
+      .map(([e, v]) => `<tr><th>${e}:</th><td>${esc(v)}</td></tr>`).join("");
+    const handlingar = fyll(intyg.handlingar, 6, tomHandling).map((h) =>
+      `<tr class="hog"><td>${esc(h.handling)}</td><td>${esc(h.beskrivning)}</td><td>${esc(valtDatum(h.datum))}</td><td>${esc(h.signProjektor)}</td><td>${esc(h.signProjekteringsledare)}</td></tr>`).join("");
+    const anvisningar = fyll(intyg.anvisningar, 6, tomAnvisning).map((a) =>
+      `<tr><td>${esc(a.dokument)}</td><td>${esc(a.typ)}</td><td>${esc(valtDatum(a.daterad))}</td></tr>`).join("");
+    const bilaga = egen.filter((k) => k.rader.length).map((k) => `
+<h2 class="ny-sida">EGENKONTROLL – ${esc(k.namn.toUpperCase())}</h2>
+<p class="not">Signering intygar att punkten är kontrollerad.</p>
+<table class="ram egen"><thead><tr><th style="width:5%">Nr</th><th>Kontrollpunkt</th><th style="width:7%">Utförd</th><th style="width:12%">Datum</th><th style="width:8%">Sign.</th><th style="width:20%">Övrigt</th></tr></thead><tbody>
+${k.rader.map((r, i) => `<tr><td>${i + 1}</td><td>${esc(r.data.kontrollpunkt ?? "")}</td><td class="mitt">${ruta(r.data.kontrollerad === "true")}</td><td>${esc(valtDatum(r.data.datum))}</td><td>${esc(r.data.sign ?? "")}</td><td>${esc(r.data.ovrigt ?? "")}</td></tr>`).join("")}
+</tbody></table>`).join("");
+
+    f.document.open();
+    f.document.write(`<!doctype html><html lang="sv"><head><meta charset="utf-8"><title>Projekteringsintyg och egenkontroll – ${esc(intyg.objekt)}</title>
+<style>
+@page{size:A4 portrait;margin:12mm 16mm 16mm}
+body{font-family:Arial,Helvetica,sans-serif;font-size:9.5pt;color:#000;margin:0}
+.sida{width:100%;border-collapse:collapse}.sida>thead td{padding:0 0 6mm}
+.topp{display:flex;justify-content:space-between;align-items:flex-end}
+.topp h1{font-size:12.5pt;font-weight:700;margin:0 0 2px;letter-spacing:.01em}
+h2{font-size:9.5pt;font-weight:700;margin:7mm 0 2mm;text-transform:uppercase;break-after:avoid;page-break-after:avoid}
+.blk{break-inside:avoid;page-break-inside:avoid}
+.not{font-style:italic;margin:-1.5mm 0 2mm}
+table.ram{border-collapse:collapse;width:100%}
+table.ram th,table.ram td{border:1px solid #000;padding:3px 5px;vertical-align:top;text-align:left}
+table.ram thead th{font-weight:700}
+.info{width:66%!important}.info th{width:32%;text-align:right!important;font-weight:700;white-space:nowrap}
+.ruta{border:1px solid #000;padding:4px 6px}.ruta b{display:block;margin-bottom:2px}.ruta p{white-space:pre-wrap;margin:0;line-height:1.4}
+.omf{min-height:34mm}.avsteg{min-height:22mm}
+tr.hog td{height:7.5mm}
+.handl th:nth-child(3),.handl td:nth-child(3){width:13%;white-space:nowrap}.handl th:nth-child(4),.handl td:nth-child(4){width:11%}.handl th:nth-child(5),.handl td:nth-child(5){width:15%}
+.anv td{height:4.5mm}.anv th:nth-child(3),.anv td:nth-child(3){width:13%}
+.risk{width:66%!important}.risk th{text-align:center!important;width:50%}.risk td{height:12mm;text-align:center!important;vertical-align:middle;font-size:14pt}
+.mat td:last-child{width:22%;text-align:center!important;vertical-align:middle;font-size:14pt}
+.mitt{text-align:center}
+.linje{border-bottom:1px solid #000;min-height:6mm;padding-top:4mm;margin-bottom:2mm}
+.utford{display:flex;gap:6px;align-items:flex-end;font-weight:700}.utford span{flex:0 0 95mm;border-bottom:1px solid #000;font-weight:400;min-height:5mm}
+.sign b{display:block;margin-top:6mm}
+.ny-sida{page-break-before:always;margin-top:0}
+tr,.ruta{page-break-inside:avoid}
+.egen td{font-size:8.5pt}
+</style></head><body>
+<table class="sida"><thead><tr><td><div class="topp"><h1>PROJEKTERINGSINTYG OCH EGENKONTROLL</h1>${loggaHtml("12mm")}</div></td></tr></thead><tbody><tr><td>
+<table class="ram info">${info}</table>
+<h2>Omfattning</h2>
+<div class="ruta omf"><b>Projektets omfattning:</b><p>${esc(intyg.omfattning)}</p></div>
 <h2>Upprättade handlingar</h2><p class="not">Signering av handling intygar kontroll av handlingen.</p>
-<table><thead><tr><th>Handling</th><th>Beskrivning</th><th>Datum</th><th>Sign. Projektör</th><th>Sign. Projekteringsledare</th></tr></thead><tbody>
-${intyg.handlingar.map((h) => `<tr><td>${esc(h.handling)}</td><td>${esc(h.beskrivning)}</td><td>${esc(h.datum)}</td><td>${esc(h.signProjektor)}</td><td>${esc(h.signProjekteringsledare)}</td></tr>`).join("")}</tbody></table>
-<h2>Anvisningar för projektering</h2>
-<table><thead><tr><th>Dokument</th><th>Typ av dokument</th><th>Daterad</th></tr></thead><tbody>
-${intyg.anvisningar.map((a) => `<tr><td>${esc(a.dokument)}</td><td>${esc(a.typ)}</td><td>${esc(a.daterad)}</td></tr>`).join("")}</tbody></table>
-<h2>Avsteg i projektering</h2><p class="not">Avsteg som har gjorts under projektering:</p><p>${esc(intyg.avsteg)}</p>
-<h2>Riskanalys för kontrollplan</h2><p>Riskanalys utförd, datum/signatur: ${esc(intyg.riskanalysUtford)}</p>
-<div class="kryss">${ruta(intyg.ingaRisker)}<span>Inga risker uppdagade</span></div>
-<div class="kryss">${ruta(intyg.riskerUppdagade)}<span>Risker uppdagade. Riskanalys bifogas som bilaga</span></div>
-<h2>Materialval</h2>
-<div class="kryss">${ruta(intyg.materialEntreprenor)}<span>${esc(MATERIAL_ENTREPRENOR)}</span></div>
-<div class="kryss">${ruta(intyg.materialIntygat)}<span>${esc(MATERIAL_INTYGAT)}</span></div>
-<p style="margin-top:18px">Härmed intygas ovan uppgifter</p>
-<div class="sign"><div>Ort / datum: ${esc(intyg.ortDatum)}</div><div>Signatur: ${esc(intyg.signatur)}</div></div>
+<table class="ram handl"><thead><tr><th>Handling</th><th>Beskrivning</th><th>Datum</th><th>Sign.<br>Projektör</th><th>Sign.<br>Projekterings&shy;ledare</th></tr></thead><tbody>${handlingar}</tbody></table>
+<div class="blk"><h2>Anvisningar för projektering</h2>
+<table class="ram anv"><thead><tr><th>Dokument</th><th>Typ av dokument</th><th>Daterad</th></tr></thead><tbody>${anvisningar}</tbody></table></div>
+<div class="blk"><h2>Avsteg i projektering</h2>
+<div class="ruta avsteg"><b>Avsteg som har gjorts under projektering:</b><p>${esc(intyg.avsteg)}</p></div></div>
+<div class="blk"><h2>Riskanalys för kontrollplan</h2>
+<div class="utford">Riskanalys utförd, datum/signatur: <span>${esc(intyg.riskanalysUtford)}</span></div>
+<p style="font-weight:700;margin:4mm 0 2mm">Resultat från riskanalys:</p>
+<table class="ram risk"><thead><tr><th>Inga risker<br>uppdagade</th><th>Risker uppdagade.<br>Riskanalys bifogas som bilaga</th></tr></thead>
+<tbody><tr><td>${ruta(intyg.ingaRisker)}</td><td>${ruta(intyg.riskerUppdagade)}</td></tr></tbody></table></div>
+<div class="blk"><h2>Materialval</h2>
+<table class="ram mat"><tr><td>${esc(MATERIAL_ENTREPRENOR)}</td><td>${ruta(intyg.materialEntreprenor)}</td></tr>
+<tr><td>${esc(MATERIAL_INTYGAT)}</td><td>${ruta(intyg.materialIntygat)}</td></tr></table></div>
+<div class="sign" style="page-break-inside:avoid">
+<p style="font-weight:700;margin:7mm 0 0">Härmed intygas ovan uppgifter:</p>
+<b>Ort / datum</b><div class="linje">${esc(intyg.ortDatum)}</div>
+<b>Signatur</b><div class="linje">${esc(intyg.signatur)}</div>
+</div>
+${bilaga}
+</td></tr></tbody></table>
 <script>window.onload=()=>{window.focus();window.print();};</script></body></html>`);
     f.document.close();
   };
@@ -141,7 +203,12 @@ ${intyg.anvisningar.map((a) => `<tr><td>${esc(a.dokument)}</td><td>${esc(a.typ)}
       <div className="brodsmula">{p.grupp}</div>
       <div className="rubrikrad">
         <h1>{p.rubrik}</h1>
-        <div className="knappar"><button className="knapp" onClick={skrivUt}>Skriv ut / PDF</button></div>
+        <div className="knappar">
+          <label className="kryssrad" title="Projekteringsegenkontrollerna (under Kontroller) skrivs ut som bilaga efter intyget">
+            <input type="checkbox" checked={medEgenkontroll} onChange={(e) => setMedEgenkontroll(e.target.checked)} /> Med projekteringsegenkontroll
+          </label>
+          <button className="knapp" onClick={() => void skrivUt()}>Skriv ut / PDF</button>
+        </div>
       </div>
       <p className="ingress">
         Ett intyg per projekt. Objekt, slutkund och projektnummer hämtas från projektet första gången. Allt sparas automatiskt

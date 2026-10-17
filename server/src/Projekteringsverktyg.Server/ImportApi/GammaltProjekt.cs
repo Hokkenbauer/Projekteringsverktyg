@@ -156,7 +156,7 @@ public static class GammaltProjekt
         }, "IP-lista");
         Fri("matplan", "Matplan", x => new()
         {
-            ["matare"] = T(x, "Matarbeteckning"), ["medie"] = T(x, "Medie"), ["betjanar"] = T(x, "Betjanar"), ["fabrikat"] = T(x, "FabrikatTyp"),
+            ["matare"] = Koppling(T(x, "Matarbeteckning"), perBeteckning), ["medie"] = T(x, "Medie"), ["betjanar"] = T(x, "Betjanar"), ["fabrikat"] = T(x, "FabrikatTyp"),
             ["sekundarId"] = T(x, "SekundarId"), ["matarstallning"] = T(x, "MatarstallningVidKontroll"), ["ovrigt"] = T(x, "Ovrigt"),
             ["kontrollerad"] = Kryss(x, "Kontrollerad"), ["datum"] = Datum(x, "DatumForKontroll"), ["sign"] = T(x, "Sign"),
         }, "Mätplan");
@@ -316,7 +316,7 @@ public static class GammaltProjekt
             {
                 var d = Rensa(new()
                 {
-                    ["beteckning"] = T(rad, "Beteckning"), ["komponent"] = T(rad, "Komponent"),
+                    ["beteckning"] = Koppling(T(rad, "Beteckning"), perBeteckning), ["komponent"] = T(rad, "Komponent"),
                     ["l1"] = Tal(rad, "L1"), ["l2"] = Tal(rad, "L2"), ["l3"] = Tal(rad, "L3"), ["information"] = T(rad, "Information"),
                 });
                 if (d.Count == 0) continue;
@@ -543,9 +543,11 @@ public static class GammaltProjekt
 
     private static string Datum(XElement e, string namn) => DatumText(T(e, namn));
 
-    /// <summary>"2026-09-14T00:00:00" → "2026-09-14". Annat lämnas som det är.</summary>
+    /// <summary>"2026-09-14T00:00:00" → "2026-09-14". Annat lämnas som det är.
+    /// Ett tomt datum i det gamla programmet sparas som 0001-01-01 – det blir tomt här, så att utskriften har en tom ruta att fylla i för hand.</summary>
     internal static string DatumText(string v) =>
-        v.Length >= 10 && DateTime.TryParse(v, CultureInfo.InvariantCulture, DateTimeStyles.None, out var d) ? d.ToString("yyyy-MM-dd") : v;
+        v.Length >= 10 && DateTime.TryParse(v, CultureInfo.InvariantCulture, DateTimeStyles.None, out var d)
+            ? (d.Year < 1900 ? "" : d.ToString("yyyy-MM-dd")) : v;
 
     private static double Num(string v) =>
         double.TryParse(v.Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out var d) ? d : 0;

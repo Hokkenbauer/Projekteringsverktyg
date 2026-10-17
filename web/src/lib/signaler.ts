@@ -10,10 +10,10 @@ export const TYPER = ["DI", "DU", "AI", "AU", "Modbus RTU", "Modbus TCP", "M-bus
 export const SNABBTYPER = ["DI", "DU", "AI", "AU", "Modbus RTU", "Modbus TCP", "M-bus"];
 
 export const FUNKTIONER: Record<string, string[]> = {
-  DI: ["DRIFT", "LARM", "LÄGE", "NIVÅ", "FLÖDE", "SÄKERHET"],
-  DU: ["START", "STOPP", "ÖPPNA", "STÄNG", "STEG2"],
-  AI: ["VÄRDE", "ÅTERKOPPLING", "TEMP", "TRYCK", "FLÖDE"],
-  AU: ["STYR", "VARVTAL", "BÖRVÄRDE"],
+  DI: ["DRIFT", "LARM", "INDIKERING", "NIVÅ", "FLÖDE", "SÄKERHET"],
+  DU: ["MANÖVER", "STOPP", "ÖPPNA", "STÄNG", "STEG2"],
+  AI: ["MÄTVÄRDE", "ÅTERKOPPLING", "TEMP", "TRYCK", "FLÖDE"],
+  AU: ["STYRSIGNAL", "VARVTAL", "BÖRVÄRDE"],
 };
 
 const nyttId = () => Math.random().toString(36).slice(2, 12);

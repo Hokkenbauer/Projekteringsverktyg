@@ -56,7 +56,30 @@ export function ModulbelaggningVy({ projektId, projekt, skap, allaSkap, komponen
   const [m, setM] = useState<Modulbelaggning>(() => lasModuler(skap.moduler));
   const [status, setStatus] = useState<"sparat" | "osparat" | "sparar">("sparat");
   const [sok, setSok] = useState("");
-  const [baraOkopplade, setBaraOkopplade] = useState(false);
+  const [visa, setVisa] = useState<"alla" | "okopplade" | "kopplade">("alla");
+  // Signallistans storlek går att dra (sparas i webbläsaren).
+  const [panel, setPanel] = useState<{ b: number; h: number | null }>(() => {
+    try { const v = localStorage.getItem("pv.modul.signalpanel"); if (v) return JSON.parse(v) as { b: number; h: number | null }; } catch { /* */ }
+    return { b: 260, h: null };
+  });
+  const panelRef = useRef<HTMLElement>(null);
+  const drag = useRef<{ led: "b" | "h"; start: number; fran: number } | null>(null);
+  const borjaDra = (e: React.PointerEvent, led: "b" | "h") => {
+    e.preventDefault();
+    const r = panelRef.current?.getBoundingClientRect();
+    drag.current = { led, start: led === "b" ? e.clientX : e.clientY, fran: led === "b" ? (r?.width ?? panel.b) : (r?.height ?? 500) };
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  };
+  const dra = (e: React.PointerEvent) => {
+    const d = drag.current; if (!d) return;
+    const v = Math.round(d.fran + (d.led === "b" ? e.clientX : e.clientY) - d.start);
+    setPanel((p) => (d.led === "b" ? { ...p, b: Math.max(200, Math.min(900, v)) } : { ...p, h: Math.max(200, Math.min(3000, v)) }));
+  };
+  const slapp = () => {
+    if (!drag.current) return;
+    drag.current = null;
+    setPanel((p) => { try { localStorage.setItem("pv.modul.signalpanel", JSON.stringify(p)); } catch { /* */ } return p; });
+  };
   const [dialog, setDialog] = useState(false);
   const [markerad, setMarkerad] = useState<{ kort: string; kanal: number } | null>(null);
   const timer = useRef<number | undefined>(undefined);
@@ -121,7 +144,7 @@ export function ModulbelaggningVy({ projektId, projekt, skap, allaSkap, komponen
     .sort((a, b) => Number(a.anvand) - Number(b.anvand) || a.k.beteckning.localeCompare(b.k.beteckning, "sv", { numeric: true })),
   [komponenter, anvandning]);
   const q = sok.trim().toLowerCase();
-  const synliga = signaler.filter((s) => (!baraOkopplade || !s.anvand)
+  const synliga = signaler.filter((s) => (visa === "alla" || (visa === "okopplade" ? !s.anvand : s.anvand))
     && (!q || s.k.beteckning.toLowerCase().includes(q) || s.k.signaltyp.toLowerCase().includes(q) || s.k.beskrivning.toLowerCase().includes(q)));
   const okopplade = signaler.filter((s) => !s.anvand).length;
 
@@ -199,11 +222,16 @@ ${loggaRad()}
   };
 
   return (
-    <div className="modulyta">
-      <aside className="signalpanel">
+    <div className="modulyta" style={{ gridTemplateColumns: `${panel.b}px 1fr` }}>
+      <aside className="signalpanel" ref={panelRef} style={panel.h ? { height: panel.h, maxHeight: "none" } : undefined}>
+        <span className="panelhandtag hoger" title="Dra för att ändra bredden. Dubbelklicka för standardstorlek." onPointerDown={(e) => borjaDra(e, "b")} onPointerMove={dra} onPointerUp={slapp} onPointerCancel={slapp}
+          onDoubleClick={() => { setPanel({ b: 260, h: null }); try { localStorage.removeItem("pv.modul.signalpanel"); } catch { /* */ } }} />
+        <span className="panelhandtag nere" title="Dra för att ändra höjden. Dubbelklicka för standardstorlek." onPointerDown={(e) => borjaDra(e, "h")} onPointerMove={dra} onPointerUp={slapp} onPointerCancel={slapp}
+          onDoubleClick={() => { setPanel({ b: 260, h: null }); try { localStorage.removeItem("pv.modul.signalpanel"); } catch { /* */ } }} />
         <h3>Signaler <span className="dampad">(dra till kanal)</span></h3>
         <input className="sok" type="search" placeholder="Sök signal" value={sok} onChange={(e) => setSok(e.target.value)} />
-        <label className="kryssrad"><input type="checkbox" checked={baraOkopplade} onChange={(e) => setBaraOkopplade(e.target.checked)} /> Visa bara okopplade</label>
+        <label className="kryssrad"><input type="checkbox" checked={visa === "okopplade"} onChange={(e) => setVisa(e.target.checked ? "okopplade" : "alla")} /> Visa endast okopplade</label>
+        <label className="kryssrad"><input type="checkbox" checked={visa === "kopplade"} onChange={(e) => setVisa(e.target.checked ? "kopplade" : "alla")} /> Visa endast kopplade</label>
         <div className="dampad liten">{okopplade} av {signaler.length} okopplade</div>
         <ul className="signallista">
           {synliga.map(({ k, anvand }) => (

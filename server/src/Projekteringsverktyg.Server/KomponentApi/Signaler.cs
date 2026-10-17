@@ -23,10 +23,10 @@ public static partial class Signaler
     /// <summary>Förslag på funktion per typ. Nya punkter får första förslaget som inte redan används på komponenten.</summary>
     public static readonly Dictionary<string, string[]> Funktioner = new()
     {
-        ["DI"] = ["DRIFT", "LARM", "LÄGE", "NIVÅ", "FLÖDE", "SÄKERHET"],
-        ["DU"] = ["START", "STOPP", "ÖPPNA", "STÄNG", "STEG2"],
-        ["AI"] = ["VÄRDE", "ÅTERKOPPLING", "TEMP", "TRYCK", "FLÖDE"],
-        ["AU"] = ["STYR", "VARVTAL", "BÖRVÄRDE"],
+        ["DI"] = ["DRIFT", "LARM", "INDIKERING", "NIVÅ", "FLÖDE", "SÄKERHET"],
+        ["DU"] = ["MANÖVER", "STOPP", "ÖPPNA", "STÄNG", "STEG2"],
+        ["AI"] = ["MÄTVÄRDE", "ÅTERKOPPLING", "TEMP", "TRYCK", "FLÖDE"],
+        ["AU"] = ["STYRSIGNAL", "VARVTAL", "BÖRVÄRDE"],
     };
 
     public static List<Signal> Las(Komponent k)

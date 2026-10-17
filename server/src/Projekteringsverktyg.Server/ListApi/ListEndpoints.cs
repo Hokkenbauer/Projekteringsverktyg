@@ -67,7 +67,7 @@ public static class ListEndpoints
     {
         app.MapGet("/api/listdefinitioner", () => Listdefinitioner.Alla.Append(Listdefinitioner.Kontroll).Append(Listdefinitioner.Kraft).Select(d => new
         {
-            d.Id, d.Namn, d.Grupp, d.Ingress, d.Kopplad, d.KomponenttypInnehaller, d.Bindestreck,
+            d.Id, d.Namn, d.Grupp, d.Ingress, d.Kopplad, d.KomponenttypInnehaller, d.Bindestreck, d.Hamtar,
             kolumner = d.Kolumner.Select(k => new { k.Nyckel, k.Rubrik, k.Typ, k.Val, k.KomponentFalt, k.Standard, k.Mono, k.Bredd, k.Redigerbar, k.Fyll, k.Faktorer, k.Forslag, k.KopplingSignaltyp }),
         }));
 
@@ -78,7 +78,22 @@ public static class ListEndpoints
             if (Listdefinitioner.Hitta(lista) is null) return Results.NotFound();
             var rader = await db.ListRader.Where(r => r.ProjektId == projektId && r.Lista == lista)
                 .OrderBy(r => r.Ordning).ThenBy(r => r.Andrad).ToListAsync();
-            return Results.Ok(rader.Select(Dto));
+            return Results.Ok(rader.Where(r => !AutoRader.ArDold(r)).Select(Dto));
+        });
+
+        // Listor som hämtar rader från Komponenter (Kraftberäkning, Mätplan): lägg till det som saknas.
+        g.MapPost("/hamta-komponenter", async (Guid projektId, string lista, ClaimsPrincipal user, PvDbContext db, IHubContext<ProjektHub> hub) =>
+        {
+            var def = Listdefinitioner.Hitta(lista);
+            if (def is null || def.Hamtar is null) return Results.NotFound();
+            var av = Anvandare.Fran(user);
+            var nya = await AutoRader.LaggTillSaknadeAsync(db, projektId, def, lista, av);
+            if (nya.Count == 0) return Results.Ok(Array.Empty<ListRadDto>());
+            // Två som öppnar listan samtidigt: den andra får krock på unika indexet och gör inget.
+            try { await db.SaveChangesAsync(); }
+            catch (DbUpdateException) { return Results.Ok(Array.Empty<ListRadDto>()); }
+            foreach (var rad in nya) await Skicka(hub, projektId, lista, "skapad", Dto(rad), av);
+            return Results.Ok(nya.Select(Dto));
         });
 
         // Ny rad i en fri lista.
@@ -181,7 +196,17 @@ public static class ListEndpoints
             if (rad is null) return Results.NotFound();
             var av = Anvandare.Fran(user);
             var dto = Dto(rad);
-            db.ListRader.Remove(rad);
+            if (def.Hamtar is not null && rad.KomponentId is not null)
+            {
+                // Hämtad från Komponenter: döljs, annars läggs den till igen nästa gång listan öppnas.
+                var data = LasData(rad.Data);
+                data[AutoRader.Dold] = "true";
+                rad.Data = JsonSerializer.Serialize(data, Json);
+                rad.Version++;
+                rad.Andrad = DateTimeOffset.UtcNow;
+                rad.AndradAv = av.Namn;
+            }
+            else db.ListRader.Remove(rad);
             Andringslogg.Logga(db, projektId, av, "Lista", rad.Id, $"tog bort en rad i {def.Namn}");
             await db.SaveChangesAsync();
             await Skicka(hub, projektId, lista, "borttagen", dto, av);
@@ -211,8 +236,8 @@ public static class ListEndpoints
         var kolumner = def.ExportKolumner is { } ek
             ? def.Kolumner.Where(k => ek.Contains(k.Nyckel)).ToList()
             : def.Kolumner.ToList();
-        var sparade = await db.ListRader.Where(r => r.ProjektId == projektId && r.Lista == lista)
-            .OrderBy(r => r.Ordning).ThenBy(r => r.Andrad).ToListAsync();
+        var sparade = (await db.ListRader.Where(r => r.ProjektId == projektId && r.Lista == lista)
+            .OrderBy(r => r.Ordning).ThenBy(r => r.Andrad).ToListAsync()).Where(r => !AutoRader.ArDold(r)).ToList();
 
         var rader = new List<object?[]>();
         if (def.Kopplad)
@@ -260,8 +285,21 @@ public static class ListEndpoints
         "produkt" => c.Berakna(data),
         "antal" or "differens" or "fran" or "koppling" => data.GetValueOrDefault(c.Nyckel, ""),
         "kryss" => data.GetValueOrDefault(c.Nyckel) == "true" ? "Ja" : "",
+        "datum" => Datum(data.GetValueOrDefault(c.Nyckel, "")),
         _ => data.GetValueOrDefault(c.Nyckel, c.Standard ?? ""),
     };
+
+    /// <summary>
+    /// Datum i export och utskrift: bara ett riktigt valt datum visas. Inget valt (eller ett "nolldatum" som 0001-01-01)
+    /// blir helt tomt, så att teknikern kan fylla i rutan för hand på papper.
+    /// </summary>
+    public static string Datum(string v)
+    {
+        v = (v ?? "").Trim();
+        if (v == "") return "";
+        return DateOnly.TryParse(v.Length >= 10 ? v[..10] : v, System.Globalization.CultureInfo.InvariantCulture, out var d)
+            ? (d.Year < 1900 ? "" : d.ToString("yyyy-MM-dd")) : v;
+    }
 
     private static async Task<IResult> Spara(PvDbContext db, IHubContext<ProjektHub> hub, ClaimsPrincipal user, ListDef def, KolumnDef kol, ListRad rad, string? varde, bool ny)
     {

@@ -21,7 +21,8 @@ type Innehall =
  * Öppnar en utskriftsvänlig sida med projektets sidhuvud och skriver ut den.
  * I utskriftsrutan kan man välja "Spara som PDF". Samma mall används av alla listor.
  */
-export function skrivUt(titel: string, projekt: Projekt | null, innehall: Innehall) {
+export function skrivUt(titel: string, projekt: Projekt | null, innehall: Innehall,
+  val: { liggande?: boolean; kolumnlinjer?: boolean } = {}) {
   const f = window.open("", "_blank");
   if (!f) {
     alert("Webbläsaren stoppade utskriftsfönstret. Tillåt popup-fönster för sidan och försök igen.");
@@ -36,7 +37,7 @@ export function skrivUt(titel: string, projekt: Projekt | null, innehall: Inneha
          <tbody>${innehall.rader.map((r) => `<tr>${r.map((c) => `<td>${esc(c)}</td>`).join("")}</tr>`).join("")}</tbody></table>`
       : innehall.typ === "html" ? `<div class="rik">${innehall.html}</div>`
       : `<pre>${esc(innehall.text)}</pre>`;
-  const liggande = innehall.typ === "tabell" && innehall.kolumner.length > 7;
+  const liggande = val.liggande ?? (innehall.typ === "tabell" && innehall.kolumner.length > 7);
 
   f.document.write(`<!doctype html><html lang="sv"><head><meta charset="utf-8"><title>${esc(titel)} – ${esc(projekt?.namn ?? "")}</title>
 <style>
@@ -60,6 +61,7 @@ export function skrivUt(titel: string, projekt: Projekt | null, innehall: Inneha
   .rik table { width: auto; margin: 4px 0 8px; } .rik td { border: 1px solid #bbb; padding: 3px 6px; } .rik td p { margin: 0; }
   .rik .ftnamn { font-size: 14pt; color: #1E3450; border-bottom: 1px solid #ccc; margin-top: 18px; page-break-before: always; }
   .rik .ftnamn:first-child { page-break-before: auto; margin-top: 0; }
+  ${val.kolumnlinjer ? "td { border: 1px solid #bbb; } th { border: 1px solid #1E3450; border-left-color: #6b7f99; }" : ""}
   footer { margin-top: 12px; font-size: 8pt; color: #666; border-top: 1px solid #ccc; padding-top: 4px; }
 </style></head><body>
 <header><h1>${esc(titel)}</h1><div class="proj">${loggaHtml()}<b>${esc(projekt?.namn ?? "")}</b>${esc(huvud)}</div></header>

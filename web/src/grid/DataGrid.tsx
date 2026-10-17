@@ -50,10 +50,14 @@ type Props<T extends Rad> = {
   markeradeVerktyg?: (ids: string[]) => ReactNode;
   /** Raderna går att flytta (dra i handtaget eller pilarna). Får hela den nya ordningen som id:n. */
   onFlytta?: (ids: string[]) => void;
+  /** Rubrik på kolumnen med markeringsrutor (t.ex. "För utskrift"). */
+  markeraRubrik?: string;
+  /** Anropas när markeringen ändras. */
+  onMarkerade?: (ids: string[]) => void;
 };
 
 export function DataGrid<T extends Rad>({
-  rader, kolumner, sokPlatshallare, onAndra, onNy: nyIn, onTaBort: taBortIn, blinkar = [], verktyg, lasläge = false, tomText, cellVarning, cellKlass, markeradeVerktyg, onInfo, fokusId, onFlytta: flyttaIn,
+  rader, kolumner, sokPlatshallare, onAndra, onNy: nyIn, onTaBort: taBortIn, blinkar = [], verktyg, lasläge = false, tomText, cellVarning, cellKlass, markeradeVerktyg, onInfo, fokusId, onFlytta: flyttaIn, markeraRubrik, onMarkerade,
 }: Props<T>) {
   const ram = useRef<HTMLDivElement>(null);
   const onNy = lasläge ? undefined : nyIn;
@@ -144,6 +148,8 @@ export function DataGrid<T extends Rad>({
     });
   }, [rader]);
 
+  useEffect(() => { onMarkerade?.([...markerade]); }, [markerade]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const vaxla = (id: string) =>
     setMarkerade((m) => {
       const n = new Set(m);
@@ -193,7 +199,9 @@ export function DataGrid<T extends Rad>({
           <thead>
             <tr>
               {kanFlytta && <th className="smal" aria-label="Flytta" />}
-              {onTaBort && <th className="smal" aria-label="Markera" />}
+              {onTaBort && (markeraRubrik
+                ? <th className="smal markera-rubrik" title="Bocka i raderna som ska med i utskriften">{markeraRubrik}</th>
+                : <th className="smal" aria-label="Markera" />)}
               {onInfo && <th className="smal" aria-label="Information" />}
               {kolumner.map((k) => (
                 <th key={k.nyckel} data-kol={k.nyckel} onClick={() => sortera(k.nyckel)}
@@ -331,7 +339,7 @@ function Cell<T>({ kolumn, varde, blink, varning, extraKlass, onSpara, lasläge 
     return (
       <td className={klass} style={stil} key={blink?.tid} title={varning}>
         <input
-          type="date" aria-label={kolumn.rubrik} value={varde} readOnly={lasläge} disabled={lasläge}
+          type="date" aria-label={kolumn.rubrik} value={/^0001-/.test(varde) ? "" : varde} readOnly={lasläge} disabled={lasläge}
           onChange={(e) => { if (e.target.value !== varde) onSpara(e.target.value); }}
         />
       </td>

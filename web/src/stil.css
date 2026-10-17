@@ -141,10 +141,11 @@ h2 { font-size: 15px; font-weight: 600; margin: 0 0 10px; }
 .verktygsrad { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
 .sok { flex: 1 1 220px; max-width: 320px; background: var(--yta); border: 1px solid var(--linje); border-radius: var(--r); padding: 7px 10px; }
 .antal { color: var(--dampad); font-size: 12px; margin-left: auto; font-variant-numeric: tabular-nums; }
-.grid-ram { overflow-x: auto; border: 1px solid var(--linje); border-radius: var(--r); background: var(--yta); }
+.grid-ram { overflow: auto; max-height: calc(100vh - 160px); border: 1px solid var(--linje); border-radius: var(--r); background: var(--yta); }
 table.grid { border-collapse: collapse; width: 100%; min-width: 900px; }
 .grid th { position: sticky; top: 0; background: var(--yta-2); font-family: var(--font-smal); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--dampad); text-align: left; padding: 8px; border-bottom: 1px solid var(--linje); white-space: nowrap; user-select: none; cursor: pointer; }
 .grid th.smal { cursor: default; width: 36px; }
+.grid th.markera-rubrik { width: auto; font-size: 10.5px; text-align: center; }
 .grid .pil { margin-left: 4px; }
 .grid td { border-bottom: 1px solid var(--linje); padding: 0; }
 .grid tr:last-child td { border-bottom: 0; }
@@ -327,6 +328,10 @@ table.enkel.tat td, table.enkel.tat th { padding: 5px 8px; font-size: 12.5px; }
 @media (max-width: 900px) { .modulyta { grid-template-columns: 1fr; } }
 .signalpanel { position: sticky; top: 8px; background: var(--yta); border: 1px solid var(--linje); border-radius: var(--r); padding: 10px; display: flex; flex-direction: column; gap: 8px; max-height: calc(100vh - 140px); }
 .signalpanel h3 { margin: 0; font-size: 14px; }
+.panelhandtag { position: absolute; z-index: 3; touch-action: none; }
+.panelhandtag.hoger { top: 0; right: -6px; width: 10px; height: 100%; cursor: ew-resize; }
+.panelhandtag.nere { left: 0; bottom: -6px; height: 10px; width: 100%; cursor: ns-resize; }
+.panelhandtag:hover { background: color-mix(in srgb, var(--accent) 40%, transparent); border-radius: 4px; }
 .signalpanel .sok { width: 100%; }
 .kryssrad { display: flex; gap: 6px; align-items: center; font-size: 13px; }
 .liten { font-size: 12px; }
@@ -377,7 +382,12 @@ table.kanaler td[draggable="true"] { cursor: grab; }
 .skapfalt.lang { grid-column: 1 / -1; }
 .skapfalt input, .skapfalt select, .skapfalt textarea, .skaptext, .skapkomp input[type="text"] { background: var(--yta-2); border: 1px solid var(--linje); border-radius: var(--r); padding: 6px 8px; color: var(--text); font: inherit; font-size: 13.5px; }
 .skaptext { width: 100%; resize: vertical; }
-.skapkomponenter { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 4px 16px; }
+.skapkomponenter { display: grid; grid-template-columns: 1fr; gap: 2px; }
+.skaptva { display: grid; grid-template-columns: minmax(280px, 1fr) minmax(380px, 1.5fr); gap: 0 14px; align-items: start; }
+@media (max-width: 1000px) { .skaptva { grid-template-columns: 1fr; } }
+.skapfarger { display: grid; grid-template-columns: 1fr; gap: 4px; }
+.skapfalt.rad { flex-direction: row; align-items: center; justify-content: space-between; gap: 10px; padding: 1px 4px; }
+.skapfalt.rad select { width: 150px; flex: 0 0 auto; padding: 4px 6px; }
 .skapkomp { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: center; padding: 3px 4px; border-radius: var(--r); }
 .skapkomp label { display: flex; gap: 6px; align-items: center; font-size: 13px; }
 .skapkomp.vald { background: color-mix(in srgb, var(--accent) 8%, transparent); }
@@ -515,6 +525,11 @@ button.kompchip{background:none;cursor:pointer}
 table.grid.fasta { table-layout: fixed; }
 table.grid.fasta td, table.grid.fasta th { overflow: hidden; text-overflow: ellipsis; }
 table.grid.fasta td.ro span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Rubrikraden står kvar när man rullar (tabellen rullar inom sin ram). Strecket under rubriken ritas som skugga,
+   eftersom en vanlig kantlinje försvinner på en klistrad cell. */
+.grid thead th { z-index: 2; box-shadow: inset 0 -1px 0 var(--linje); }
+/* Smalare tabell än ramen (egna kolumnbredder): avsluta med ett streck efter sista kolumnen. */
+table.grid.fasta th:last-child, table.grid.fasta td:last-child { border-right: 1px solid var(--linje); }
 .popflikar{display:flex;gap:2px;border-bottom:1px solid var(--linje);margin:-2px 0 8px;position:sticky;top:-8px;background:var(--yta);z-index:3;padding-top:2px}
 .popflikar button{border:none;background:none;color:var(--dampad);padding:6px 12px;font-size:13px;cursor:pointer;border-bottom:2px solid transparent}
 .popflikar button.aktiv{color:var(--text);border-bottom-color:var(--accent);font-weight:600}

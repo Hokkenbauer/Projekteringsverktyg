@@ -351,6 +351,19 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
     }
   }, [behovdaListor, projektId, visaMeddelande]);
 
+  // Kraftberäkning och Mätplan: laster/mätare i Komponenter som saknas läggs till varje gång listan öppnas.
+  const hamtarFran = listId ? (listId.startsWith("kraft-") ? "kraft" : listdefinitioner.find((d) => d.id === listId)?.hamtar ?? null) : null;
+  const listanLaddad = !!(listId && listor[listId]);
+  useEffect(() => {
+    if (!listId || !hamtarFran || !listanLaddad || !mig.rattigheter.skriva) return;
+    api<ListRad[]>(`/api/projekt/${projektId}/listor/${listId}/hamta-komponenter`, { method: "POST" })
+      .then((nya) => {
+        for (const r of nya) laggListRad(listId, r);
+        if (nya.length) visaMeddelande(`${nya.length} ${hamtarFran === "kraft" ? "laster" : "mätare"} hämtades från Komponenter.`);
+      })
+      .catch(() => { /* listan fungerar ändå */ });
+  }, [listId, hamtarFran, listanLaddad, projektId]);
+
   useEffect(() => {
     if (!textNyckel || hamtadeTexter.current.has(textNyckel)) return;
     hamtadeTexter.current.add(textNyckel);
@@ -502,7 +515,9 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
       utanUtskrift={!!riskVariant}
       kataloger={kataloger}
       forslagExtra={listDef.id === "modbus" ? { slinga: (listor.modbusrtu ?? []).map((g) => (g.data.namn ?? "").trim()).filter(Boolean) } : undefined}
-      extraKnappar={listDef.id === "modbus" && skrivbar ? (
+      extraKnappar={aktivKontroll?.typ === "projektering" ? (
+        <button className="knapp" title="Utskriften Projekteringsintyg och egenkontroll har den här kontrollen som bilaga" onClick={() => onFlik("projekteringsintyg")}>Till projekteringsintyget</button>
+      ) : listDef.id === "modbus" && skrivbar ? (
         <button className="knapp" onClick={() => void hamtaModbusKomponenter()}>Hämta Modbus-komponenter</button>
       ) : listDef.id === "byggvarubedomning" || listDef.id === "sundahus" ? (
         <ByggvaruKnappar
@@ -749,7 +764,7 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
         ) : <p className="dampad">Hämtar…</p>)}
         {flik === "projekteringsintyg" && vald && (texter.projekteringsintyg && projekt ? (
           <ProjekteringsintygVy
-            key={projektId} projekt={projekt} grupp={vald.grupp.namn} rubrik={vald.flik.namn}
+            key={projektId} projektId={projektId} projekt={projekt} grupp={vald.grupp.namn} rubrik={vald.flik.namn}
             text={texter.projekteringsintyg} onSparaText={(t) => sparaText("projekteringsintyg", t)}
             lasläge={!skrivbar} visaMeddelande={visaMeddelande}
           />

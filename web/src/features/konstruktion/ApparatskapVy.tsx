@@ -63,7 +63,7 @@ type Props = {
   visaMeddelande: (t: string) => void;
 };
 
-/** Apparatskåp: grundinformation, ledningsfärger, komponenter i skåpet, specifikation och övrigt. Sparas automatiskt. */
+/** Apparatskåp: grundinformation, specifikation, ledningsfärger och komponenter i skåpet bredvid varandra, och övrigt. Sparas automatiskt. */
 export function ApparatskapVy({ projektId, projekt, skap, komponenter, lasläge, onSparat, onKonflikt, visaMeddelande }: Props) {
   const [f, setF] = useState<Formular>(() => lasFormular(skap));
   const [status, setStatus] = useState<"sparat" | "osparat" | "sparar">("sparat");
@@ -122,13 +122,13 @@ export function ApparatskapVy({ projektId, projekt, skap, komponenter, lasläge,
       @page{size:A4;margin:14mm} body{font-family:Arial,sans-serif;font-size:10pt} h1{font-size:15pt;color:#1E3450;margin:0}
       h2{font-size:11.5pt;color:#1E3450;border-bottom:1px solid #bbb;margin:14px 0 4px} .h{display:flex;justify-content:space-between;border-bottom:2px solid #1E3450;padding-bottom:6px}
       table{border-collapse:collapse;width:100%} th{text-align:left;width:40%;font-weight:normal;color:#555;padding:2px 4px} td{padding:2px 4px}
-      .tva{columns:2;column-gap:20px} p{white-space:pre-wrap;margin:0}</style></head><body>
+      .sida{display:grid;grid-template-columns:1fr 1.3fr;gap:20px;align-items:start} p{white-space:pre-wrap;margin:0}</style></head><body>
 ${loggaRad()}
       <div class="h"><h1>Apparatskåp ${esc(skap.namn)}</h1><div>${esc(projekt?.namn ?? "")}<br>${esc([projekt?.nummer, projekt?.kund].filter(Boolean).join(" · "))}</div></div>
       <h2>Grundinformation</h2><table>${rad("Beteckning", f.beteckning)}${rad("Placering", f.placering)}${rad("Beskrivning", f.beskrivning)}</table>
-      <h2>Ledningsfärger</h2><div class="tva"><table>${FARGER.map(([k, n]) => rad(n, f.farger[k] ?? "")).join("")}</table></div>
-      <h2>Komponenter i skåpet</h2><table>${valda.length ? valda.map((n) => rad(n, f.komponenter[n]?.info ?? "")).join("") : "<tr><td>Inga valda.</td></tr>"}</table>
       <h2>Skåpspecifikation</h2><table>${SPEC.map(([k, n]) => rad(n, f.spec[k] ?? "")).join("")}</table>
+      <div class="sida"><div><h2>Ledningsfärger</h2><table>${FARGER.map(([k, n]) => rad(n, f.farger[k] ?? "")).join("")}</table></div>
+      <div><h2>Komponenter i skåpet</h2><table>${valda.length ? valda.map((n) => rad(n, f.komponenter[n]?.info ?? "")).join("") : "<tr><td>Inga valda.</td></tr>"}</table></div></div>
       <h2>Övrigt</h2><p>${esc(f.ovrigt)}</p>
       <script>window.onload=()=>{window.focus();window.print();}</script></body></html>`);
     w.document.close();
@@ -165,10 +165,18 @@ ${loggaRad()}
       </section>
 
       <section className="panel">
+        <h2>Skåpspecifikation</h2>
+        <div className="skapgrid">
+          {SPEC.map(([k, n]) => falt(n, f.spec[k] ?? "", (v) => andra({ ...f, spec: { ...f.spec, [k]: v } })))}
+        </div>
+      </section>
+
+      <div className="skaptva">
+      <section className="panel">
         <h2>Ledningsfärger</h2>
-        <div className="skapgrid tre">
+        <div className="skapfarger">
           {FARGER.map(([k, n]) => (
-            <label key={k} className="skapfalt">
+            <label key={k} className="skapfalt rad">
               <span>{n}</span>
               <select value={f.farger[k] ?? ""} disabled={lasläge} onChange={(e) => andra({ ...f, farger: { ...f.farger, [k]: e.target.value } })}>
                 {[...new Set([f.farger[k] ?? "", ...LEDNINGSFARGER])].filter(Boolean).map((v) => <option key={v}>{v}</option>)}
@@ -194,17 +202,11 @@ ${loggaRad()}
           })}
         </div>
       </section>
-
-      <section className="panel">
-        <h2>Skåpspecifikation</h2>
-        <div className="skapgrid">
-          {SPEC.map(([k, n]) => falt(n, f.spec[k] ?? "", (v) => andra({ ...f, spec: { ...f.spec, [k]: v } })))}
-        </div>
-      </section>
+      </div>
 
       <section className="panel">
         <h2>Övrigt</h2>
-        <textarea className="skaptext" rows={4} value={f.ovrigt} readOnly={lasläge} onChange={(e) => andra({ ...f, ovrigt: e.target.value })} />
+        <textarea className="skaptext" rows={12} value={f.ovrigt} readOnly={lasläge} onChange={(e) => andra({ ...f, ovrigt: e.target.value })} />
       </section>
     </div>
   );
