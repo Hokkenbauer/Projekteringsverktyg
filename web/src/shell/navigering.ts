@@ -23,6 +23,7 @@ export const NAVIGERING: Grupp[] = [
     namn: "Projekt",
     flikar: [
       { id: "oversikt", namn: "Översikt", fas: 1, klar: true },
+      { id: "projektinformation", namn: "Projektinformation", fas: 3, klar: true, text: "projektinformation" },
       { id: "projektfiler", namn: "Projektfiler", fas: 1, klar: true },
       { id: "medlemmar", namn: "Medlemmar", fas: 1, klar: true },
     ],
@@ -94,7 +95,6 @@ export const NAVIGERING: Grupp[] = [
   {
     namn: "Dokumentation",
     flikar: [
-      { id: "projektinformation", namn: "Projektinformation", fas: 3, klar: true, text: "projektinformation" },
       { id: "signaturlista", namn: "Signaturlista", fas: 3, klar: true, lista: "signaturlista" },
       { id: "anlaggningsinstallningar", namn: "Anläggningsinställningar", fas: 3, klar: true, lista: "anlaggningsinstallningar" },
     ],
