@@ -279,6 +279,38 @@ public static class Inbjudningar
             return Results.Ok(new InbjudanSvar((await Dtos(db, [inb]))[0], svar.Ok, svar.Meddelande));
         });
 
+        // Lägg till ett projekt i en väntande inbjudan (personen har inte loggat in än). Inget nytt mejl skickas.
+        g.MapPost("/{id:guid}/projekt/{projektId:guid}", async (Guid id, Guid projektId, ClaimsPrincipal user, Behorighet beh, PvDbContext db, CancellationToken ct) =>
+        {
+            if (!await beh.HarRoll(user, Roller.Admin, Roller.Projektledare)) return Results.Forbid();
+            var inb = await db.Inbjudningar.FirstOrDefaultAsync(i => i.Id == id, ct);
+            if (inb is null || inb.Status != "Vantar") return Results.NotFound();
+            if (!await db.Projekt.AnyAsync(p => p.Id == projektId, ct)) return Results.NotFound();
+            if (!inb.Projekt().Contains(projektId))
+            {
+                inb.ProjektIds = string.Join(",", inb.Projekt().Append(projektId));
+                Andringslogg.Logga(db, projektId, Anvandare.Fran(user), "Medlem", null,
+                    $"lade till {(inb.Namn == "" ? inb.Epost : $"{inb.Namn} ({inb.Epost})")} i projektet (inbjuden, har inte loggat in än)");
+                await db.SaveChangesAsync(ct);
+            }
+            return Results.Ok((await Dtos(db, [inb]))[0]);
+        });
+
+        // Ta bort ett projekt ur en väntande inbjudan. Finns inga projekt kvar tas inbjudan bort.
+        g.MapDelete("/{id:guid}/projekt/{projektId:guid}", async (Guid id, Guid projektId, ClaimsPrincipal user, Behorighet beh, PvDbContext db, CancellationToken ct) =>
+        {
+            if (!await beh.HarRoll(user, Roller.Admin, Roller.Projektledare)) return Results.Forbid();
+            var inb = await db.Inbjudningar.FirstOrDefaultAsync(i => i.Id == id, ct);
+            if (inb is null || inb.Status != "Vantar") return Results.NoContent();
+            var kvar = inb.Projekt().Where(p => p != projektId).ToList();
+            if (await db.Projekt.AnyAsync(p => p.Id == projektId, ct))
+                Andringslogg.Logga(db, projektId, Anvandare.Fran(user), "Medlem", null, $"tog bort inbjudan till {inb.Epost} från projektet");
+            if (kvar.Count == 0) db.Inbjudningar.Remove(inb);
+            else inb.ProjektIds = string.Join(",", kvar);
+            await db.SaveChangesAsync(ct);
+            return Results.NoContent();
+        });
+
         g.MapDelete("/{id:guid}", async (Guid id, ClaimsPrincipal user, Behorighet beh, PvDbContext db, CancellationToken ct) =>
         {
             if (!await beh.HarRoll(user, Roller.Admin, Roller.Projektledare)) return Results.Forbid();

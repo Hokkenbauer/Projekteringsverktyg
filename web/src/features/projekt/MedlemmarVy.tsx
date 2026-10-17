@@ -14,7 +14,7 @@ type InbjudanSvar = { inbjudan: Inbjudan; skickad: boolean; meddelande: string }
 export function MedlemmarVy({ projektId, rattigheter, visaMeddelande }: Props) {
   const [medlemmar, setMedlemmar] = useState<Medlem[] | null>(null);
   const [alla, setAlla] = useState<AnvandarInfo[]>([]);
-  const [inbjudningar, setInbjudningar] = useState<Inbjudan[]>([]);
+  const [allaInbjudningar, setAllaInbjudningar] = useState<Inbjudan[]>([]);
   const [vald, setVald] = useState("");
   const [dialog, setDialog] = useState(false);
   const [ny, setNy] = useState({ epost: "", namn: "", roll: "Lasare" });
@@ -25,8 +25,10 @@ export function MedlemmarVy({ projektId, rattigheter, visaMeddelande }: Props) {
   const roller = ROLLER.filter((r) => r.id !== "Admin" && (rattigheter.hanteraAnvandare || r.id === "Lasare" || r.id === "Tekniker"));
 
   const hamta = () => api<Medlem[]>(`/api/projekt/${projektId}/medlemmar`).then(setMedlemmar).catch((e) => visaMeddelande((e as Error).message));
-  const hamtaInbjudningar = () => api<Inbjudan[]>(`/api/inbjudningar?projektId=${projektId}`)
-    .then((l) => setInbjudningar(l.filter((i) => i.status === "Vantar"))).catch(() => setInbjudningar([]));
+  // Alla väntande inbjudningar (även i andra projekt), så att inbjudna personer kan läggas till här med ett klick.
+  const hamtaInbjudningar = () => api<Inbjudan[]>("/api/inbjudningar")
+    .then((l) => setAllaInbjudningar(l.filter((i) => i.status === "Vantar"))).catch(() => setAllaInbjudningar([]));
+  const inbjudningar = allaInbjudningar.filter((i) => i.projekt.some((p) => p.id === projektId));
   useEffect(() => {
     void hamta();
     if (kanHantera) {
@@ -38,6 +40,12 @@ export function MedlemmarVy({ projektId, rattigheter, visaMeddelande }: Props) {
   const laggTill = async () => {
     if (!vald) return;
     try {
+      if (vald.startsWith("inb:")) {
+        await api(`/api/inbjudningar/${vald.slice(4)}/projekt/${projektId}`, { method: "POST" });
+        setVald("");
+        await hamtaInbjudningar();
+        return;
+      }
       await api(`/api/projekt/${projektId}/medlemmar`, { method: "POST", body: skicka({ anvandarId: vald }) });
       setVald("");
       await hamta();
@@ -75,13 +83,15 @@ export function MedlemmarVy({ projektId, rattigheter, visaMeddelande }: Props) {
 
   const aterkalla = async (i: Inbjudan) => {
     try {
-      await api(`/api/inbjudningar/${i.id}`, { method: "DELETE" });
-      visaMeddelande(`Inbjudan till ${i.epost} är borttagen.`);
+      await api(`/api/inbjudningar/${i.id}/projekt/${projektId}`, { method: "DELETE" });
+      visaMeddelande(i.projekt.length > 1 ? `${i.epost} är borttagen från projektet (inbjudan gäller fortfarande ${i.projekt.length - 1} andra projekt).` : `Inbjudan till ${i.epost} är borttagen.`);
       await hamtaInbjudningar();
     } catch (e) { visaMeddelande((e as Error).message); }
   };
 
   const ejMedlemmar = alla.filter((a) => !medlemmar?.some((m) => m.anvandarId === a.id));
+  const andraInbjudna = allaInbjudningar.filter((i) => !i.projekt.some((p) => p.id === projektId));
+  const kandaAdresser = [...new Set([...alla.map((a) => a.epost), ...allaInbjudningar.map((i) => i.epost)].filter(Boolean))].sort();
   const giltig = /^[^@\s,;]+@[^@\s,;]+\.[^@\s,;]+$/.test(ny.epost.trim());
 
   return (
@@ -93,14 +103,23 @@ export function MedlemmarVy({ projektId, rattigheter, visaMeddelande }: Props) {
       </div>
       <p className="ingress">
         Tekniker och läsare ser bara projekt där de är medlemmar. Admin, projektledare och system ser alla projekt.
-        Kollegor som redan loggat in väljer du i listan nedan. Personer utanför HECO bjuder du in med e-postadressen:
-        de får ett mejl från Microsoft och kommer in i projektet när de loggar in första gången.
+        Kollegor och tidigare inbjudna väljer du i listan nedan. Nya personer utanför HECO bjuder du in med e-postadressen:
+        de får ett mejl från Microsoft och kommer in i sina projekt när de loggar in första gången.
       </p>
       {kanHantera && (
         <div className="filterrad">
           <select aria-label="Välj person" value={vald} onChange={(e) => setVald(e.target.value)}>
             <option value="">Välj person att lägga till…</option>
-            {ejMedlemmar.map((a) => <option key={a.id} value={a.id}>{a.namn} ({rollNamn(a.roll)})</option>)}
+            {ejMedlemmar.length > 0 && (
+              <optgroup label="Användare">
+                {ejMedlemmar.map((a) => <option key={a.id} value={a.id}>{a.namn}{a.epost ? ` – ${a.epost}` : ""} ({rollNamn(a.roll)})</option>)}
+              </optgroup>
+            )}
+            {andraInbjudna.length > 0 && (
+              <optgroup label="Inbjudna som inte loggat in än">
+                {andraInbjudna.map((i) => <option key={i.id} value={`inb:${i.id}`}>{i.namn ? `${i.namn} – ` : ""}{i.epost} ({rollNamn(i.roll)})</option>)}
+              </optgroup>
+            )}
           </select>
           <button className="knapp" disabled={!vald} onClick={laggTill}>Lägg till i projektet</button>
         </div>
@@ -170,7 +189,14 @@ export function MedlemmarVy({ projektId, rattigheter, visaMeddelande }: Props) {
         ) : (
           <div className="kortformular">
             <label>E-postadress
-              <input type="email" autoFocus value={ny.epost} placeholder="namn@foretaget.se" onChange={(e) => setNy({ ...ny, epost: e.target.value })} />
+              <input type="email" autoFocus value={ny.epost} placeholder="namn@foretaget.se" list="kanda-adresser"
+                onChange={(e) => {
+                  const v = e.target.value;
+                  const kand = alla.find((a) => a.epost.toLowerCase() === v.trim().toLowerCase())?.namn
+                    ?? allaInbjudningar.find((i) => i.epost === v.trim().toLowerCase())?.namn;
+                  setNy({ ...ny, epost: v, namn: kand && !ny.namn ? kand : ny.namn });
+                }} />
+              <datalist id="kanda-adresser">{kandaAdresser.map((a) => <option key={a} value={a} />)}</datalist>
             </label>
             <label>Namn
               <input type="text" value={ny.namn} placeholder="Förnamn Efternamn" onChange={(e) => setNy({ ...ny, namn: e.target.value })} />
@@ -182,7 +208,7 @@ export function MedlemmarVy({ projektId, rattigheter, visaMeddelande }: Props) {
             </label>
             <p className="dampad liten">
               Läsare kan se men inte ändra. Personen får ett mejl från Microsoft, accepterar och loggar in med sitt eget jobbkonto
-              (har hen inte Microsoft 365 skickas en engångskod till e-posten). Inbjudan gäller det här projektet; bjud in igen från ett annat projekt för att lägga till fler.
+              (har hen inte Microsoft 365 skickas en engångskod till e-posten). Inbjudan gäller det här projektet. Alla inbjudna sparas och finns sedan i listan Välj person i alla projekt.
             </p>
           </div>
         )}
