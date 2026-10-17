@@ -34,6 +34,7 @@ import { TekniskBeskrivningVy } from "../projektering/TekniskBeskrivningVy";
 import { TextKatalogVy } from "../projektering/TextKatalogVy";
 import { RiskVy } from "../risk/RiskVy";
 import { ProjektStatusVy } from "../status/ProjektStatusVy";
+import { DokumentUppgifter, laddaDokumentUppgifter } from "./DokumentUppgifter";
 import { MedlemmarVy } from "./MedlemmarVy";
 import { LoggVy, Oversikt } from "./Oversikt";
 
@@ -350,6 +351,10 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
         .catch((e) => { hamtadeListor.current.delete(id); visaMeddelande(`Listan kunde inte hämtas: ${(e as Error).message}`); });
     }
   }, [behovdaListor, projektId, visaMeddelande]);
+
+  // Utskrifternas huvud och fot: projektets dokumentuppgifter, status och datum.
+  const dokVersion = (dokumentVersion.dokumenthuvud ?? 0) + (dokumentVersion.driftkortsidfot ?? 0);
+  useEffect(() => { void laddaDokumentUppgifter(projektId, projekt).catch(() => undefined); }, [projektId, projekt, dokVersion]);
 
   // Kraftberäkning och Mätplan: laster/mätare i Komponenter som saknas läggs till varje gång listan öppnas.
   const hamtarFran = listId ? (listId.startsWith("kraft-") ? "kraft" : listdefinitioner.find((d) => d.id === listId)?.hamtar ?? null) : null;
@@ -679,6 +684,10 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
               ? "Information som serviceteknikern behöver: åtkomst, kontaktpersoner, larmhantering, särskilda förutsättningar. Sparas automatiskt."
               : "Övergripande information om projektet: omfattning, förutsättningar, kontaktpersoner och viktiga beslut. Sparas automatiskt."}
             onSkrivUt={(t) => skrivUt(vald.flik.namn, projekt, { typ: "text", text: t })}
+            fore={textNyckel === "projektinformation" ? (
+              <DokumentUppgifter projektId={projektId} projekt={projekt} lasläge={!skrivbar}
+                uppdaterad={dokVersion} visaMeddelande={visaMeddelande} />
+            ) : undefined}
           />
         ) : <p className="dampad">Hämtar…</p>)}
         {flik === "placeringsritningar" && !komponenterHamtade && <p className="dampad">Hämtar komponenter…</p>}

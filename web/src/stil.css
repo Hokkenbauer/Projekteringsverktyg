@@ -382,16 +382,18 @@ table.kanaler td[draggable="true"] { cursor: grab; }
 .skapfalt.lang { grid-column: 1 / -1; }
 .skapfalt input, .skapfalt select, .skapfalt textarea, .skaptext, .skapkomp input[type="text"] { background: var(--yta-2); border: 1px solid var(--linje); border-radius: var(--r); padding: 6px 8px; color: var(--text); font: inherit; font-size: 13.5px; }
 .skaptext { width: 100%; resize: vertical; }
-.skapkomponenter { display: grid; grid-template-columns: 1fr; gap: 2px; }
-.skaptva { display: grid; grid-template-columns: minmax(280px, 1fr) minmax(380px, 1.5fr); gap: 0 14px; align-items: start; }
+.skapkomponenter { columns: 440px 3; column-gap: 22px; }
+.skapkomponenter .skapkomp { break-inside: avoid; margin-bottom: 2px; }
+.skaptva { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 0 14px; align-items: start; }
 @media (max-width: 1000px) { .skaptva { grid-template-columns: 1fr; } }
 .skapfarger { display: grid; grid-template-columns: 1fr; gap: 4px; }
-.skapfalt.rad { flex-direction: row; align-items: center; justify-content: space-between; gap: 10px; padding: 1px 4px; }
+.skapfalt.rad { flex-direction: row; align-items: center; justify-content: flex-start; gap: 10px; padding: 1px 4px; }
+.skapfalt.rad > span { flex: 0 0 150px; }
 .skapfalt.rad select { width: 150px; flex: 0 0 auto; padding: 4px 6px; }
-.skapkomp { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: center; padding: 3px 4px; border-radius: var(--r); }
+.skapkomp { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 8px; align-items: center; padding: 2px 4px; border-radius: var(--r); }
 .skapkomp label { display: flex; gap: 6px; align-items: center; font-size: 13px; }
 .skapkomp.vald { background: color-mix(in srgb, var(--accent) 8%, transparent); }
-.skapkomp input[type="text"] { padding: 4px 6px; font-size: 12.5px; }
+.skapkomp input[type="text"] { padding: 3px 6px; font-size: 12.5px; width: 100%; }
 .signalpanel .sok { flex: none; height: auto; min-height: 0; }
 .modulsumma { box-shadow: 0 -6px 18px rgba(0,0,0,.08); }
 
@@ -575,3 +577,7 @@ table.grid.fasta th:last-child, table.grid.fasta td:last-child { border-right: 1
 .signaltabell td .ro-text{display:block;padding:7px 8px;font-size:12.5px;color:var(--dampad);white-space:nowrap}
 .signaltabell td.signalknappar{white-space:nowrap;padding:0 6px}
 .signaltabell td.signalknappar .knapp{margin-left:3px}
+.dokumentuppgifter{margin-bottom:14px;display:flex;flex-direction:column;gap:8px}
+.dokumentuppgifter h2{font-size:15px;margin:0}
+.dokumentuppgifter p{margin:0}
+.dokumentuppgifter .riskhuvud{margin-bottom:0}

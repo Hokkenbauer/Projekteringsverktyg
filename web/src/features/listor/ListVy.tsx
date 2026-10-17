@@ -198,6 +198,7 @@ export function ListVy({ def, grupp, rader, komponenter, projekt, blinkar, lasl�
       sammanfattning: summering ? summering.map(([t, n]) => `${t}: ${n}`).join("   ·   ") : undefined,
     }, {
       liggande: valForUtskrift || undefined,
+      kategori: valForUtskrift ? "Anmärkningsbilaga" : def.id === "egenkontroll" || def.id.startsWith("kontroll-") ? "Egenkontroll/checklista" : undefined,
       kolumnlinjer: def.id === "iplista" || valForUtskrift || undefined,
     });
   };

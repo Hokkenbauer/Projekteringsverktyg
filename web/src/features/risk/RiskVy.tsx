@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api, skicka } from "../../lib/api";
 import type { Anteckningar, ListDef, ListRad, Projekt } from "../../lib/typer";
-import { loggaRad } from "../../lib/utskrift";
+import { oppnaDokument } from "../../lib/dokumenttema";
 
 export type RiskVariant = "projektering" | "produktion";
 
@@ -120,48 +120,34 @@ export function RiskVy({ projektId, projekt, variant, grupp, rubrik, text, onSpa
   };
 
   const skrivUt = () => {
-    const f = window.open("", "_blank");
-    if (!f) { alert("Webbläsaren stoppade utskriftsfönstret. Tillåt popup-fönster för sidan."); return; }
     const sorterade = [...(rader ?? [])].sort((a, b) => a.ordning - b.ordning);
     const farg = (v: number) => (v >= 6 ? "#C53030" : v >= 3 ? "#D69E2E" : v > 0 ? "#2F855A" : "transparent");
     const matris = [3, 2, 1].map((s) => `<tr><th>${s}</th>${[1, 2, 3].map((k) => {
       const n = varden.filter((x) => x.s === s && x.k === k).length;
       return `<td style="background:${farg(s * k)};color:#fff">${n || ""}</td>`;
     }).join("")}</tr>`).join("");
-    f.document.write(`<!doctype html><html lang="sv"><head><meta charset="utf-8"><title>${esc(rubrik)} – ${esc(projekt?.namn ?? "")}</title>
-<style>
-@page { size: A4; margin: 16mm 14mm 18mm; }
-body { font-family: Arial, sans-serif; font-size: 10pt; color: #111; }
-h1 { font-size: 17pt; color: #1E3450; margin: 0 0 4px; } h2 { font-size: 12pt; color: #1E3450; margin: 16px 0 4px; border-bottom: 1px solid #ccc; padding-bottom: 2px; }
-.huvud { display: grid; grid-template-columns: 140px 1fr; gap: 3px 10px; margin: 10px 0; }
-.huvud b { color: #444; } p { white-space: pre-wrap; margin: 0; line-height: 1.45; }
-table.risk { border-collapse: collapse; width: 100%; font-size: 9pt; } table.risk th { background: #1E3450; color: #fff; text-align: left; padding: 4px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-table.risk td { border-bottom: 1px solid #ccc; padding: 4px; vertical-align: top; } tr { page-break-inside: avoid; }
-.v { color: #fff; font-weight: bold; text-align: center; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-table.matris { border-collapse: collapse; margin-top: 6px; } table.matris td, table.matris th { width: 34px; height: 26px; text-align: center; border: 1px solid #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-footer { margin-top: 18px; font-size: 8pt; color: #666; border-top: 1px solid #ccc; padding-top: 4px; }
-</style></head><body>
-${loggaRad()}
-<h1>${esc(rubrik)}</h1>
-<div class="huvud">
-<b>Projekt</b><span>${esc([projekt?.namn, projekt?.nummer].filter(Boolean).join(" · "))}</span>
-<b>Objekt</b><span>${esc(huvud.objekt)}</span><b>Datum</b><span>${esc(huvud.datum)}</span>
-<b>Totalentreprenör</b><span>${esc(huvud.totalentreprenor)}</span>
-<b>Handläggare</b><span>${esc([huvud.handlaggare, huvud.epost].filter(Boolean).join(", "))}</span>
-</div>
+    oppnaDokument({
+      titel: rubrik, kategori: "Riskanalys", projekt, liggande: false,
+      css: `p{white-space:pre-wrap;line-height:1.4}
+.v{color:#fff;font-weight:bold;text-align:center}
+table.matris{border-collapse:collapse;margin-top:2mm}table.matris td,table.matris th{width:9mm;height:7mm;text-align:center;border:1px solid #fff}`,
+      kropp: `<table class="data form"><tbody>
+<tr><th>Projekt</th><td>${esc([projekt?.namn, projekt?.nummer].filter(Boolean).join(" · "))}</td></tr>
+<tr><th>Objekt</th><td>${esc(huvud.objekt)}</td></tr><tr><th>Datum</th><td>${esc(huvud.datum)}</td></tr>
+<tr><th>Totalentreprenör</th><td>${esc(huvud.totalentreprenor)}</td></tr>
+<tr><th>Handläggare</th><td>${esc([huvud.handlaggare, huvud.epost].filter(Boolean).join(", "))}</td></tr>
+</tbody></table>
 <h2>Inledning</h2><p><b>Syfte.</b> ${esc(huvud.syfte)}</p><p style="margin-top:6px"><b>Omfattning.</b> ${esc(huvud.omfattning)}</p>
 <h2>Metodik</h2><p>${esc(huvud.metodik)}</p>
 <h2>Riskidentifiering och -bedömning</h2>
-<table class="risk"><thead><tr><th>Pos.</th><th>Arbetsmoment</th><th>Risk</th><th>S</th><th>K</th><th>Riskvärde</th><th>Åtgärd</th><th>Ansvarig</th></tr></thead><tbody>
+<table class="data risk"><thead><tr><th>Pos.</th><th>Arbetsmoment</th><th>Risk</th><th>S</th><th>K</th><th>Riskvärde</th><th>Åtgärd</th><th>Ansvarig</th></tr></thead><tbody>
 ${sorterade.map((r, i) => { const v = Number(r.data.sannolikhet) * Number(r.data.konsekvens) || 0; return `<tr><td>${i + 1}</td><td>${esc(r.data.arbetsmoment ?? "")}</td><td>${esc(r.data.risk ?? "")}</td><td>${esc(r.data.sannolikhet ?? "")}</td><td>${esc(r.data.konsekvens ?? "")}</td><td class="v" style="background:${farg(v)}">${v || ""}</td><td>${esc(r.data.atgard ?? "")}</td><td>${esc(r.data.ansvarig ?? "")}</td></tr>`; }).join("")}
 </tbody></table>
 <h2>Riskmatris</h2><table class="matris"><tr><th></th><th colspan="3">Konsekvens</th></tr><tr><th>S</th><th>1</th><th>2</th><th>3</th></tr>${matris}</table>
 <h2>Riskhanteringsplan</h2><p>${esc(huvud.riskhantering)}</p>
 <h2>Uppföljning och utvärdering</h2><p>${esc(huvud.uppfoljning)}</p>
-<h2>Slutsats</h2><p>${esc(huvud.slutsats)}</p>
-<footer>${esc(projekt?.kund ?? "")} · Utskrivet ${new Date().toLocaleDateString("sv-SE")} från Projekteringsverktyg</footer>
-<script>window.onload = () => { window.focus(); window.print(); };</script></body></html>`);
-    f.document.close();
+<h2>Slutsats</h2><p>${esc(huvud.slutsats)}</p>`,
+    });
   };
 
   const falt = (k: keyof Huvud, etikett: string, typ = "text") => (

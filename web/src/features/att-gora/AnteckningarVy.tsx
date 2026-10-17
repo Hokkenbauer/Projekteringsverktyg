@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Anteckningar } from "../../lib/typer";
 
 type Props = {
@@ -12,6 +12,8 @@ type Props = {
   onPopUt?: () => void;
   /** Bryt långa rader automatiskt. Att göra-anteckningarna bryts inte (rullas i sidled i stället). */
   radbryt?: boolean;
+  /** Innehåll mellan ingressen och textfältet (t.ex. uppgifter på utskrifter i Projektinformation). */
+  fore?: ReactNode;
 };
 
 const tid = (iso: string | null) =>
@@ -21,7 +23,7 @@ const tid = (iso: string | null) =>
 export function AnteckningarVy({
   anteckningar, onSpara, lasläge = false, grupp = "Att göra", rubrik = "Anteckningar",
   ingress = "Fritt textfält för projektet. Texten sparas automatiskt medan du skriver.", onSkrivUt, onPopUt,
-  radbryt = grupp !== "Att göra",
+  radbryt = grupp !== "Att göra", fore,
 }: Props) {
   const [text, setText] = useState(anteckningar?.text ?? "");
   const [status, setStatus] = useState<"sparat" | "osparat" | "sparar" | "fel">("sparat");
@@ -75,6 +77,7 @@ export function AnteckningarVy({
         </div>
       </div>
       <p className="ingress">{ingress}</p>
+      {fore}
       <textarea
         className={`anteckningar${radbryt ? "" : " utan-radbryt"}`}
         wrap={radbryt ? "soft" : "off"}

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, ApiFel, skicka } from "../../lib/api";
 import type { Komponent, Projekt, Skap } from "../../lib/typer";
-import { loggaRad } from "../../lib/utskrift";
+import { esc, formHtml, oppnaDokument } from "../../lib/dokumenttema";
 
 /** Samma värden som dagens program (DATA\DropDowns\ApparatskapLedningsfarg). */
 const LEDNINGSFARGER = ["Röd", "Violett", "Svart", "Ljusblå", "Orange", "Brun", "Grå", "Vit", "Gul/Grön", "Blå", "Grön", "Gul"];
@@ -113,26 +113,14 @@ export function ApparatskapVy({ projektId, projekt, skap, komponenter, lasläge,
   const anslutna = bet ? komponenter.filter((k) => k.anslutsTill.trim().toLowerCase() === bet) : [];
   const valda = KOMPONENTER.filter((n) => f.komponenter[n]?.vald);
 
-  const skrivUt = () => {
-    const w = window.open("", "_blank");
-    if (!w) { alert("Tillåt popup-fönster för sidan för att kunna skriva ut."); return; }
-    const esc = (t: string) => (t ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    const rad = (a: string, b: string) => `<tr><th>${esc(a)}</th><td>${esc(b)}</td></tr>`;
-    w.document.write(`<!doctype html><html lang="sv"><head><meta charset="utf-8"><title>Apparatskåp ${esc(skap.namn)}</title><style>
-      @page{size:A4;margin:14mm} body{font-family:Arial,sans-serif;font-size:10pt} h1{font-size:15pt;color:#1E3450;margin:0}
-      h2{font-size:11.5pt;color:#1E3450;border-bottom:1px solid #bbb;margin:14px 0 4px} .h{display:flex;justify-content:space-between;border-bottom:2px solid #1E3450;padding-bottom:6px}
-      table{border-collapse:collapse;width:100%} th{text-align:left;width:40%;font-weight:normal;color:#555;padding:2px 4px} td{padding:2px 4px}
-      .sida{display:grid;grid-template-columns:1fr 1.3fr;gap:20px;align-items:start} p{white-space:pre-wrap;margin:0}</style></head><body>
-${loggaRad()}
-      <div class="h"><h1>Apparatskåp ${esc(skap.namn)}</h1><div>${esc(projekt?.namn ?? "")}<br>${esc([projekt?.nummer, projekt?.kund].filter(Boolean).join(" · "))}</div></div>
-      <h2>Grundinformation</h2><table>${rad("Beteckning", f.beteckning)}${rad("Placering", f.placering)}${rad("Beskrivning", f.beskrivning)}</table>
-      <h2>Skåpspecifikation</h2><table>${SPEC.map(([k, n]) => rad(n, f.spec[k] ?? "")).join("")}</table>
-      <div class="sida"><div><h2>Ledningsfärger</h2><table>${FARGER.map(([k, n]) => rad(n, f.farger[k] ?? "")).join("")}</table></div>
-      <div><h2>Komponenter i skåpet</h2><table>${valda.length ? valda.map((n) => rad(n, f.komponenter[n]?.info ?? "")).join("") : "<tr><td>Inga valda.</td></tr>"}</table></div></div>
-      <h2>Övrigt</h2><p>${esc(f.ovrigt)}</p>
-      <script>window.onload=()=>{window.focus();window.print();}</script></body></html>`);
-    w.document.close();
-  };
+  const skrivUt = () => oppnaDokument({
+    titel: `Apparatskåp ${skap.namn}`, kategori: "Apparatskåp", projekt,
+    kropp: `<h2>Grundinformation och skåpspecifikation</h2>
+${formHtml([["Beteckning", f.beteckning], ["Placering", f.placering], ["Beskrivning", f.beskrivning], ...SPEC.map(([k, n]): [string, string] => [n, f.spec[k] ?? ""])])}
+<div class="tva"><div><h2>Ledningsfärger</h2>${formHtml(FARGER.map(([k, n]): [string, string] => [n, f.farger[k] ?? ""]))}</div>
+<div><h2>Komponenter i skåpet</h2>${valda.length ? formHtml(valda.map((n): [string, string] => [n, f.komponenter[n]?.info ?? ""])) : "<p>Inga valda.</p>"}</div></div>
+<h2>Övrigt</h2><div class="ruta">${esc(f.ovrigt)}</div>`,
+  });
 
   const falt = (etikett: string, varde: string, satt: (v: string) => void, lang = false) => (
     <label key={etikett} className={`skapfalt ${lang ? "lang" : ""}`}>

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../lib/api";
 import type { Anteckningar, ListRad, Projekt } from "../../lib/typer";
-import { loggaHtml } from "../../lib/utskrift";
+import { oppnaDokument } from "../../lib/dokumenttema";
 import { valtDatum } from "../listor/ListVy";
 
 type Handling = { handling: string; beskrivning: string; datum: string; signProjektor: string; signProjekteringsledare: string };
@@ -132,20 +132,14 @@ export function ProjekteringsintygVy(p: Props) {
 ${k.rader.map((r, i) => `<tr><td>${i + 1}</td><td>${esc(r.data.kontrollpunkt ?? "")}</td><td class="mitt">${ruta(r.data.kontrollerad === "true")}</td><td>${esc(valtDatum(r.data.datum))}</td><td>${esc(r.data.sign ?? "")}</td><td>${esc(r.data.ovrigt ?? "")}</td></tr>`).join("")}
 </tbody></table>`).join("");
 
-    f.document.open();
-    f.document.write(`<!doctype html><html lang="sv"><head><meta charset="utf-8"><title>Projekteringsintyg och egenkontroll – ${esc(intyg.objekt)}</title>
-<style>
-@page{size:A4 portrait;margin:12mm 16mm 16mm}
-body{font-family:Arial,Helvetica,sans-serif;font-size:9.5pt;color:#000;margin:0}
-.sida{width:100%;border-collapse:collapse}.sida>thead td{padding:0 0 6mm}
-.topp{display:flex;justify-content:space-between;align-items:flex-end}
-.topp h1{font-size:12.5pt;font-weight:700;margin:0 0 2px;letter-spacing:.01em}
-h2{font-size:9.5pt;font-weight:700;margin:7mm 0 2mm;text-transform:uppercase;break-after:avoid;page-break-after:avoid}
-.blk{break-inside:avoid;page-break-inside:avoid}
+    oppnaDokument({
+      titel: "Projekteringsintyg och egenkontroll", kategori: "Projekteringsintyg", projekt: p.projekt,
+      css: `.blk{break-inside:avoid;page-break-inside:avoid}
 .not{font-style:italic;margin:-1.5mm 0 2mm}
 table.ram{border-collapse:collapse;width:100%}
 table.ram th,table.ram td{border:1px solid #000;padding:3px 5px;vertical-align:top;text-align:left}
-table.ram thead th{font-weight:700}
+table.ram thead th{font-weight:700;background:#BFBFBF}
+.info th{background:#F2F2F2}
 .info{width:66%!important}.info th{width:32%;text-align:right!important;font-weight:700;white-space:nowrap}
 .ruta{border:1px solid #000;padding:4px 6px}.ruta b{display:block;margin-bottom:2px}.ruta p{white-space:pre-wrap;margin:0;line-height:1.4}
 .omf{min-height:34mm}.avsteg{min-height:22mm}
@@ -161,9 +155,8 @@ tr.hog td{height:7.5mm}
 .ny-sida{page-break-before:always;margin-top:0}
 tr,.ruta{page-break-inside:avoid}
 .egen td{font-size:8.5pt}
-</style></head><body>
-<table class="sida"><thead><tr><td><div class="topp"><h1>PROJEKTERINGSINTYG OCH EGENKONTROLL</h1>${loggaHtml("12mm")}</div></td></tr></thead><tbody><tr><td>
-<table class="ram info">${info}</table>
+`,
+      kropp: `<table class="ram info">${info}</table>
 <h2>Omfattning</h2>
 <div class="ruta omf"><b>Projektets omfattning:</b><p>${esc(intyg.omfattning)}</p></div>
 <h2>Upprättade handlingar</h2><p class="not">Signering av handling intygar kontroll av handlingen.</p>
@@ -186,9 +179,8 @@ tr,.ruta{page-break-inside:avoid}
 <b>Signatur</b><div class="linje">${esc(intyg.signatur)}</div>
 </div>
 ${bilaga}
-</td></tr></tbody></table>
-<script>window.onload=()=>{window.focus();window.print();};</script></body></html>`);
-    f.document.close();
+`,
+    }, f);
   };
 
   const kryss = (k: "ingaRisker" | "riskerUppdagade" | "materialEntreprenor" | "materialIntygat", text: string) => (

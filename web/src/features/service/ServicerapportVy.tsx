@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useDokument } from "../../lib/dokument";
 import type { Projekt, ProjektDokument } from "../../lib/typer";
-import { loggaRad } from "../../lib/utskrift";
+import { oppnaDokument, tabellHtml } from "../../lib/dokumenttema";
 
 const SERVICETYPER = ["Planerat underhåll", "Felavhjälpning", "Driftsättning", "Inspektion", "Rådgivning", "Uppgradering"];
 const STATUSAR = ["Utfört", "Pågående", "Beställt", "Krävs uppföljning"];
@@ -69,32 +69,19 @@ export function ServicerapportVy(p: Props) {
 
   const skrivUt = () => {
     if (!vald || !r) return;
-    const f = window.open("", "_blank");
-    if (!f) { alert("Webbläsaren stoppade utskriftsfönstret. Tillåt popup-fönster för sidan."); return; }
-    const falt = (e: string, v: string) => `<div><span>${esc(e)}</span><b>${esc(v) || "&nbsp;"}</b></div>`;
-    f.document.write(`<!doctype html><html lang="sv"><head><meta charset="utf-8"><title>Servicerapport ${esc(vald.namn)}</title>
-<style>@page{size:A4;margin:14mm 14mm 16mm}body{font-family:Arial,sans-serif;font-size:10pt;color:#1a202c}
-.topp{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #1E3450;padding-bottom:8px;margin-bottom:14px}
-h1{margin:0;font-size:20pt;color:#1E3450}.nr{font-family:monospace;font-size:12pt}
-.kort{border:1px solid #cbd5e0;border-radius:6px;padding:10px 12px;margin-bottom:10px;page-break-inside:avoid}
-.kort h2{margin:0 0 8px;font-size:10.5pt;text-transform:uppercase;letter-spacing:.06em;color:#1E3450}
-.rutnat{display:grid;grid-template-columns:repeat(3,1fr);gap:8px 14px}.rutnat div{display:flex;flex-direction:column}
-.rutnat span{font-size:8pt;color:#718096}.rutnat b{font-weight:600}
-p{white-space:pre-wrap;margin:0;line-height:1.45}table{border-collapse:collapse;width:100%;margin-top:8px}
-th{text-align:left;font-size:8.5pt;color:#718096;border-bottom:1px solid #cbd5e0;padding:4px}td{border-bottom:1px solid #edf2f7;padding:5px 4px;vertical-align:top}
-.sign{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:26px}.sign div{border-top:1px solid #333;padding-top:4px;font-size:9pt}</style></head><body>
-${loggaRad()}
-<div class="topp"><h1>Servicerapport</h1><div class="nr">${esc(vald.namn)}</div></div>
-<div class="kort"><h2>Uppdrag</h2><div class="rutnat">${falt("Datum", r.datum)}${falt("Ankomst", r.tidAnkomst)}${falt("Avresa", r.tidAvresa)}${falt("Tekniker", r.tekniker)}${falt("Typ av service", r.serviceTyp)}${falt("Nästa planerade besök", r.nastaBesok)}</div></div>
-<div class="kort"><h2>Fastighet och kund</h2><div class="rutnat">${falt("Kund", r.kund)}${falt("Kontaktperson", r.kontakt)}${falt("Fastighetsbeteckning", r.fastighet)}${falt("Adress", r.adress)}${falt("Anläggning", r.anlaggning)}${falt("Ordernr", r.ordernr)}</div></div>
-<div class="kort"><h2>Utfört arbete</h2><p>${esc(r.arbete)}</p>
-${r.atgarder.length ? `<table><thead><tr><th>Åtgärd</th><th style="width:140px">Status</th></tr></thead><tbody>${r.atgarder.map((a) => `<tr><td>${esc(a.beskrivning)}</td><td>${esc(a.status)}</td></tr>`).join("")}</tbody></table>` : ""}</div>
-<div class="kort"><h2>Anmärkningar</h2><p>${esc(r.anmarkningar)}</p></div>
-<div class="kort"><h2>Rekommendationer</h2><p>${esc(r.rekommendationer)}</p></div>
-<div class="kort"><h2>Material</h2><p>${esc(r.material)}</p></div>
-<div class="sign"><div>Tekniker: ${esc(r.signTekniker)}</div><div>Kund: ${esc(r.signKund)}</div></div>
-<script>window.onload=()=>{window.focus();window.print();};</script></body></html>`);
-    f.document.close();
+    const tre = (par: [string, string][]) => `<table class="data form tre"><tbody>${[0, 3].map((o) => `<tr>${par.slice(o, o + 3).map(([e, v]) => `<th>${esc(e)}</th><td>${esc(v)}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+    oppnaDokument({
+      titel: `Servicerapport ${vald.namn}`, kategori: "Servicerapport",
+      css: "table.tre th{width:13%}table.tre td{width:20%} .sign{display:grid;grid-template-columns:1fr 1fr;gap:12mm;margin-top:10mm}.sign div{border-top:1px solid #000;padding-top:1mm}",
+      kropp: `<h2>Uppdrag</h2>${tre([["Datum", r.datum], ["Ankomst", r.tidAnkomst], ["Avresa", r.tidAvresa], ["Tekniker", r.tekniker], ["Typ av service", r.serviceTyp], ["Nästa planerade besök", r.nastaBesok]])}
+<h2>Fastighet och kund</h2>${tre([["Kund", r.kund], ["Kontaktperson", r.kontakt], ["Fastighetsbeteckning", r.fastighet], ["Adress", r.adress], ["Anläggning", r.anlaggning], ["Ordernr", r.ordernr]])}
+<h2>Utfört arbete</h2><div class="ruta">${esc(r.arbete)}</div>
+${r.atgarder.length ? `<h2>Åtgärder</h2>${tabellHtml(["Åtgärd", "Status"], r.atgarder.map((a) => [a.beskrivning, a.status]), [undefined, "30%"])}` : ""}
+<h2>Anmärkningar</h2><div class="ruta">${esc(r.anmarkningar)}</div>
+<h2>Rekommendationer</h2><div class="ruta">${esc(r.rekommendationer)}</div>
+<h2>Material</h2><div class="ruta">${esc(r.material)}</div>
+<div class="sign"><div>Tekniker: ${esc(r.signTekniker)}</div><div>Kund: ${esc(r.signKund)}</div></div>`,
+    });
   };
 
   const falt = (k: "datum" | "tidAnkomst" | "tidAvresa" | "tekniker" | "nastaBesok" | "kund" | "kontakt" | "fastighet" | "adress" | "anlaggning" | "ordernr" | "signTekniker" | "signKund", etikett: string, typ = "text") => (

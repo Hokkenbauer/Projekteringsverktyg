@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiFel, laddaNer, skicka } from "../../lib/api";
 import type { Komponent, Korttyp, ModulKort, Modulbelaggning, Projekt, Skap } from "../../lib/typer";
 import { Dialog } from "../../shell/Dialog";
-import { loggaRad } from "../../lib/utskrift";
+import { oppnaDokument } from "../../lib/dokumenttema";
 
 const MAX_MA = 2000;
 const tal = (v: number | undefined) => (Number.isFinite(v) ? v! : 0).toLocaleString("sv-SE", { maximumFractionDigits: 3 });
@@ -199,26 +199,17 @@ export function ModulbelaggningVy({ projektId, projekt, skap, allaSkap, komponen
   const totalMa = m.kort.reduce((s, k) => s + (Number(k.stromMa) || 0), 0);
 
   const skrivUt = () => {
-    const f = window.open("", "_blank");
-    if (!f) { alert("Tillåt popup-fönster för sidan för att kunna skriva ut."); return; }
     const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     const kortHtml = m.kort.map((k, i) => `
-      <table><thead><tr><th colspan="5" style="background:${esc(k.farg)};color:${textFor(k.farg)}">M${i + 1} &nbsp; ${esc(k.beskrivning)} &nbsp; [${tal(k.stromMa)} mA ${tal(k.breddMm)} mm]</th></tr>
+      <table class="data modul"><thead><tr><th colspan="5" style="background:${esc(k.farg)};color:${textFor(k.farg)}">M${i + 1} &nbsp; ${esc(k.beskrivning)} &nbsp; [${tal(k.stromMa)} mA ${tal(k.breddMm)} mm]</th></tr>
       ${k.kanaler.length ? "<tr><th>Kanal</th><th>Beteckning</th><th>Komponent</th><th>Beskrivning</th><th>Information</th></tr>" : ""}</thead>
       <tbody>${k.kanaler.map((c, j) => { const kp = c.komponentId ? komponentPerId.get(c.komponentId) : undefined;
         return `<tr><td>M${i + 1}:${j + 1}</td><td>${esc(kp?.beteckning ?? "")}</td><td>${esc(kp?.komponenttyp ?? "")}</td><td>${esc(kp?.beskrivning ?? "")}</td><td>${esc(c.information ?? "")}</td></tr>`; }).join("")}</tbody></table>`).join("");
-    f.document.write(`<!doctype html><html lang="sv"><head><meta charset="utf-8"><title>Modulbeläggning ${esc(skap.namn)}</title><style>
-      @page{size:A4;margin:14mm} body{font-family:Arial,sans-serif;font-size:9.5pt}
-      h1{font-size:15pt;color:#1E3450;margin:0} .h{display:flex;justify-content:space-between;border-bottom:2px solid #1E3450;padding-bottom:6px;margin-bottom:10px}
-      table{border-collapse:collapse;width:100%;margin-bottom:8px;page-break-inside:avoid} th,td{border:1px solid #bbb;padding:3px 5px;text-align:left}
-      th{-webkit-print-color-adjust:exact;print-color-adjust:exact;background:#eee} .cpu{font-weight:bold;margin-bottom:8px}
-      .sum{margin-top:10px;font-weight:bold}</style></head><body>
-${loggaRad()}
-      <div class="h"><h1>Modulbeläggning ${esc(skap.namn)}</h1><div>${esc(projekt?.namn ?? "")}<br>${esc([projekt?.nummer, projekt?.kund].filter(Boolean).join(" · "))}</div></div>
-      <div class="cpu">CPU1: ${esc(m.cpu1)}</div>${kortHtml}
-      <div class="sum">Totalt: ${tal(totalBredd)} mm &nbsp; | &nbsp; ${tal(totalMa)} / ${tal(MAX_MA)} mA</div>
-      <script>window.onload=()=>{window.focus();window.print();}</script></body></html>`);
-    f.document.close();
+    oppnaDokument({
+      titel: `Modulbeläggning ${skap.namn}`, kategori: "Modulbeläggning", projekt,
+      css: "table.modul{margin-bottom:3mm;break-inside:avoid} table.modul thead tr:first-child th{font-size:10pt}",
+      kropp: `<p><b>CPU1:</b> ${esc(m.cpu1)}</p>${kortHtml}<p style="margin-top:3mm"><b>Totalt: ${tal(totalBredd)} mm &nbsp;|&nbsp; ${tal(totalMa)} / ${tal(MAX_MA)} mA</b></p>`,
+    });
   };
 
   return (

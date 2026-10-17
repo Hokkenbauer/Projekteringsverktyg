@@ -25,6 +25,8 @@ public static class DokumentEndpoints
         ["servicerapport"] = "servicerapporten",
         ["anslutning"] = "anslutningsinformationen för",
         [DriftkortApi.DriftkortSidfot.Typ] = "sidfoten för driftkort",
+        // Företagsuppgifter, ansvarig och revision i utskrifternas huvud och fot (Projektinformation).
+        ["dokumenthuvud"] = "dokumentuppgifterna",
     };
 
     /// <summary>Känsliga typer (användarnamn och lösenord) som bara Admin, Projektledare och System ser.</summary>

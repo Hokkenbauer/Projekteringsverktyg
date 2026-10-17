@@ -1,3 +1,4 @@
+import { oppnaDokument, tabellHtml } from "./dokumenttema";
 import type { Projekt } from "./typer";
 
 const esc = (s: string) =>
@@ -22,7 +23,16 @@ type Innehall =
  * I utskriftsrutan kan man välja "Spara som PDF". Samma mall används av alla listor.
  */
 export function skrivUt(titel: string, projekt: Projekt | null, innehall: Innehall,
-  val: { liggande?: boolean; kolumnlinjer?: boolean } = {}) {
+  val: { liggande?: boolean; kolumnlinjer?: boolean; kategori?: string } = {}) {
+  // Listor och texter får dokumenttemat; formaterad text (funktionstexter) behåller sin egen layout nedan.
+  if (innehall.typ !== "html") {
+    const liggande = val.liggande ?? (innehall.typ === "tabell" && innehall.kolumner.length > 7);
+    const kropp = innehall.typ === "tabell"
+      ? `${innehall.sammanfattning ? `<p>${esc(innehall.sammanfattning)}</p>` : ""}${tabellHtml(innehall.kolumner, innehall.rader)}`
+      : `<div class="ruta" style="border:0;padding:0">${esc(innehall.text)}</div>`;
+    oppnaDokument({ titel, projekt, liggande, kropp, kategori: val.kategori });
+    return;
+  }
   const f = window.open("", "_blank");
   if (!f) {
     alert("Webbläsaren stoppade utskriftsfönstret. Tillåt popup-fönster för sidan och försök igen.");
@@ -30,14 +40,8 @@ export function skrivUt(titel: string, projekt: Projekt | null, innehall: Inneha
   }
   const datum = new Date().toLocaleDateString("sv-SE");
   const huvud = [projekt?.nummer, projekt?.kund].filter(Boolean).join(" · ");
-  const kropp =
-    innehall.typ === "tabell"
-      ? `${innehall.sammanfattning ? `<p class="samm">${esc(innehall.sammanfattning)}</p>` : ""}
-         <table><thead><tr>${innehall.kolumner.map((k) => `<th>${esc(k)}</th>`).join("")}</tr></thead>
-         <tbody>${innehall.rader.map((r) => `<tr>${r.map((c) => `<td>${esc(c)}</td>`).join("")}</tr>`).join("")}</tbody></table>`
-      : innehall.typ === "html" ? `<div class="rik">${innehall.html}</div>`
-      : `<pre>${esc(innehall.text)}</pre>`;
-  const liggande = val.liggande ?? (innehall.typ === "tabell" && innehall.kolumner.length > 7);
+  const kropp = `<div class="rik">${innehall.html}</div>`;
+  const liggande = !!val.liggande;
 
   f.document.write(`<!doctype html><html lang="sv"><head><meta charset="utf-8"><title>${esc(titel)} – ${esc(projekt?.namn ?? "")}</title>
 <style>
