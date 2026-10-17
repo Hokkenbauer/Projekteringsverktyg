@@ -23,7 +23,7 @@ export const STATUSAR = ["ARBETSKOPIA", "GRANSKNINGSHANDLING", "BYGGHANDLING", "
 const TYP = "driftkortsidfot";
 const tom: Sidfot = { status: "", datum: "", projektnummer: "", konstruktor: "", kontrollansvarig: "", rad1: "", rad2: "", rad3: "", loggor: ["", ""] };
 
-async function hamtaLoggor(): Promise<{ lista: Logga[]; version: number }> {
+export async function hamtaLoggor(): Promise<{ lista: Logga[]; version: number }> {
   const k = await api<{ data: string; version: number }>("/api/katalog/loggor");
   let lista: Logga[] = [];
   try { lista = k.data ? (JSON.parse(k.data) as Logga[]) : []; } catch { /* trasig katalog */ }
@@ -31,7 +31,7 @@ async function hamtaLoggor(): Promise<{ lista: Logga[]; version: number }> {
 }
 
 /** Läser en bildfil som base64 och tar reda på storleken (för att kunna anpassa den i sidfoten). */
-function lasBild(f: File): Promise<Logga> {
+export function lasBild(f: File): Promise<Logga> {
   return new Promise((ok, fel) => {
     const r = new FileReader();
     r.onerror = () => fel(new Error(`${f.name} kunde inte läsas.`));

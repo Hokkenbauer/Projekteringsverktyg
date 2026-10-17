@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { api, skicka } from "../../lib/api";
 import { STANDARD_UPPGIFTER, sattDokumentUppgifter, type DokUppgifter } from "../../lib/dokumenttema";
 import type { Projekt, ProjektDokument } from "../../lib/typer";
-import { STATUSAR, hamtaSidfot, type Sidfot } from "../ritning/DriftkortSidfot";
+import { STATUSAR, hamtaLoggor, hamtaSidfot, lasBild, type Logga, type Sidfot } from "../ritning/DriftkortSidfot";
 
 const TYP = "dokumenthuvud";
-const tom: DokUppgifter = { foretag: "", adress: "", postadress: "", epost: "", telefon: "", orgnr: "", ansvarig: "", revidering: "" };
+const tom: DokUppgifter = { foretag: "", adress: "", postadress: "", epost: "", telefon: "", orgnr: "", ansvarig: "", revidering: "", loggaNamn: "", loggaTyp: "", loggaData: "" };
 
 /** Läser projektets dokumentuppgifter och lägger dem i utskriftstemat. */
 export async function laddaDokumentUppgifter(projektId: string, projekt: Projekt | null) {
@@ -32,6 +32,18 @@ export function DokumentUppgifter({ projektId, projekt, lasläge, uppdaterad, vi
   const [status, setStatus] = useState<"" | "osparat" | "sparar">("");
   const timer = useRef<number | undefined>(undefined);
   const ny = useRef<{ u: DokUppgifter; sf: Sidfot | null } | null>(null);
+  const [bibliotek, setBibliotek] = useState<Logga[]>([]);
+  useEffect(() => { hamtaLoggor().then((l) => setBibliotek(l.lista)).catch(() => setBibliotek([])); }, []);
+
+  const valjFil = async (f: File | undefined) => {
+    if (!f) return;
+    if (!/\.(png|jpe?g|svg)$/i.test(f.name)) { visaMeddelande("Välj en PNG-, JPG- eller SVG-bild."); return; }
+    if (f.size > 1024 * 1024) { visaMeddelande("Loggan får vara högst 1 MB."); return; }
+    try {
+      const l = await lasBild(f);
+      andra({ ...u, loggaNamn: l.namn, loggaTyp: f.type || l.typ, loggaData: l.data }, null);
+    } catch (e) { visaMeddelande((e as Error).message); }
+  };
 
   useEffect(() => {
     if (status) return;
@@ -104,6 +116,32 @@ export function DokumentUppgifter({ projektId, projekt, lasläge, uppdaterad, vi
         </label>
         {falt("ansvarig", "Ansvarig (signatur)")}
         {falt("revidering", "Senast revidering", "date")}
+      </div>
+      <div className="projektlogga">
+        <div className="loggaruta" title={u.loggaData ? u.loggaNamn : "HECO-loggan (standard)"}>
+          <img alt="Logga på utskrifter" src={u.loggaData ? `data:${u.loggaTyp || "image/png"};base64,${u.loggaData}` : "/logga/heco-logga-svart.svg"} />
+        </div>
+        <div className="loggaval">
+          <span className="falt-etikett">Logga på utskrifter{u.loggaData ? `: ${u.loggaNamn}` : " (HECO, standard)"}</span>
+          {!lasläge && (
+            <div className="knappgrupp">
+              <label className="knapp">Ladda upp logga…
+                <input type="file" accept=".png,.jpg,.jpeg,.svg,image/png,image/jpeg,image/svg+xml" hidden onChange={(e) => { void valjFil(e.target.files?.[0]); e.target.value = ""; }} />
+              </label>
+              {bibliotek.length > 0 && (
+                <select aria-label="Välj ur loggbiblioteket" value="" onChange={(e) => {
+                  const l = bibliotek.find((x) => x.id === e.target.value);
+                  if (l) andra({ ...u, loggaNamn: l.namn, loggaTyp: l.typ, loggaData: l.data }, null);
+                }}>
+                  <option value="">Välj ur loggbiblioteket…</option>
+                  {bibliotek.map((l) => <option key={l.id} value={l.id}>{l.namn}</option>)}
+                </select>
+              )}
+              {u.loggaData && <button type="button" className="knapp" onClick={() => andra({ ...u, loggaNamn: "", loggaTyp: "", loggaData: "" }, null)}>Använd HECO-loggan</button>}
+            </div>
+          )}
+          <span className="dampad liten">Står i huvudet på alla utskrifter och PDF:er i projektet. PNG, JPG eller SVG, högst 1 MB.</span>
+        </div>
       </div>
       <div className="riskhuvud">
         {falt("foretag", "Företag")}

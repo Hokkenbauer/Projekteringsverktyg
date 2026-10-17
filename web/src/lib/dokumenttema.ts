@@ -10,12 +10,15 @@ import type { Projekt } from "./typer";
 export type DokUppgifter = {
   foretag: string; adress: string; postadress: string; epost: string; telefon: string; orgnr: string;
   ansvarig: string; revidering: string;
+  /** Projektets logga på utskrifter (base64). Tom = HECO-loggan. */
+  loggaNamn: string; loggaTyp: string; loggaData: string;
 };
 
 /** Används när fältet är tomt i Projektinformation. */
 export const STANDARD_UPPGIFTER: DokUppgifter = {
   foretag: "HECO Automation AB", adress: "Gästgivaregatan 8", postadress: "771 53 Ludvika",
   epost: "info@hecoab.se", telefon: "", orgnr: "559393-6197", ansvarig: "", revidering: "",
+  loggaNamn: "", loggaTyp: "", loggaData: "",
 };
 
 type Aktuellt = { projekt: Projekt | null; uppgifter: Partial<DokUppgifter>; status: string; datum: string };
@@ -35,7 +38,11 @@ const FORKORTNING: Record<string, string> = { ARBETSKOPIA: "AK", GRANSKNINGSHAND
 export const esc = (s: string | null | undefined) =>
   String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
-const loggaUrl = () => `${location.origin}/logga/heco-logga-svart.svg`;
+/** Projektets logga om en är vald i Projektinformation, annars HECO-loggan. */
+const loggaUrl = () => {
+  const data = (aktuellt.uppgifter.loggaData ?? "").trim();
+  return data ? `data:${aktuellt.uppgifter.loggaTyp || "image/png"};base64,${data}` : `${location.origin}/logga/heco-logga-svart.svg`;
+};
 
 /** Gemensamma klasser: table.data (grå rubrik, ränder, tr.sektion), table.form (etikett/värde), h2, .ruta, .tva. */
 export const TEMA_CSS = `
@@ -44,7 +51,7 @@ body{font-family:Calibri,Carlito,"Segoe UI",Arial,sans-serif;font-size:9.5pt;col
 .pv-sida>thead>tr>td{padding-bottom:4mm}
 .rh{display:grid;grid-template-columns:24% 1fr 33%;border:1px solid #000}
 .rh-logga{display:flex;align-items:center;justify-content:center;border-right:1px solid #000;padding:2mm}
-.rh-logga img{height:8.5mm;width:auto;display:block}
+.rh-logga img{height:auto;width:auto;max-height:11mm;max-width:100%;display:block;object-fit:contain}
 .rh-mitt{display:grid;grid-template-rows:1fr 1fr;border-right:1px solid #000}
 .rh-cell{padding:.8mm 1.6mm;display:flex;flex-direction:column}.rh-cell+.rh-cell{border-top:1px solid #000}
 .rh-cell small{font-size:6.5pt}.rh-cell .v{font-size:11pt}
