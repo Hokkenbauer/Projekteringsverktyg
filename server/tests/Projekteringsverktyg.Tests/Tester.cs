@@ -921,18 +921,18 @@ public class ProjektKompletteringTester
 
         // Filens id är andra än projektets: komponenten känns igen på beteckningen.
         var filTf = Guid.NewGuid(); var filGt = Guid.NewGuid(); var filDok = Guid.NewGuid(); var filFil = Guid.NewGuid();
-        var json = $$"""
+        var json = $$$"""
         {"format":"Projekteringsverktyg projektexport","formatVersion":1,
-         "projekt":{"id":"{{Guid.NewGuid()}}","namn":"Karlsängskolan","nummer":"2025033","kund":"Bravida"},
+         "projekt":{"id":"{{{Guid.NewGuid()}}}","namn":"Karlsängskolan","nummer":"2025033","kund":"Bravida"},
          "komponenter":[
-           {"id":"{{filTf}}","system":"LB01","beteckning":"lb01-tf301","beskrivning":"Tilluftsfläkt","placering":"","signaler":[{"id":"a","typ":"DU","funktion":"MANÖVER","beskrivning":""},{"id":"b","typ":"DI","funktion":"DRIFT","beskrivning":""}]},
-           {"id":"{{filGt}}","system":"LB01","beteckning":"LB01-GT101","komponenttyp":"Temperaturgivare","signaltyp":"AI"}],
-         "listor":{"skyltlista":[{"id":"{{Guid.NewGuid()}}","komponentId":"{{filTf}}","data":{"textfarg":"Svart"},"ordning":1}]},
-         "apparatskap":[{"id":"{{Guid.NewGuid()}}","namn":"AS001","placering":"Undercentral","data":{"farger":{}}}],
-         "attGora":[{"id":"{{Guid.NewGuid()}}","text":"beställ givare"},{"id":"{{Guid.NewGuid()}}","text":"Kontrollera VAV-urvalet"}],
-         "dokument":[{"id":"{{filDok}}","typ":"funktionstext","namn":"VAV.docx","data":"<!--pv {\"Kalla\":\"{{filFil}}\",\"System\":\"VAV\"}--><p>Text om {{filGt}}</p>"}],
+           {"id":"{{{filTf}}}","system":"LB01","beteckning":"lb01-tf301","beskrivning":"Tilluftsfläkt","placering":"","signaler":[{"id":"a","typ":"DU","funktion":"MANÖVER","beskrivning":""},{"id":"b","typ":"DI","funktion":"DRIFT","beskrivning":""}]},
+           {"id":"{{{filGt}}}","system":"LB01","beteckning":"LB01-GT101","komponenttyp":"Temperaturgivare","signaltyp":"AI"}],
+         "listor":{"skyltlista":[{"id":"{{{Guid.NewGuid()}}}","komponentId":"{{{filTf}}}","data":{"textfarg":"Svart"},"ordning":1}]},
+         "apparatskap":[{"id":"{{{Guid.NewGuid()}}}","namn":"AS001","placering":"Undercentral","data":{"farger":{"DI":"Röd"}},"ordning":1}],
+         "attGora":[{"id":"{{{Guid.NewGuid()}}}","text":"beställ givare"},{"id":"{{{Guid.NewGuid()}}}","text":"Kontrollera VAV-urvalet"}],
+         "dokument":[{"id":"{{{filDok}}}","typ":"funktionstext","namn":"VAV.docx","data":"<!--pv {\"Kalla\":\"{{{filFil}}}\",\"System\":\"VAV\"}--><p>Text om {{{filGt}}}</p>"}],
          "texter":{"projektinformation":"Nybyggnad skola"},
-         "filer":[{"id":"{{filFil}}","mapp":"Funktionstexter","namn":"VAV.docx","typ":"application/octet-stream","sokvag":"Projektfiler/Funktionstexter/VAV.docx"}]}
+         "filer":[{"id":"{{{filFil}}}","mapp":"Funktionstexter","namn":"VAV.docx","typ":"application/octet-stream","sokvag":"Projektfiler/Funktionstexter/VAV.docx"}]}
         """;
         var av = new Anvandare("u1", "Test");
 
