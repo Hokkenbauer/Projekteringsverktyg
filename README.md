@@ -2,8 +2,8 @@
 
 Webbaserad efterföljare till ProjektVerktyg 2.2 (Windows Forms). Flera personer kan arbeta i samma projekt samtidigt, och allt sparas i Azure.
 
-- **Arkitektur, faser och beslut:** se dokumentet *Projekteringsverktyg – arkitektur, faser och beslut*.
-- **Hur varje flik ska fungera:** se dokumentet *Flikbeskrivningar – Projekteringsverktyg*.
+- **Översikt, beslut och status:** se dokumenten i claude.ai-projektet *Projekteringsverktyg*.
+- **Äldre underlag:** *Projekteringsverktyg – arkitektur, faser och beslut* och *Flikbeskrivningar – Projekteringsverktyg*.
 
 ## Så hänger det ihop
 
@@ -54,8 +54,7 @@ cd web && npm install && npm run dev         # webbappen på http://localhost:51
 
 Lokalt används utvecklingsinloggning: du väljer själv namn uppe till höger, så kan du prova flera användare i olika webbläsarfönster.
 
-## Att göra innan produktion
+## Mer information
 
-- Byt `EnsureCreated` mot EF Core-migreringar.
-- Behörighet per projekt (medlemmar och roller). I dag ser alla inloggade i organisationen alla projekt.
-- Produktionsmiljö (`prod`) med egen resursgrupp och godkännande innan publicering.
+Beslut, status, att göra och driftinformation finns i dokumenten i claude.ai-projektet *Projekteringsverktyg*
+(01 Projektöversikt, 02 Beslut och regler, 03 Status och att göra, 04 Drift och Azure).

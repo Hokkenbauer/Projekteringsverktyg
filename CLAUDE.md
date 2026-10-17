@@ -8,3 +8,7 @@
 - Ingen AI-modell i programmet (beslut). PDF skapas från HTML, inte med QuestPDF.
 - .NET SDK finns inte i Claudes miljö: servern byggs och testas av GitHub Actions. Kontrollera körningen med `gh run list` efter push.
 - Webben byggs lokalt med `cd web && npm run build` innan push.
+- Projektets dokument i claude.ai-projektet *Projekteringsverktyg* (01 Projektöversikt, 02 Beslut och regler, 03 Status och att göra, 04 Drift och Azure) beskriver beslut och läge. Läs dem i början av en ny chatt och uppdatera 02/03 när något stort beslutas eller byggs.
+- **Roller i två nivåer:** verktygsroll (Admin, Intern, Extern) och projektroll per projekt (Projektledare, Tekniker, Läsare). Kontrollera behörighet med `Behorighet.KanLasa/KanSkriva/KanLedaProjekt/KanSkapaProjekt/KanAndraMallar` – aldrig med en global roll för projektdata. Ägarens konto får aldrig kunna ändras, och bara ägaren utser Admin.
+- **Utskrifter** (utom driftkort och funktionstexter) byggs med `web/src/lib/dokumenttema.ts` (`oppnaDokument`, `tabellHtml`, `formHtml`). Ej valt datum ska vara helt tomt i utskrift och export.
+- Databasändringar: ny fil `Data/Migreringar/NNN_namn.sql` med nästa nummer. Ändra aldrig en fil som redan publicerats.
