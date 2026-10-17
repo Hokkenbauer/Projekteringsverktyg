@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { api, skicka } from "../../lib/api";
-import { ROLLER, rollNamn, type AnvandarInfo, type Medlem, type Rattigheter } from "../../lib/typer";
+import { PROJEKTROLLER, rollNamn, type AnvandarInfo, type Medlem, type ProjektRoll, type Rattigheter } from "../../lib/typer";
 import { Dialog } from "../../shell/Dialog";
 
 type Props = { projektId: string; rattigheter: Rattigheter; visaMeddelande: (t: string) => void };
 
 type Inbjudan = {
-  id: string; epost: string; namn: string; roll: string; projekt: { id: string; namn: string }[];
+  id: string; epost: string; namn: string; roll: string; projekt: { id: string; namn: string; roll: string }[];
   status: string; meddelande: string; skapad: string; skapadAv: string; accepterad: string | null;
 };
 type InbjudanSvar = { inbjudan: Inbjudan; skickad: boolean; meddelande: string };
@@ -16,13 +16,15 @@ export function MedlemmarVy({ projektId, rattigheter, visaMeddelande }: Props) {
   const [alla, setAlla] = useState<AnvandarInfo[]>([]);
   const [allaInbjudningar, setAllaInbjudningar] = useState<Inbjudan[]>([]);
   const [vald, setVald] = useState("");
+  const [valdRoll, setValdRoll] = useState<ProjektRoll>("Tekniker");
   const [dialog, setDialog] = useState(false);
   const [ny, setNy] = useState({ epost: "", namn: "", roll: "Lasare" });
   const [skickar, setSkickar] = useState(false);
   const [svar, setSvar] = useState<InbjudanSvar | null>(null);
   const kanHantera = rattigheter.hanteraMedlemmar;
-  // Admin får bjuda in alla roller utom Admin, projektledare bara Läsare och Tekniker.
-  const roller = ROLLER.filter((r) => r.id !== "Admin" && (rattigheter.hanteraAnvandare || r.id === "Lasare" || r.id === "Tekniker"));
+  // Projektroller: gäller bara i det här projektet. Verktygsrollen (Admin, HECO-användare, Extern) ändras under Admin.
+  const roller = PROJEKTROLLER;
+  const rollHar = (i: Inbjudan) => i.projekt.find((p) => p.id === projektId)?.roll ?? i.roll;
 
   const hamta = () => api<Medlem[]>(`/api/projekt/${projektId}/medlemmar`).then(setMedlemmar).catch((e) => visaMeddelande((e as Error).message));
   // Alla väntande inbjudningar (även i andra projekt), så att inbjudna personer kan läggas till här med ett klick.
@@ -41,14 +43,29 @@ export function MedlemmarVy({ projektId, rattigheter, visaMeddelande }: Props) {
     if (!vald) return;
     try {
       if (vald.startsWith("inb:")) {
-        await api(`/api/inbjudningar/${vald.slice(4)}/projekt/${projektId}`, { method: "POST" });
+        await api(`/api/inbjudningar/${vald.slice(4)}/projekt/${projektId}?roll=${valdRoll}`, { method: "POST" });
         setVald("");
         await hamtaInbjudningar();
         return;
       }
-      await api(`/api/projekt/${projektId}/medlemmar`, { method: "POST", body: skicka({ anvandarId: vald }) });
+      await api(`/api/projekt/${projektId}/medlemmar`, { method: "POST", body: skicka({ anvandarId: vald, roll: valdRoll }) });
       setVald("");
       await hamta();
+    } catch (e) { visaMeddelande((e as Error).message); }
+  };
+
+  const bytProjektRoll = async (m: Medlem, roll: ProjektRoll) => {
+    try {
+      await api(`/api/projekt/${projektId}/medlemmar/${encodeURIComponent(m.anvandarId)}`, { method: "PUT", body: skicka({ roll }) });
+      visaMeddelande(`${m.namn} är nu ${rollNamn(roll)} i det här projektet.`);
+      await hamta();
+    } catch (e) { visaMeddelande((e as Error).message); }
+  };
+
+  const bytInbjudanRoll = async (i: Inbjudan, roll: ProjektRoll) => {
+    try {
+      await api(`/api/inbjudningar/${i.id}/projekt/${projektId}?roll=${roll}`, { method: "POST" });
+      await hamtaInbjudningar();
     } catch (e) { visaMeddelande((e as Error).message); }
   };
 
@@ -102,9 +119,9 @@ export function MedlemmarVy({ projektId, rattigheter, visaMeddelande }: Props) {
         {kanHantera && <div className="knappar"><button className="knapp primar" onClick={oppnaInbjudan}>Bjud in extern deltagare</button></div>}
       </div>
       <p className="ingress">
-        Tekniker och läsare ser bara projekt där de är medlemmar. Admin, projektledare och system ser alla projekt.
-        Kollegor och tidigare inbjudna väljer du i listan nedan. Nya personer utanför HECO bjuder du in med e-postadressen:
-        de får ett mejl från Microsoft och kommer in i sina projekt när de loggar in första gången.
+        Rollen här gäller <b>bara i det här projektet</b>: Projektledare ändrar allt och hanterar medlemmar, Tekniker ändrar, Läsare ser men ändrar inte.
+        Den som inte är medlem kan inte ändra något; HECO-användare kan ändå läsa alla projekt, externa ser bara projekt där de är medlemmar.
+        Kollegor och tidigare inbjudna väljer du i listan nedan. Nya personer utanför HECO bjuder du in med e-postadressen.
       </p>
       {kanHantera && (
         <div className="filterrad">
@@ -112,14 +129,17 @@ export function MedlemmarVy({ projektId, rattigheter, visaMeddelande }: Props) {
             <option value="">Välj person att lägga till…</option>
             {ejMedlemmar.length > 0 && (
               <optgroup label="Användare">
-                {ejMedlemmar.map((a) => <option key={a.id} value={a.id}>{a.namn}{a.epost ? ` – ${a.epost}` : ""} ({rollNamn(a.roll)})</option>)}
+                {ejMedlemmar.map((a) => <option key={a.id} value={a.id}>{a.namn}{a.epost ? ` – ${a.epost}` : ""}{a.roll === "Extern" ? " (extern)" : ""}</option>)}
               </optgroup>
             )}
             {andraInbjudna.length > 0 && (
               <optgroup label="Inbjudna som inte loggat in än">
-                {andraInbjudna.map((i) => <option key={i.id} value={`inb:${i.id}`}>{i.namn ? `${i.namn} – ` : ""}{i.epost} ({rollNamn(i.roll)})</option>)}
+                {andraInbjudna.map((i) => <option key={i.id} value={`inb:${i.id}`}>{i.namn ? `${i.namn} – ` : ""}{i.epost} (extern)</option>)}
               </optgroup>
             )}
+          </select>
+          <select aria-label="Roll i projektet" value={valdRoll} onChange={(e) => setValdRoll(e.target.value as ProjektRoll)}>
+            {roller.map((r) => <option key={r.id} value={r.id}>{r.namn}</option>)}
           </select>
           <button className="knapp" disabled={!vald} onClick={laggTill}>Lägg till i projektet</button>
         </div>
@@ -127,13 +147,20 @@ export function MedlemmarVy({ projektId, rattigheter, visaMeddelande }: Props) {
       <section className="panel">
         {medlemmar === null ? <p className="dampad">Hämtar…</p> : medlemmar.length === 0 ? <p className="dampad">Inga medlemmar än.</p> : (
           <table className="enkel">
-            <thead><tr><th>Namn</th><th>E-post</th><th>Roll</th><th>Tillagd</th>{kanHantera && <th />}</tr></thead>
+            <thead><tr><th>Namn</th><th>E-post</th><th>Roll i projektet</th><th>I verktyget</th><th>Tillagd</th>{kanHantera && <th />}</tr></thead>
             <tbody>
               {medlemmar.map((m) => (
                 <tr key={m.anvandarId}>
                   <td>{m.namn}</td>
                   <td className="mono">{m.epost}</td>
-                  <td>{rollNamn(m.roll)}</td>
+                  <td>
+                    {kanHantera ? (
+                      <select aria-label={`Roll i projektet för ${m.namn}`} value={m.roll} onChange={(e) => void bytProjektRoll(m, e.target.value as ProjektRoll)}>
+                        {roller.map((r) => <option key={r.id} value={r.id}>{r.namn}</option>)}
+                      </select>
+                    ) : rollNamn(m.roll)}
+                  </td>
+                  <td className="dampad">{rollNamn(m.verktygsRoll)}</td>
                   <td className="dampad">{new Date(m.tillagd).toLocaleDateString("sv-SE")} av {m.tillagdAv}</td>
                   {kanHantera && <td><button className="knapp fara" onClick={() => taBort(m)}>Ta bort</button></td>}
                 </tr>
@@ -148,13 +175,17 @@ export function MedlemmarVy({ projektId, rattigheter, visaMeddelande }: Props) {
           <h2 style={{ margin: "0 0 8px", fontSize: 15 }}>Väntande inbjudningar</h2>
           <p className="dampad liten" style={{ margin: "0 0 8px" }}>Personerna kommer in i projektet automatiskt när de loggar in första gången.</p>
           <table className="enkel">
-            <thead><tr><th>E-post</th><th>Namn</th><th>Roll</th><th>Inbjuden</th><th>Status från Microsoft</th><th /></tr></thead>
+            <thead><tr><th>E-post</th><th>Namn</th><th>Roll i projektet</th><th>Inbjuden</th><th>Status från Microsoft</th><th /></tr></thead>
             <tbody>
               {inbjudningar.map((i) => (
                 <tr key={i.id}>
                   <td className="mono">{i.epost}</td>
                   <td>{i.namn}</td>
-                  <td>{rollNamn(i.roll)}</td>
+                  <td>
+                    <select aria-label={`Roll i projektet för ${i.epost}`} value={rollHar(i)} onChange={(e) => void bytInbjudanRoll(i, e.target.value as ProjektRoll)}>
+                      {roller.map((r) => <option key={r.id} value={r.id}>{r.namn}</option>)}
+                    </select>
+                  </td>
                   <td className="dampad">{new Date(i.skapad).toLocaleDateString("sv-SE")} av {i.skapadAv}</td>
                   <td className="dampad liten">{i.meddelande}</td>
                   <td style={{ whiteSpace: "nowrap" }}>
@@ -201,12 +232,13 @@ export function MedlemmarVy({ projektId, rattigheter, visaMeddelande }: Props) {
             <label>Namn
               <input type="text" value={ny.namn} placeholder="Förnamn Efternamn" onChange={(e) => setNy({ ...ny, namn: e.target.value })} />
             </label>
-            <label>Roll
+            <label>Roll i projektet
               <select value={ny.roll} onChange={(e) => setNy({ ...ny, roll: e.target.value })}>
                 {roller.map((r) => <option key={r.id} value={r.id}>{r.namn}</option>)}
               </select>
             </label>
             <p className="dampad liten">
+              Rollen gäller bara i det här projektet; i verktyget blir personen Extern deltagare och ser bara projekt hen är medlem i.
               Läsare kan se men inte ändra. Personen får ett mejl från Microsoft, accepterar och loggar in med sitt eget jobbkonto
               (har hen inte Microsoft 365 skickas en engångskod till e-posten). Inbjudan gäller det här projektet. Alla inbjudna sparas och finns sedan i listan Välj person i alla projekt.
             </p>

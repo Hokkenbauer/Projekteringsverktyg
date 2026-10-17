@@ -45,8 +45,8 @@ public static class SkapEndpoints
 
         app.MapPost("/api/korttyper", async (KorttypDto ny, ClaimsPrincipal user, PvDbContext db, Behorighet beh) =>
         {
-            if (!await beh.HarRoll(user, Roller.Admin, Roller.System))
-                return Results.Problem(statusCode: 403, title: "Bara Admin och System kan ändra korttyper.");
+            if (!await beh.KanAndraMallar(user))
+                return Results.Problem(statusCode: 403, title: "Bara Admin och de som får ändra mallar kan ändra korttyper.");
             if (string.IsNullOrWhiteSpace(ny.Namn)) return Results.ValidationProblem(new Dictionary<string, string[]> { ["namn"] = ["Ange ett namn."] });
             var k = await db.Korttyper.FindAsync(ny.Id);
             if (k is null) { k = new Korttyp(); db.Korttyper.Add(k); k.Ordning = (await db.Korttyper.MaxAsync(x => (int?)x.Ordning) ?? 0) + 1; }
@@ -58,8 +58,8 @@ public static class SkapEndpoints
 
         app.MapDelete("/api/korttyper/{id:guid}", async (Guid id, ClaimsPrincipal user, PvDbContext db, Behorighet beh) =>
         {
-            if (!await beh.HarRoll(user, Roller.Admin, Roller.System))
-                return Results.Problem(statusCode: 403, title: "Bara Admin och System kan ändra korttyper.");
+            if (!await beh.KanAndraMallar(user))
+                return Results.Problem(statusCode: 403, title: "Bara Admin och de som får ändra mallar kan ändra korttyper.");
             var k = await db.Korttyper.FindAsync(id);
             if (k is null) return Results.NotFound();
             db.Korttyper.Remove(k);

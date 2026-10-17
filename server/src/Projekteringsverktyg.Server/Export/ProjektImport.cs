@@ -27,7 +27,7 @@ public static partial class ProjektImport
         app.MapPost("/api/projekt/import-export", async (HttpRequest request, ClaimsPrincipal user, Behorighet beh, PvDbContext db,
             IFilLagring lagring, CancellationToken ct) =>
         {
-            if (!await beh.HarRoll(user, Roller.Admin, Roller.Projektledare))
+            if (!await beh.KanSkapaProjekt(user))
                 return Results.Problem(statusCode: 403, title: "Bara Admin och Projektledare kan skapa projekt.");
             if (!request.HasFormContentType) return Fel("Skicka filen som formulär.");
             var form = await request.ReadFormAsync(ct);
@@ -106,7 +106,7 @@ public static partial class ProjektImport
             };
             await using var tx = await db.Database.BeginTransactionAsync(ct);
             db.Projekt.Add(projekt);
-            db.Medlemmar.Add(new ProjektMedlem { ProjektId = projektId, AnvandarId = medlemId, TillagdAv = av.Namn });
+            db.Medlemmar.Add(new ProjektMedlem { Roll = Roller.Projektledare, ProjektId = projektId, AnvandarId = medlemId, TillagdAv = av.Namn });
             await db.SaveChangesAsync(ct);
 
             // ---- Komponenter med I/O ----

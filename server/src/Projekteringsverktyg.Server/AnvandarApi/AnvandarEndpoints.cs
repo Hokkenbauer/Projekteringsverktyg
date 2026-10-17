@@ -18,7 +18,7 @@ public static class AnvandarEndpoints
         {
             var post = await beh.AktuellAsync(user);
             var inst = await db.AnvandarInstallningar.FindAsync(post.Id);
-            return new MigDto(post.Id, post.Namn, inst?.Tema ?? "natt", post.Roll, Behorighet.Rattigheter(post.Roll));
+            return new MigDto(post.Id, post.Namn, inst?.Tema ?? "natt", post.Roll, Behorighet.Rattigheter(post));
         });
 
         app.MapPut("/api/mig/tema", async (TemaVal val, ClaimsPrincipal user, PvDbContext db, Behorighet beh) =>
@@ -36,7 +36,7 @@ public static class AnvandarEndpoints
             inst.Tema = val.Tema;
             await db.SaveChangesAsync();
             var post = await beh.AktuellAsync(user);
-            return Results.Ok(new MigDto(av.Id, av.Namn, inst.Tema, post.Roll, Behorighet.Rattigheter(post.Roll)));
+            return Results.Ok(new MigDto(av.Id, av.Namn, inst.Tema, post.Roll, Behorighet.Rattigheter(post)));
         });
 
         return app;

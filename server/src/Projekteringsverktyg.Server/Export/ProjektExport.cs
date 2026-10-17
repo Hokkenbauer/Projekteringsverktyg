@@ -33,7 +33,7 @@ public static class ProjektExport
         {
             var projekt = await db.Projekt.AsNoTracking().FirstOrDefaultAsync(p => p.Id == projektId, ct);
             if (projekt is null) return Results.NotFound();
-            var kansligt = await beh.HarRoll(user, Roller.Admin, Roller.Projektledare, Roller.System);
+            var kansligt = await beh.KanLedaProjekt(user, projektId);
             var tmp = Path.Combine(Path.GetTempPath(), $"pv-export-{Guid.NewGuid():N}.zip");
             try
             {
@@ -210,7 +210,7 @@ public static class ProjektExport
         las.AppendLine("Ritningar/         Placeringsritningen, ritbordets bilder och apparatskåpen (maskinläsbart, JSON).");
         las.AppendLine(medFiler ? "Projektfiler/      Senaste versionen av varje projektfil (PDF-ritningar, driftkort, Word-filer …)." : "Projektfiler       Inte med i den här exporten.");
         las.AppendLine("projekt.json       Hela projektet i ett maskinläsbart format, för arkivering och framtida import.");
-        if (!kansligt) las.AppendLine("\nAnslutningsinformation (användarnamn och lösenord) är inte med: bara Admin, Projektledare och System får exportera den.");
+        if (!kansligt) las.AppendLine("\nAnslutningsinformation (användarnamn och lösenord) är inte med: bara projektets projektledare och Admin får exportera den.");
         if (hoppadeOver.Count > 0) las.AppendLine("\nFiler som inte kunde läsas: " + string.Join(", ", hoppadeOver));
         Lagg(zip, "LÄS MIG.txt", Encoding.UTF8.GetBytes(las.ToString()));
     }

@@ -88,18 +88,34 @@ public class AnvandarInstallning
     public string Tema { get; set; } = "natt";
 }
 
+/// <summary>
+/// Två nivåer. Verktygsroll (deltagare i Projekteringsverktyget): Admin, Intern (HECO) eller Extern.
+/// Projektroll (medlem i ett projekt): Projektledare, Tekniker eller Läsare – gäller bara i det projektet.
+/// </summary>
 public static class Roller
 {
+    // ---- Verktygsroller ----
     public const string Admin = "Admin";
+    /// <summary>HECO-användare: ser alla projekt (läsa), kan skapa projekt. Ändrar där hen har en projektroll.</summary>
+    public const string Intern = "Intern";
+    /// <summary>Extern deltagare: ser bara projekt där hen är medlem.</summary>
+    public const string Extern = "Extern";
+
+    // ---- Projektroller ----
     public const string Projektledare = "Projektledare";
-    public const string System = "System";
     public const string Tekniker = "Tekniker";
     public const string Lasare = "Lasare";
 
-    public static readonly IReadOnlyList<string> Alla = [Admin, Projektledare, System, Tekniker, Lasare];
+    /// <summary>Äldre verktygsroll (före projektroller). Finns bara kvar i gammal data.</summary>
+    public const string System = "System";
 
-    /// <summary>Roller som ser alla projekt, inte bara dem de är medlemmar i.</summary>
-    public static bool SerAllaProjekt(string roll) => roll is Admin or Projektledare or System;
+    public static readonly IReadOnlyList<string> Verktyg = [Admin, Intern, Extern];
+    public static readonly IReadOnlyList<string> Projekt = [Projektledare, Tekniker, Lasare];
+
+    /// <summary>Ser alla projekt (minst läsa), inte bara dem hen är medlem i.</summary>
+    public static bool SerAllaProjekt(string verktygsroll) => verktygsroll is Admin or Intern;
+
+    public static bool KanAndra(string? projektroll) => projektroll is Projektledare or Tekniker;
 }
 
 public class AnvandarPost
@@ -107,7 +123,12 @@ public class AnvandarPost
     public string Id { get; set; } = "";
     public string Namn { get; set; } = "";
     public string Epost { get; set; } = "";
-    public string Roll { get; set; } = Roller.Tekniker;
+    /// <summary>Verktygsroll: Admin, Intern eller Extern.</summary>
+    public string Roll { get; set; } = Roller.Intern;
+    /// <summary>Extern som ändå får skapa egna projekt (interna och admin får alltid).</summary>
+    public bool FarSkapaProjekt { get; set; }
+    /// <summary>Får ändra gemensamma kataloger och mallar (admin får alltid).</summary>
+    public bool FarAndraMallar { get; set; }
     public DateTimeOffset Skapad { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset SenastInloggad { get; set; } = DateTimeOffset.UtcNow;
 }
@@ -119,6 +140,7 @@ public class Inbjudan
     /// <summary>E-postadressen i gemener.</summary>
     public string Epost { get; set; } = "";
     public string Namn { get; set; } = "";
+    /// <summary>Projektroll i de inbjudna projekten (personen blir alltid Extern i verktyget).</summary>
     public string Roll { get; set; } = Roller.Lasare;
     /// <summary>Projektens Id, kommaseparerade.</summary>
     public string ProjektIds { get; set; } = "";
@@ -133,14 +155,31 @@ public class Inbjudan
     public DateTimeOffset? Accepterad { get; set; }
     public string AnvandarId { get; set; } = "";
 
-    public List<Guid> Projekt() => ProjektIds.Split(',', StringSplitOptions.RemoveEmptyEntries)
-        .Select(x => Guid.TryParse(x, out var g) ? g : Guid.Empty).Where(g => g != Guid.Empty).Distinct().ToList();
+    /// <summary>Projekten och projektrollen i varje ("id:Roll", eller bara "id" = Roll ovan).</summary>
+    public Dictionary<Guid, string> ProjektRoller()
+    {
+        var ut = new Dictionary<Guid, string>();
+        foreach (var del in ProjektIds.Split(',', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var d = del.Split(':');
+            if (Guid.TryParse(d[0], out var g) && !ut.ContainsKey(g))
+                ut[g] = d.Length > 1 && Roller.Projekt.Contains(d[1]) ? d[1] : (Roller.Projekt.Contains(Roll) ? Roll : Roller.Lasare);
+        }
+        return ut;
+    }
+
+    public void SattProjektRoller(Dictionary<Guid, string> roller) =>
+        ProjektIds = string.Join(",", roller.Select(x => $"{x.Key}:{x.Value}"));
+
+    public List<Guid> Projekt() => ProjektRoller().Keys.ToList();
 }
 
 public class ProjektMedlem
 {
     public Guid ProjektId { get; set; }
     public string AnvandarId { get; set; } = "";
+    /// <summary>Projektroll: Projektledare, Tekniker eller Läsare.</summary>
+    public string Roll { get; set; } = Roller.Tekniker;
     public DateTimeOffset Tillagd { get; set; } = DateTimeOffset.UtcNow;
     public string TillagdAv { get; set; } = "";
 }

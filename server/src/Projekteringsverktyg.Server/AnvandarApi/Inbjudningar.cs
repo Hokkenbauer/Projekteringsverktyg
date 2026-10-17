@@ -12,7 +12,7 @@ using Projekteringsverktyg.Server.ProjektApi;
 namespace Projekteringsverktyg.Server.AnvandarApi;
 
 public sealed record NyInbjudan(string Epost, string? Namn, string? Roll, List<Guid>? ProjektIds);
-public sealed record InbjudanProjekt(Guid Id, string Namn);
+public sealed record InbjudanProjekt(Guid Id, string Namn, string Roll);
 public sealed record InbjudanDto(Guid Id, string Epost, string Namn, string Roll, List<InbjudanProjekt> Projekt, string Status,
     string Meddelande, DateTimeOffset Skapad, string SkapadAv, DateTimeOffset? Accepterad);
 public sealed record InbjudanSvar(InbjudanDto Inbjudan, bool Skickad, string Meddelande);
@@ -118,12 +118,12 @@ public sealed class IngenGastInbjudan : IGastInbjudan
         Task.FromResult(new GastSvar(false, "", "Microsoft-inloggning är inte påslagen här, så inget mejl skickades."));
 }
 
-/// <summary>Inbjudningar av externa deltagare och hur de tillämpas vid första inloggningen.</summary>
+/// <summary>
+/// Inbjudningar av externa deltagare. En inbjuden blir alltid Extern i verktyget och får en projektroll
+/// (Projektledare, Tekniker eller Läsare) i varje projekt hen bjuds in till. Inbjudan gör aldrig någon till Admin.
+/// </summary>
 public static class Inbjudningar
 {
-    /// <summary>Roller som en projektledare får bjuda in. Admin får bjuda in alla utom Admin.</summary>
-    private static readonly string[] ProjektledarRoller = [Roller.Lasare, Roller.Tekniker];
-
     public static string Normalisera(string epost) => (epost ?? "").Trim().ToLowerInvariant();
 
     /// <summary>
@@ -149,30 +149,32 @@ public static class Inbjudningar
         return ut;
     }
 
+    private static IQueryable<Inbjudan> Vantande(PvDbContext db, string anvandarId, IReadOnlyCollection<string> epost) =>
+        db.Inbjudningar.Where(i => i.Status == "Vantar" && (epost.Contains(i.Epost) || (i.GastId != "" && i.GastId == anvandarId)));
+
+    public static Task<bool> HarVantandeAsync(PvDbContext db, string anvandarId, IReadOnlyCollection<string> epost) =>
+        Vantande(db, anvandarId, epost).AnyAsync();
+
     /// <summary>
-    /// Ger personen rollen och projekten från väntande inbjudningar som matchar e-post eller gäst-Id.
-    /// Returnerar true om något ändrades (anroparen sparar).
+    /// Gör personen till medlem i projekten från väntande inbjudningar (med inbjudans projektroll).
+    /// Verktygsrollen ändras aldrig här. Returnerar true om något ändrades (anroparen sparar).
     /// </summary>
-    public static async Task<bool> TillampaAsync(PvDbContext db, AnvandarPost post, IReadOnlyCollection<string> epost, bool nyAnvandare, CancellationToken ct = default)
+    public static async Task<bool> TillampaAsync(PvDbContext db, AnvandarPost post, IReadOnlyCollection<string> epost, CancellationToken ct = default)
     {
-        if (epost.Count == 0 && post.Id == "") return false;
-        var lista = await db.Inbjudningar
-            .Where(i => i.Status == "Vantar" && (epost.Contains(i.Epost) || (i.GastId != "" && i.GastId == post.Id)))
-            .ToListAsync(ct);
+        var lista = await Vantande(db, post.Id, epost).ToListAsync(ct);
         if (lista.Count == 0) return false;
 
         foreach (var inb in lista.OrderBy(i => i.Skapad))
         {
-            // Nya användare får inbjudans roll. En befintlig användare behåller en roll som ser mer.
-            if (nyAnvandare || Rang(inb.Roll) > Rang(post.Roll)) post.Roll = inb.Roll;
-            foreach (var pid in inb.Projekt())
+            foreach (var (pid, roll) in inb.ProjektRoller())
             {
                 if (!await db.Projekt.AnyAsync(p => p.Id == pid, ct)) continue;
                 var finns = await db.Medlemmar.AnyAsync(m => m.ProjektId == pid && m.AnvandarId == post.Id, ct)
                     || db.Medlemmar.Local.Any(m => m.ProjektId == pid && m.AnvandarId == post.Id);
                 if (finns) continue;
-                db.Medlemmar.Add(new ProjektMedlem { ProjektId = pid, AnvandarId = post.Id, TillagdAv = $"Inbjudan från {inb.SkapadAv}" });
-                Andringslogg.Logga(db, pid, new Anvandare(post.Id, post.Namn), "Medlem", null, $"{post.Namn} tackade ja till inbjudan och lades till i projektet");
+                db.Medlemmar.Add(new ProjektMedlem { ProjektId = pid, AnvandarId = post.Id, Roll = roll, TillagdAv = $"Inbjudan från {inb.SkapadAv}" });
+                Andringslogg.Logga(db, pid, new Anvandare(post.Id, post.Namn), "Medlem", null,
+                    $"{post.Namn} tackade ja till inbjudan och lades till i projektet som {RollEndpoints.RollNamn(roll)}");
             }
             inb.Status = "Accepterad";
             inb.Accepterad = DateTimeOffset.UtcNow;
@@ -181,19 +183,28 @@ public static class Inbjudningar
         return true;
     }
 
-    private static int Rang(string roll) => roll switch
-    {
-        Roller.Admin => 5, Roller.Projektledare => 4, Roller.System => 3, Roller.Tekniker => 2, _ => 1,
-    };
-
-    private static async Task<List<InbjudanDto>> Dtos(PvDbContext db, IEnumerable<Inbjudan> lista)
+    /// <summary>Inbjudan som DTO. Roll = projektrollen i det valda projektet (annars inbjudans standardroll).</summary>
+    private static async Task<List<InbjudanDto>> Dtos(PvDbContext db, IEnumerable<Inbjudan> lista, Guid? projektId = null)
     {
         var l = lista.ToList();
         var ids = l.SelectMany(i => i.Projekt()).Distinct().ToList();
         var namn = await db.Projekt.Where(p => ids.Contains(p.Id)).ToDictionaryAsync(p => p.Id, p => p.Namn);
-        return l.Select(i => new InbjudanDto(i.Id, i.Epost, i.Namn, i.Roll,
-            i.Projekt().Where(namn.ContainsKey).Select(p => new InbjudanProjekt(p, namn[p])).ToList(),
-            i.Status, i.Meddelande, i.Skapad, i.SkapadAv, i.Accepterad)).ToList();
+        return l.Select(i =>
+        {
+            var roller = i.ProjektRoller();
+            var roll = projektId is { } pid && roller.TryGetValue(pid, out var r) ? r : i.Roll;
+            return new InbjudanDto(i.Id, i.Epost, i.Namn, roll,
+                roller.Where(x => namn.ContainsKey(x.Key)).Select(x => new InbjudanProjekt(x.Key, namn[x.Key], x.Value)).ToList(),
+                i.Status, i.Meddelande, i.Skapad, i.SkapadAv, i.Accepterad);
+        }).ToList();
+    }
+
+    /// <summary>Admin och projektledare i något av inbjudans projekt får hantera den.</summary>
+    private static async Task<bool> FarHantera(Behorighet beh, ClaimsPrincipal user, Inbjudan inb)
+    {
+        if (await beh.ArAdmin(user)) return true;
+        foreach (var pid in inb.Projekt()) if (await beh.KanLedaProjekt(user, pid)) return true;
+        return false;
     }
 
     private static string TillbakaUrl(HttpContext ctx) => $"{ctx.Request.Scheme}://{ctx.Request.Host}/";
@@ -207,70 +218,79 @@ public static class Inbjudningar
     {
         var g = app.MapGroup("/api/inbjudningar");
 
+        // Admin och interna ser alla väntande inbjudningar (för att kunna lägga till inbjudna i fler projekt).
+        // En extern projektledare ser bara inbjudningar till projekt hen leder.
         g.MapGet("/", async (Guid? projektId, ClaimsPrincipal user, Behorighet beh, PvDbContext db) =>
         {
-            if (!await beh.HarRoll(user, Roller.Admin, Roller.Projektledare)) return Results.Forbid();
+            var mig = await beh.AktuellAsync(user);
             var lista = await db.Inbjudningar.OrderByDescending(i => i.Skapad).Take(500).ToListAsync();
             if (projektId is { } pid) lista = lista.Where(i => i.Projekt().Contains(pid)).ToList();
-            return Results.Ok(await Dtos(db, lista));
+            if (!Roller.SerAllaProjekt(mig.Roll))
+            {
+                var synliga = new List<Inbjudan>();
+                foreach (var i in lista) if (await FarHantera(beh, user, i)) synliga.Add(i);
+                lista = synliga;
+            }
+            return Results.Ok(await Dtos(db, lista, projektId));
         });
 
         g.MapPost("/", async (NyInbjudan ny, HttpContext ctx, ClaimsPrincipal user, Behorighet beh, PvDbContext db, IGastInbjudan gast, CancellationToken ct) =>
         {
-            if (!await beh.HarRoll(user, Roller.Admin, Roller.Projektledare)) return Results.Forbid();
-            var mig = await beh.AktuellAsync(user);
             var epost = Normalisera(ny.Epost);
             if (epost.Length > 254 || !System.Text.RegularExpressions.Regex.IsMatch(epost, @"^[^@\s,;]+@[^@\s,;]+\.[^@\s,;]+$"))
                 return Fel("epost", "Skriv en giltig e-postadress, t.ex. namn@foretaget.se.");
             var roll = string.IsNullOrWhiteSpace(ny.Roll) ? Roller.Lasare : ny.Roll.Trim();
-            if (!Roller.Alla.Contains(roll) || roll == Roller.Admin) return Fel("roll", "Välj Läsare, Tekniker, System eller Projektledare.");
-            if (mig.Roll != Roller.Admin && !ProjektledarRoller.Contains(roll)) return Fel("roll", "Projektledare kan bjuda in Läsare och Tekniker. Be en admin om andra roller.");
+            if (!Roller.Projekt.Contains(roll)) return Fel("roll", "Välj Läsare, Tekniker eller Projektledare.");
             var projekt = (ny.ProjektIds ?? []).Distinct().ToList();
             var finnsProjekt = await db.Projekt.Where(p => projekt.Contains(p.Id)).Select(p => p.Id).ToListAsync(ct);
             if (finnsProjekt.Count == 0) return Fel("projekt", "Välj minst ett projekt.");
+            foreach (var pid in finnsProjekt)
+                if (!await beh.KanLedaProjekt(user, pid)) return Results.Problem(statusCode: 403, title: "Bara projektets projektledare kan bjuda in.");
             var namn = (ny.Namn ?? "").Trim();
             if (namn.Length > 120) namn = namn[..120];
             var av = Anvandare.Fran(user);
 
-            // Har personen redan loggat in: lägg till direkt, ingen inbjudan behövs.
+            // Har personen redan loggat in: lägg till direkt med projektrollen. Verktygsrollen ändras inte.
             var befintlig = await db.Anvandare.FirstOrDefaultAsync(a => a.Epost.ToLower() == epost, ct);
             if (befintlig is not null)
             {
                 foreach (var pid in finnsProjekt)
                     if (!await db.Medlemmar.AnyAsync(m => m.ProjektId == pid && m.AnvandarId == befintlig.Id, ct))
                     {
-                        db.Medlemmar.Add(new ProjektMedlem { ProjektId = pid, AnvandarId = befintlig.Id, TillagdAv = av.Namn });
-                        Andringslogg.Logga(db, pid, av, "Medlem", null, $"lade till {befintlig.Namn} i projektet");
+                        db.Medlemmar.Add(new ProjektMedlem { ProjektId = pid, AnvandarId = befintlig.Id, Roll = roll, TillagdAv = av.Namn });
+                        Andringslogg.Logga(db, pid, av, "Medlem", null, $"lade till {befintlig.Namn} i projektet som {RollEndpoints.RollNamn(roll)}");
                     }
                 await db.SaveChangesAsync(ct);
-                var direkt = new Inbjudan { Epost = epost, Namn = befintlig.Namn, Roll = befintlig.Roll, ProjektIds = string.Join(",", finnsProjekt), Status = "Accepterad", Accepterad = DateTimeOffset.UtcNow, SkapadAv = av.Namn, AnvandarId = befintlig.Id };
-                return Results.Ok(new InbjudanSvar((await Dtos(db, [direkt]))[0], false,
-                    $"{befintlig.Namn} har redan ett konto och lades till direkt. Rollen ({befintlig.Roll}) ändras under Admin."));
+                var direkt = new Inbjudan { Epost = epost, Namn = befintlig.Namn, Roll = roll, Status = "Accepterad", Accepterad = DateTimeOffset.UtcNow, SkapadAv = av.Namn, AnvandarId = befintlig.Id };
+                direkt.SattProjektRoller(finnsProjekt.ToDictionary(p => p, _ => roll));
+                return Results.Ok(new InbjudanSvar((await Dtos(db, [direkt], finnsProjekt[0]))[0], false,
+                    $"{befintlig.Namn} finns redan i verktyget och lades till i projektet som {RollEndpoints.RollNamn(roll)}. Inget mejl behövdes."));
             }
 
             // Väntande inbjudan till samma adress: lägg till projekten i den i stället för att skapa en ny.
             var inb = await db.Inbjudningar.FirstOrDefaultAsync(i => i.Epost == epost && i.Status == "Vantar", ct);
             var nyInb = inb is null;
-            inb ??= new Inbjudan { Epost = epost, SkapadAv = av.Namn };
+            inb ??= new Inbjudan { Epost = epost, SkapadAv = av.Namn, Roll = roll };
             inb.Namn = namn != "" ? namn : inb.Namn;
-            inb.Roll = roll;
-            inb.ProjektIds = string.Join(",", inb.Projekt().Concat(finnsProjekt).Distinct());
+            var roller = inb.ProjektRoller();
+            foreach (var pid in finnsProjekt) roller[pid] = roll;
+            inb.SattProjektRoller(roller);
             if (nyInb) db.Inbjudningar.Add(inb);
 
             var svar = await gast.BjudInAsync(epost, inb.Namn == "" ? epost : inb.Namn, TillbakaUrl(ctx), Mejltext(av.Namn), ct);
             if (svar.GastId != "") inb.GastId = svar.GastId;
             inb.Meddelande = svar.Meddelande;
             foreach (var pid in finnsProjekt)
-                Andringslogg.Logga(db, pid, av, "Medlem", null, $"bjöd in {(inb.Namn == "" ? epost : $"{inb.Namn} ({epost})")} som {roll}");
+                Andringslogg.Logga(db, pid, av, "Medlem", null, $"bjöd in {(inb.Namn == "" ? epost : $"{inb.Namn} ({epost})")} som {RollEndpoints.RollNamn(roll)}");
             await db.SaveChangesAsync(ct);
-            return Results.Ok(new InbjudanSvar((await Dtos(db, [inb]))[0], svar.Ok, svar.Meddelande));
+            return Results.Ok(new InbjudanSvar((await Dtos(db, [inb], finnsProjekt[0]))[0], svar.Ok, svar.Meddelande));
         });
 
         g.MapPost("/{id:guid}/skicka-igen", async (Guid id, HttpContext ctx, ClaimsPrincipal user, Behorighet beh, PvDbContext db, IGastInbjudan gast, CancellationToken ct) =>
         {
-            if (!await beh.HarRoll(user, Roller.Admin, Roller.Projektledare)) return Results.Forbid();
             var inb = await db.Inbjudningar.FirstOrDefaultAsync(i => i.Id == id, ct);
             if (inb is null || inb.Status != "Vantar") return Results.NotFound();
+            if (!await FarHantera(beh, user, inb)) return Results.Forbid();
             var av = Anvandare.Fran(user);
             var svar = await gast.BjudInAsync(inb.Epost, inb.Namn == "" ? inb.Epost : inb.Namn, TillbakaUrl(ctx), Mejltext(av.Namn), ct);
             if (svar.GastId != "") inb.GastId = svar.GastId;
@@ -279,49 +299,37 @@ public static class Inbjudningar
             return Results.Ok(new InbjudanSvar((await Dtos(db, [inb]))[0], svar.Ok, svar.Meddelande));
         });
 
-        // Lägg till ett projekt i en väntande inbjudan (personen har inte loggat in än). Inget nytt mejl skickas.
-        g.MapPost("/{id:guid}/projekt/{projektId:guid}", async (Guid id, Guid projektId, ClaimsPrincipal user, Behorighet beh, PvDbContext db, CancellationToken ct) =>
+        // Lägg till ett projekt (med projektroll) i en väntande inbjudan. Inget nytt mejl skickas.
+        g.MapPost("/{id:guid}/projekt/{projektId:guid}", async (Guid id, Guid projektId, string? roll, ClaimsPrincipal user, Behorighet beh, PvDbContext db, CancellationToken ct) =>
         {
-            if (!await beh.HarRoll(user, Roller.Admin, Roller.Projektledare)) return Results.Forbid();
+            if (!await beh.KanLedaProjekt(user, projektId)) return Results.Forbid();
             var inb = await db.Inbjudningar.FirstOrDefaultAsync(i => i.Id == id, ct);
             if (inb is null || inb.Status != "Vantar") return Results.NotFound();
-            if (!await db.Projekt.AnyAsync(p => p.Id == projektId, ct)) return Results.NotFound();
-            if (!inb.Projekt().Contains(projektId))
+            var r = string.IsNullOrWhiteSpace(roll) ? Roller.Lasare : roll;
+            if (!Roller.Projekt.Contains(r)) return Fel("roll", "Välj Läsare, Tekniker eller Projektledare.");
+            var roller = inb.ProjektRoller();
+            if (!roller.TryGetValue(projektId, out var fore) || fore != r)
             {
-                inb.ProjektIds = string.Join(",", inb.Projekt().Append(projektId));
+                roller[projektId] = r;
+                inb.SattProjektRoller(roller);
                 Andringslogg.Logga(db, projektId, Anvandare.Fran(user), "Medlem", null,
-                    $"lade till {(inb.Namn == "" ? inb.Epost : $"{inb.Namn} ({inb.Epost})")} i projektet (inbjuden, har inte loggat in än)");
+                    $"lade till {(inb.Namn == "" ? inb.Epost : $"{inb.Namn} ({inb.Epost})")} i projektet som {RollEndpoints.RollNamn(r)} (inbjuden, har inte loggat in än)");
                 await db.SaveChangesAsync(ct);
             }
-            return Results.Ok((await Dtos(db, [inb]))[0]);
+            return Results.Ok((await Dtos(db, [inb], projektId))[0]);
         });
 
         // Ta bort ett projekt ur en väntande inbjudan. Finns inga projekt kvar tas inbjudan bort.
         g.MapDelete("/{id:guid}/projekt/{projektId:guid}", async (Guid id, Guid projektId, ClaimsPrincipal user, Behorighet beh, PvDbContext db, CancellationToken ct) =>
         {
-            if (!await beh.HarRoll(user, Roller.Admin, Roller.Projektledare)) return Results.Forbid();
+            if (!await beh.KanLedaProjekt(user, projektId)) return Results.Forbid();
             var inb = await db.Inbjudningar.FirstOrDefaultAsync(i => i.Id == id, ct);
             if (inb is null || inb.Status != "Vantar") return Results.NoContent();
-            var kvar = inb.Projekt().Where(p => p != projektId).ToList();
-            if (await db.Projekt.AnyAsync(p => p.Id == projektId, ct))
-                Andringslogg.Logga(db, projektId, Anvandare.Fran(user), "Medlem", null, $"tog bort inbjudan till {inb.Epost} från projektet");
-            if (kvar.Count == 0) db.Inbjudningar.Remove(inb);
-            else inb.ProjektIds = string.Join(",", kvar);
-            await db.SaveChangesAsync(ct);
-            return Results.NoContent();
-        });
-
-        g.MapDelete("/{id:guid}", async (Guid id, ClaimsPrincipal user, Behorighet beh, PvDbContext db, CancellationToken ct) =>
-        {
-            if (!await beh.HarRoll(user, Roller.Admin, Roller.Projektledare)) return Results.Forbid();
-            var inb = await db.Inbjudningar.FirstOrDefaultAsync(i => i.Id == id, ct);
-            if (inb is null) return Results.NoContent();
-            if (inb.Status != "Vantar") return Fel("inbjudan", "Inbjudan är redan accepterad. Ta bort personen ur projektet i stället.");
-            var av = Anvandare.Fran(user);
-            foreach (var pid in inb.Projekt())
-                if (await db.Projekt.AnyAsync(p => p.Id == pid, ct))
-                    Andringslogg.Logga(db, pid, av, "Medlem", null, $"tog tillbaka inbjudan till {inb.Epost}");
-            db.Inbjudningar.Remove(inb);
+            var roller = inb.ProjektRoller();
+            roller.Remove(projektId);
+            Andringslogg.Logga(db, projektId, Anvandare.Fran(user), "Medlem", null, $"tog bort inbjudan till {inb.Epost} från projektet");
+            if (roller.Count == 0) db.Inbjudningar.Remove(inb);
+            else inb.SattProjektRoller(roller);
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
         });

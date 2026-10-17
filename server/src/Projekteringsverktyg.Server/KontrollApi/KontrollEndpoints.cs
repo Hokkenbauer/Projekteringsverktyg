@@ -44,16 +44,16 @@ public static class KontrollEndpoints
 
         app.MapPost("/api/kontrollmallar", async (NyKontrollMall ny, ClaimsPrincipal user, PvDbContext db, Behorighet beh) =>
         {
-            if (!await beh.HarRoll(user, Roller.Admin, Roller.Projektledare, Roller.System))
-                return Results.Problem(statusCode: 403, title: "Bara Admin, Projektledare och System kan spara mallar.");
+            if (!await beh.KanAndraMallar(user))
+                return Results.Problem(statusCode: 403, title: "Bara Admin och de som får ändra mallar kan spara mallar.");
             var fel = await SparaMall(db, Anvandare.Fran(user), ny.Typ, ny.Namn, ny.Beskrivning ?? "", ny.Punkter, ny.SkrivOver);
             return fel ?? Results.Ok();
         });
 
         app.MapDelete("/api/kontrollmallar/{id:guid}", async (Guid id, ClaimsPrincipal user, PvDbContext db, Behorighet beh) =>
         {
-            if (!await beh.HarRoll(user, Roller.Admin, Roller.Projektledare, Roller.System))
-                return Results.Problem(statusCode: 403, title: "Bara Admin, Projektledare och System kan ta bort mallar.");
+            if (!await beh.KanAndraMallar(user))
+                return Results.Problem(statusCode: 403, title: "Bara Admin och de som får ändra mallar kan ta bort mallar.");
             var m = await db.Kontrollmallar.FindAsync(id);
             if (m is null) return Results.NotFound();
             db.Kontrollmallar.Remove(m);
@@ -154,8 +154,8 @@ public static class KontrollEndpoints
         // Spara kontrollens punkter som en ny mall (eller skriv över en befintlig).
         g.MapPost("/{id:guid}/som-mall", async (Guid projektId, Guid id, SomMall som, ClaimsPrincipal user, PvDbContext db, Behorighet beh) =>
         {
-            if (!await beh.HarRoll(user, Roller.Admin, Roller.Projektledare, Roller.System))
-                return Results.Problem(statusCode: 403, title: "Bara Admin, Projektledare och System kan spara mallar.");
+            if (!await beh.KanAndraMallar(user))
+                return Results.Problem(statusCode: 403, title: "Bara Admin och de som får ändra mallar kan spara mallar.");
             var k = await db.Kontroller.FirstOrDefaultAsync(x => x.Id == id && x.ProjektId == projektId);
             if (k is null) return Results.NotFound();
             var lista = Listdefinitioner.KontrollPrefix + k.Id;

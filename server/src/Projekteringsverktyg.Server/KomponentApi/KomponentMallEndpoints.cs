@@ -69,8 +69,8 @@ public static partial class KomponentMallEndpoints
 
         app.MapPost("/api/komponentmallar", async (NyKomponentMall ny, ClaimsPrincipal user, PvDbContext db, Behorighet beh) =>
         {
-            if (!await beh.HarRoll(user, Roller.Admin, Roller.Projektledare, Roller.System))
-                return Results.Problem(statusCode: 403, title: "Bara Admin, Projektledare och System kan spara mallar.");
+            if (!await beh.KanAndraMallar(user))
+                return Results.Problem(statusCode: 403, title: "Bara Admin och de som får ändra mallar kan spara mallar.");
             var namn = (ny.Namn ?? "").Trim();
             if (namn == "" || ny.Rader is null || ny.Rader.Count == 0)
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["namn"] = ["Ange ett namn och minst en rad."] });
@@ -92,8 +92,8 @@ public static partial class KomponentMallEndpoints
 
         app.MapDelete("/api/komponentmallar/{id:guid}", async (Guid id, ClaimsPrincipal user, PvDbContext db, Behorighet beh) =>
         {
-            if (!await beh.HarRoll(user, Roller.Admin, Roller.Projektledare, Roller.System))
-                return Results.Problem(statusCode: 403, title: "Bara Admin, Projektledare och System kan ta bort mallar.");
+            if (!await beh.KanAndraMallar(user))
+                return Results.Problem(statusCode: 403, title: "Bara Admin och de som får ändra mallar kan ta bort mallar.");
             var mall = await db.Komponentmallar.FindAsync(id);
             if (mall is null) return Results.NotFound();
             db.Komponentmallar.Remove(mall);

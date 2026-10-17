@@ -11,7 +11,7 @@ public sealed record KatalogSpara(string Data, int Version);
 
 /// <summary>
 /// Gemensamma kataloger som redigeras i appen: funktionstexter, projekteringsstöd, frågor till teknisk
-/// beskrivning och byggvarudatabasen. Alla kan läsa; Admin, Projektledare och System kan ändra.
+/// beskrivning och byggvarudatabasen. Alla kan läsa; Admin och de som får ändra mallar kan ändra.
 /// Tills någon sparat används grundkatalogen från dagens program.
 /// </summary>
 public static class GemensamKatalogEndpoints
@@ -61,8 +61,8 @@ public static class GemensamKatalogEndpoints
         app.MapPut("/api/katalog/{namn}", async (string namn, KatalogSpara spara, ClaimsPrincipal user, PvDbContext db, Behorighet beh) =>
         {
             if (!Namn.TryGetValue(namn, out var rubrik)) return Results.NotFound();
-            if (!await beh.HarRoll(user, Roller.Admin, Roller.Projektledare, Roller.System))
-                return Results.Problem(statusCode: 403, title: $"Bara Admin, Projektledare och System kan ändra {rubrik.ToLowerInvariant()}.");
+            if (!await beh.KanAndraMallar(user))
+                return Results.Problem(statusCode: 403, title: $"Bara Admin och de som får ändra mallar kan ändra {rubrik.ToLowerInvariant()}.");
             if (string.IsNullOrWhiteSpace(spara.Data) || spara.Data.Length > MaxLangd)
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["data"] = ["Katalogen är tom eller för stor."] });
             try { System.Text.Json.JsonDocument.Parse(spara.Data).Dispose(); }

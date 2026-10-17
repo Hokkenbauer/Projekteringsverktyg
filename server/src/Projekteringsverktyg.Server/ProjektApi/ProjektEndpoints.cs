@@ -57,7 +57,7 @@ public static class ProjektEndpoints
 
         g.MapPost("/", async (NyttProjekt nytt, ClaimsPrincipal user, Behorighet beh, PvDbContext db) =>
         {
-            if (!await beh.HarRoll(user, Roller.Admin, Roller.Projektledare)) return Results.Forbid();
+            if (!await beh.KanSkapaProjekt(user)) return Results.Forbid();
             if (string.IsNullOrWhiteSpace(nytt.Namn))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["namn"] = ["Projektet behöver ett namn."] });
 
@@ -72,7 +72,7 @@ public static class ProjektEndpoints
             };
             db.Projekt.Add(p);
             // Den som skapar projektet blir medlem, så att det syns även om rollen ändras senare.
-            db.Medlemmar.Add(new ProjektMedlem { ProjektId = p.Id, AnvandarId = (await beh.AktuellAsync(user)).Id, TillagdAv = av.Namn });
+            db.Medlemmar.Add(new ProjektMedlem { Roll = Roller.Projektledare, ProjektId = p.Id, AnvandarId = (await beh.AktuellAsync(user)).Id, TillagdAv = av.Namn });
             Andringslogg.Logga(db, p.Id, av, "Projekt", p.Id, $"skapade projektet {p.Namn}");
             await db.SaveChangesAsync();
             return Results.Created($"/api/projekt/{p.Id}",

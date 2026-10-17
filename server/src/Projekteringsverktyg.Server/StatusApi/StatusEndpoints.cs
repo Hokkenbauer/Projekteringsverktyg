@@ -79,7 +79,7 @@ public static class StatusEndpoints
 
         g.MapPost("/", async (Guid projektId, NyUppgift ny, ClaimsPrincipal user, Behorighet beh, PvDbContext db, IHubContext<ProjektHub> hub) =>
         {
-            if (!await beh.HarRoll(user, Roller.Admin, Roller.Projektledare)) return Results.Forbid();
+            if (!await beh.KanLedaProjekt(user, projektId)) return Results.Forbid();
             if (!await db.StatusRubriker.AnyAsync(r => r.Id == ny.RubrikId)) return Results.NotFound();
             var av = Anvandare.Fran(user);
             var max = await db.StatusUppgifter.Where(u => u.ProjektId == projektId && u.RubrikId == ny.RubrikId).MaxAsync(u => (int?)u.Ordning) ?? 0;
@@ -123,7 +123,7 @@ public static class StatusEndpoints
                     beskrivning = $"ändrade utförd av för \"{u.Text}\" i Projekt Status";
                     break;
                 case "text":
-                    if (!await beh.HarRoll(user, Roller.Admin, Roller.Projektledare)) return Results.Forbid();
+                    if (!await beh.KanLedaProjekt(user, projektId)) return Results.Forbid();
                     fore = u.Text;
                     u.Text = (andring.Varde ?? "").Trim();
                     efter = u.Text;
@@ -146,7 +146,7 @@ public static class StatusEndpoints
 
         g.MapDelete("/{id:guid}", async (Guid projektId, Guid id, ClaimsPrincipal user, Behorighet beh, PvDbContext db, IHubContext<ProjektHub> hub) =>
         {
-            if (!await beh.HarRoll(user, Roller.Admin, Roller.Projektledare)) return Results.Forbid();
+            if (!await beh.KanLedaProjekt(user, projektId)) return Results.Forbid();
             var u = await db.StatusUppgifter.FirstOrDefaultAsync(x => x.Id == id && x.ProjektId == projektId);
             if (u is null) return Results.NoContent();
             var av = Anvandare.Fran(user);

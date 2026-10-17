@@ -4,7 +4,7 @@ import { sammanfatta, type Signal } from "../../lib/signaler";
 import type { Blink } from "../../grid/DataGrid";
 import { api, ApiFel, laddaNer, skicka } from "../../lib/api";
 import { anslutTillProjekt } from "../../lib/synk";
-import type { Anteckningar, AttGora, Kataloger, Skap, Komponent, KomponentHandelse, ListaHandelse, ListDef, ListRad, Logg, Mig, Narvarande, Projekt } from "../../lib/typer";
+import type { Anteckningar, AttGora, Kataloger, Skap, Komponent, KomponentHandelse, ListaHandelse, ListDef, ListRad, Logg, Mig, Narvarande, Projekt, Rattigheter } from "../../lib/typer";
 import { skrivUt } from "../../lib/utskrift";
 import { NAVIGERING, hittaFlik, type Flik } from "../../shell/navigering";
 import { AnteckningarVy } from "../att-gora/AnteckningarVy";
@@ -76,6 +76,13 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
   const [attGora, setAttGora] = useState<AttGora[]>([]);
   const [anteckningar, setAnteckningar] = useState<Anteckningar | null>(null);
   const [listdefinitioner, setListdefinitioner] = useState<ListDef[]>([]);
+  // Rättigheter i det här projektet (projektrollen) ovanpå rättigheterna i hela verktyget.
+  const [projektRatt, setProjektRatt] = useState<Partial<Rattigheter> & { projektRoll?: string | null }>({});
+  useEffect(() => {
+    setProjektRatt({});
+    api<Partial<Rattigheter> & { projektRoll?: string | null }>(`/api/projekt/${projektId}/min-roll`).then(setProjektRatt).catch(() => setProjektRatt({}));
+  }, [projektId]);
+  const ratt: Rattigheter = { ...mig.rattigheter, ...projektRatt };
   const [kataloger, setKataloger] = useState<Kataloger>({});
   const [listor, setListor] = useState<Record<string, ListRad[]>>({});
   const [texter, setTexter] = useState<Record<string, Anteckningar>>({});
@@ -360,7 +367,7 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
   const hamtarFran = listId ? (listId.startsWith("kraft-") ? "kraft" : listdefinitioner.find((d) => d.id === listId)?.hamtar ?? null) : null;
   const listanLaddad = !!(listId && listor[listId]);
   useEffect(() => {
-    if (!listId || !hamtarFran || !listanLaddad || !mig.rattigheter.skriva) return;
+    if (!listId || !hamtarFran || !listanLaddad || !ratt.skriva) return;
     api<ListRad[]>(`/api/projekt/${projektId}/listor/${listId}/hamta-komponenter`, { method: "POST" })
       .then((nya) => {
         for (const r of nya) laggListRad(listId, r);
@@ -527,14 +534,14 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
       ) : listDef.id === "byggvarubedomning" || listDef.id === "sundahus" ? (
         <ByggvaruKnappar
           lista={listDef.id} projektId={projektId} rader={listor[listDef.id]} lasläge={!skrivbar}
-          kanRedigeraKatalog={!!mig.rattigheter.hanteraMallar} visaMeddelande={visaMeddelande}
+          kanRedigeraKatalog={!!ratt.hanteraMallar} visaMeddelande={visaMeddelande}
         />
       ) : undefined}
       onInfo={setInfoId}
       fokusId={fokusHar}
     />
   ) : <p className="dampad">Hämtar…</p>;
-  const skrivbar = mig.rattigheter.skriva;
+  const skrivbar = ratt.skriva;
 
   return (
     <div className="arbetsyta">
@@ -605,9 +612,9 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
 
         {flik === "komponenter" && (
           <KomponenterVy
-            projektId={projektId} kanHanteraMallar={!!mig.rattigheter.hanteraMallar} onUppdatera={() => void hamtaAllt()} visaMeddelande={visaMeddelande}
+            projektId={projektId} kanHanteraMallar={!!ratt.hanteraMallar} onUppdatera={() => void hamtaAllt()} visaMeddelande={visaMeddelande}
             onInfo={(k) => setInfoId(k.id)} fokusId={fokusHar}
-            komponenter={komponenter} kataloger={kataloger} blinkar={blinkar} onAndra={andra} onNy={ny} onTaBort={taBort} lasläge={!mig.rattigheter.skriva} />
+            komponenter={komponenter} kataloger={kataloger} blinkar={blinkar} onAndra={andra} onNy={ny} onTaBort={taBort} lasläge={!ratt.skriva} />
         )}
         {flik === "oversikt" && projekt && (
           <Oversikt
@@ -616,10 +623,10 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
           />
         )}
         {flik === "andringslogg" && <LoggVy projektId={projektId} komponenter={komponenter} uppdaterad={loggVersion} />}
-        {flik === "att-gora" && <AttGoraVy rader={attGora} blinkar={blinkar} onAndra={andraAttGora} onNy={nyAttGora} onTaBort={taBortAttGora} onFlytta={(ids) => void flyttaAttGora(ids)} lasläge={!mig.rattigheter.skriva} onPopUt={() => oppnaPopUt("lista")} />}
-        {flik === "projektstatus" && <ProjektStatusVy projektId={projektId} rattigheter={mig.rattigheter} uppdaterad={statusVersion} visaMeddelande={visaMeddelande} />}
-        {flik === "medlemmar" && <MedlemmarVy projektId={projektId} rattigheter={mig.rattigheter} visaMeddelande={visaMeddelande} />}
-        {flik === "anteckningar" && anteckningar && <AnteckningarVy key={projektId} anteckningar={anteckningar} onSpara={sparaAnteckningar} lasläge={!mig.rattigheter.skriva} onPopUt={() => oppnaPopUt("anteckningar")} />}
+        {flik === "att-gora" && <AttGoraVy rader={attGora} blinkar={blinkar} onAndra={andraAttGora} onNy={nyAttGora} onTaBort={taBortAttGora} onFlytta={(ids) => void flyttaAttGora(ids)} lasläge={!ratt.skriva} onPopUt={() => oppnaPopUt("lista")} />}
+        {flik === "projektstatus" && <ProjektStatusVy projektId={projektId} rattigheter={ratt} uppdaterad={statusVersion} visaMeddelande={visaMeddelande} />}
+        {flik === "medlemmar" && <MedlemmarVy projektId={projektId} rattigheter={ratt} visaMeddelande={visaMeddelande} />}
+        {flik === "anteckningar" && anteckningar && <AnteckningarVy key={projektId} anteckningar={anteckningar} onSpara={sparaAnteckningar} lasläge={!ratt.skriva} onPopUt={() => oppnaPopUt("anteckningar")} />}
         {vald?.flik.lista && flik !== "signallista" && listVy(false)}
         {flik === "signallista" && (
           <SignallistaVy
@@ -648,7 +655,7 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
             onVald={(_, k) => setValdKontroll((alla) => ({ ...alla, [kontrollTyp]: k }))}
             uppdaterad={kontrollVersion}
             skriva={skrivbar}
-            hanteraMallar={!!mig.rattigheter.hanteraMallar}
+            hanteraMallar={!!ratt.hanteraMallar}
             visaMeddelande={visaMeddelande}
           >
             {listVy(true)}
@@ -751,7 +758,7 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
         {flik === "ritbord" && (
           <RitbordVy
             projektId={projektId} projekt={projekt} lasläge={!skrivbar}
-            kanInstallningar={!!mig.rattigheter.hanteraMallar}
+            kanInstallningar={!!ratt.hanteraMallar}
             uppdaterad={ritbordVersion} visaMeddelande={visaMeddelande}
           />
         )}
@@ -759,7 +766,7 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
           <TextKatalogVy
             key={flik} lage={flik === "funktionstexter" ? "funktionstexter" : "projekteringsstod"}
             projektId={projektId} projekt={projekt} grupp={vald.grupp.namn} rubrik={vald.flik.namn}
-            lasläge={!skrivbar} kanRedigeraKatalog={!!mig.rattigheter.hanteraMallar}
+            lasläge={!skrivbar} kanRedigeraKatalog={!!ratt.hanteraMallar}
             uppdaterad={dokumentVersion.funktionstext ?? 0} visaMeddelande={visaMeddelande}
             komponenter={komponenter} onNyKomponent={lagg}
           />
@@ -768,7 +775,7 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
           <TekniskBeskrivningVy
             projekt={projekt} grupp={vald.grupp.namn} rubrik={vald.flik.namn}
             text={texter["teknisk-beskrivning"]} onSparaText={(t) => sparaText("teknisk-beskrivning", t)}
-            lasläge={!skrivbar} kanRedigeraKatalog={!!mig.rattigheter.hanteraMallar} visaMeddelande={visaMeddelande}
+            lasläge={!skrivbar} kanRedigeraKatalog={!!ratt.hanteraMallar} visaMeddelande={visaMeddelande}
           />
         ) : <p className="dampad">Hämtar…</p>)}
         {flik === "projekteringsintyg" && vald && (texter.projekteringsintyg && projekt ? (
@@ -786,13 +793,13 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
         )}
         {flik === "anslutningsinformation" && vald && (
           <AnslutningsVy
-            projektId={projektId} grupp={vald.grupp.namn} rubrik={vald.flik.namn} far={!!mig.rattigheter.seAnslutningsinformation}
+            projektId={projektId} grupp={vald.grupp.namn} rubrik={vald.flik.namn} far={!!ratt.seAnslutningsinformation}
             lasläge={!skrivbar} uppdaterad={dokumentVersion.anslutning ?? 0} visaMeddelande={visaMeddelande}
           />
         )}
-        {flik === "resursplanering" && <ResursplaneringVy kanSpara={!!mig.rattigheter.hanteraMallar} />}
-        {flik === "html-verktyg" && <VerktygVy kanHantera={!!mig.rattigheter.hanteraMallar} visaMeddelande={visaMeddelande} />}
-        {flik === "support" && <SupportVy kanHantera={!!mig.rattigheter.hanteraMallar} visaMeddelande={visaMeddelande} />}
+        {flik === "resursplanering" && <ResursplaneringVy kanSpara={!!ratt.hanteraMallar} />}
+        {flik === "html-verktyg" && <VerktygVy kanHantera={!!ratt.hanteraMallar} visaMeddelande={visaMeddelande} />}
+        {flik === "support" && <SupportVy kanHantera={!!ratt.hanteraMallar} visaMeddelande={visaMeddelande} />}
         {flik === "projektfiler" && <ProjektfilerVy projektId={projektId} lasläge={!skrivbar} uppdaterad={filVersion} visaMeddelande={visaMeddelande} />}
         {vald && !vald.flik.klar && (
           <>
@@ -817,8 +824,8 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
             ))}
           </div>
           {popFlik === "lista"
-            ? <AttGoraVy rader={attGora} blinkar={blinkar} onAndra={andraAttGora} onNy={nyAttGora} onTaBort={taBortAttGora} onFlytta={(ids) => void flyttaAttGora(ids)} lasläge={!mig.rattigheter.skriva} />
-            : anteckningar && <AnteckningarVy key={`${projektId}-pop`} anteckningar={anteckningar} onSpara={sparaAnteckningar} lasläge={!mig.rattigheter.skriva} />}
+            ? <AttGoraVy rader={attGora} blinkar={blinkar} onAndra={andraAttGora} onNy={nyAttGora} onTaBort={taBortAttGora} onFlytta={(ids) => void flyttaAttGora(ids)} lasläge={!ratt.skriva} />
+            : anteckningar && <AnteckningarVy key={`${projektId}-pop`} anteckningar={anteckningar} onSpara={sparaAnteckningar} lasläge={!ratt.skriva} />}
         </FlytandeFonster>
       )}
       {infoId && (

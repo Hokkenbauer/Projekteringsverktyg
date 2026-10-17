@@ -17,11 +17,11 @@ export function AdminVy({ mig, visaMeddelande }: { mig: Mig; visaMeddelande: (t:
   };
   useEffect(() => { void hamta(); }, []);
 
-  const bytRoll = async (a: AnvandarInfo, roll: Roll) => {
+  const andra = async (a: AnvandarInfo, val: { roll?: Roll; farSkapaProjekt?: boolean; farAndraMallar?: boolean }, text: string) => {
     try {
-      const ny = await api<AnvandarInfo>(`/api/anvandare/${encodeURIComponent(a.id)}/roll`, { method: "PUT", body: skicka({ roll }) });
+      const ny = await api<AnvandarInfo>(`/api/anvandare/${encodeURIComponent(a.id)}/roll`, { method: "PUT", body: skicka(val) });
       setAnvandare((l) => l?.map((x) => (x.id === ny.id ? ny : x)) ?? null);
-      visaMeddelande(`${a.namn} är nu ${ROLLER.find((r) => r.id === roll)?.namn}.`);
+      visaMeddelande(text);
     } catch (e) { visaMeddelande((e as Error).message); }
   };
 
@@ -61,23 +61,40 @@ export function AdminVy({ mig, visaMeddelande }: { mig: Mig; visaMeddelande: (t:
       <h1>Användare och arbetsmetod</h1>
 
       <section className="panel">
-        <h2>Användare och roller</h2>
+        <h2>Deltagare i Projekteringsverktyget</h2>
         <p className="dampad" style={{ marginTop: 0 }}>
-          Alla som loggat in någon gång. Nya användare blir Tekniker. Externa personer bjuds först in som gäster i
-          Microsoft 365 (Entra), och dyker upp här när de loggat in.
+          Alla som loggat in någon gång, och deras roll i <b>hela verktyget</b>. Vad någon får göra i ett visst projekt
+          (Projektledare, Tekniker eller Läsare) väljs under Medlemmar i projektet.
+          HECO-användare ser alla projekt och kan skapa projekt. Externa deltagare (inbjudna eller gäster från andra företag) ser bara
+          projekt där de är medlemmar. Inbjudningar från ett projekt kan aldrig göra någon till Admin.
         </p>
         {anvandare === null ? <p className="dampad">Hämtar…</p> : (
           <table className="enkel">
-            <thead><tr><th>Namn</th><th>E-post</th><th>Roll</th><th>Senast inloggad</th></tr></thead>
+            <thead><tr><th>Namn</th><th>E-post</th><th>Roll i verktyget</th><th title="Gäller externa; HECO-användare och Admin får alltid">Får skapa projekt</th><th>Får ändra mallar och kataloger</th><th>Senast inloggad</th></tr></thead>
             <tbody>
               {anvandare.map((a) => (
                 <tr key={a.id}>
                   <td>{a.namn}{a.id === mig.id && <span className="dampad"> (du)</span>}</td>
                   <td className="mono">{a.epost}</td>
                   <td>
-                    <select aria-label={`Roll för ${a.namn}`} value={a.roll} onChange={(e) => bytRoll(a, e.target.value as Roll)}>
+                    <select aria-label={`Roll för ${a.namn}`} value={a.roll} title={ROLLER.find((r) => r.id === a.roll)?.text}
+                      onChange={(e) => {
+                        const roll = e.target.value as Roll;
+                        if (roll === "Admin" && !window.confirm(`Göra ${a.namn} till Admin i hela verktyget? Admin ser och ändrar allt, även användare och mallar.`)) return;
+                        void andra(a, { roll }, `${a.namn} är nu ${ROLLER.find((r) => r.id === roll)?.namn}.`);
+                      }}>
                       {ROLLER.map((r) => <option key={r.id} value={r.id}>{r.namn}</option>)}
                     </select>
+                  </td>
+                  <td className="mitt">
+                    <input type="checkbox" aria-label={`${a.namn} får skapa projekt`} disabled={a.roll !== "Extern"}
+                      checked={a.roll !== "Extern" || a.farSkapaProjekt}
+                      onChange={(e) => void andra(a, { farSkapaProjekt: e.target.checked }, `${a.namn} ${e.target.checked ? "får nu" : "får inte längre"} skapa egna projekt.`)} />
+                  </td>
+                  <td className="mitt">
+                    <input type="checkbox" aria-label={`${a.namn} får ändra mallar och kataloger`} disabled={a.roll === "Admin"}
+                      checked={a.roll === "Admin" || a.farAndraMallar}
+                      onChange={(e) => void andra(a, { farAndraMallar: e.target.checked }, `${a.namn} ${e.target.checked ? "får nu" : "får inte längre"} ändra mallar och kataloger.`)} />
                   </td>
                   <td className="dampad">{new Date(a.senastInloggad).toLocaleString("sv-SE", { dateStyle: "short", timeStyle: "short" })}</td>
                 </tr>

@@ -18,7 +18,7 @@ public sealed record RitbordInstallningSpara(string Data);
 
 /// <summary>
 /// Ritbordet: flera bilder (SCADA-bakgrunder/flödesbilder) per projekt, som sparas automatiskt.
-/// Kundstandarder, symboler och mallar är gemensamma för alla och ändras av Admin, Projektledare och System.
+/// Kundstandarder, symboler och mallar är gemensamma för alla och ändras av Admin och de som får ändra mallar.
 /// </summary>
 public static class RitbordEndpoints
 {
@@ -37,8 +37,8 @@ public static class RitbordEndpoints
 
         app.MapPut("/api/ritbord/installningar", async (RitbordInstallningSpara spara, ClaimsPrincipal user, PvDbContext db, Behorighet beh) =>
         {
-            if (!await beh.HarRoll(user, Roller.Admin, Roller.Projektledare, Roller.System))
-                return Results.Problem(statusCode: 403, title: "Bara Admin, Projektledare och System kan ändra Ritbordets gemensamma inställningar.");
+            if (!await beh.KanAndraMallar(user))
+                return Results.Problem(statusCode: 403, title: "Bara Admin och de som får ändra mallar kan ändra Ritbordets gemensamma inställningar.");
             if (string.IsNullOrWhiteSpace(spara.Data) || spara.Data.Length > MaxLangd)
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["data"] = ["Inställningarna är tomma eller för stora."] });
             var av = Anvandare.Fran(user);

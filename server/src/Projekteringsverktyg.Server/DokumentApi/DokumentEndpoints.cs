@@ -29,12 +29,12 @@ public static class DokumentEndpoints
         ["dokumenthuvud"] = "dokumentuppgifterna",
     };
 
-    /// <summary>Känsliga typer (användarnamn och lösenord) som bara Admin, Projektledare och System ser.</summary>
+    /// <summary>Känsliga typer (användarnamn och lösenord) som bara projektets projektledare och Admin ser.</summary>
     public static readonly HashSet<string> Kansliga = ["anslutning"];
 
-    private static async Task<IResult?> KollaKanslig(string typ, ClaimsPrincipal user, Behorighet beh) =>
-        Kansliga.Contains(typ) && !await beh.HarRoll(user, Roller.Admin, Roller.Projektledare, Roller.System)
-            ? Results.Problem(statusCode: 403, title: "Bara Admin, Projektledare och System ser anslutningsinformationen.")
+    private static async Task<IResult?> KollaKanslig(string typ, Guid projektId, ClaimsPrincipal user, Behorighet beh) =>
+        Kansliga.Contains(typ) && !await beh.KanLedaProjekt(user, projektId)
+            ? Results.Problem(statusCode: 403, title: "Bara projektets projektledare och Admin ser anslutningsinformationen.")
             : null;
 
     public const int MaxLangd = 10_000_000;
@@ -47,7 +47,7 @@ public static class DokumentEndpoints
 
         g.MapGet("/", async (Guid projektId, string typ, ClaimsPrincipal user, PvDbContext db, Behorighet beh) =>
         {
-            if (await KollaKanslig(typ, user, beh) is { } nej) return nej;
+            if (await KollaKanslig(typ, projektId, user, beh) is { } nej) return nej;
             return Results.Ok((await db.Dokument.AsNoTracking().Where(d => d.ProjektId == projektId && d.Typ == typ)
                 .OrderBy(d => d.Ordning).ThenBy(d => d.Skapad).ToListAsync()).Select(Dto));
         });
@@ -55,7 +55,7 @@ public static class DokumentEndpoints
         g.MapPost("/", async (Guid projektId, NyttDokument ny, ClaimsPrincipal user, PvDbContext db, IHubContext<ProjektHub> hub, Behorighet beh) =>
         {
             if (!Typer.TryGetValue(ny.Typ ?? "", out var vad)) return Fel("Okänd dokumenttyp.");
-            if (await KollaKanslig(ny.Typ!, user, beh) is { } nej) return nej;
+            if (await KollaKanslig(ny.Typ!, projektId, user, beh) is { } nej) return nej;
             if (!await db.Projekt.AnyAsync(p => p.Id == projektId)) return Results.NotFound();
             var data = ny.Data ?? "";
             if (data.Length > MaxLangd) return Fel("Dokumentet är för stort.");
@@ -78,7 +78,7 @@ public static class DokumentEndpoints
         {
             var d = await db.Dokument.FirstOrDefaultAsync(x => x.Id == id && x.ProjektId == projektId);
             if (d is null) return Results.NotFound();
-            if (await KollaKanslig(d.Typ, user, beh) is { } nej) return nej;
+            if (await KollaKanslig(d.Typ, projektId, user, beh) is { } nej) return nej;
             if (d.Version != spara.Version) return Results.Conflict(new { meddelande = "Dokumentet har ändrats av någon annan." });
             if (spara.Data is { Length: > MaxLangd }) return Fel("Dokumentet är för stort.");
             var av = Anvandare.Fran(user);
@@ -112,7 +112,7 @@ public static class DokumentEndpoints
         {
             var d = await db.Dokument.FirstOrDefaultAsync(x => x.Id == id && x.ProjektId == projektId);
             if (d is null) return Results.NotFound();
-            if (await KollaKanslig(d.Typ, user, beh) is { } nej) return nej;
+            if (await KollaKanslig(d.Typ, projektId, user, beh) is { } nej) return nej;
             var av = Anvandare.Fran(user);
             db.Dokument.Remove(d);
             Andringslogg.Logga(db, projektId, av, "Dokument", d.Id, $"tog bort {Typer.GetValueOrDefault(d.Typ, "dokumentet")} {d.Namn}");

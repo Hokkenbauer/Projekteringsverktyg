@@ -18,7 +18,7 @@ public static class ImportEndpoints
     {
         app.MapPost("/api/projekt/import", async (HttpRequest request, ClaimsPrincipal user, Behorighet beh, PvDbContext db, CancellationToken ct) =>
         {
-            if (!await beh.HarRoll(user, Roller.Admin, Roller.Projektledare))
+            if (!await beh.KanSkapaProjekt(user))
                 return Results.Problem(statusCode: 403, title: "Bara Admin och Projektledare kan skapa projekt.");
             if (!request.HasFormContentType) return Fel("Skicka filen som formulär.");
             var form = await request.ReadFormAsync(ct);
@@ -49,7 +49,7 @@ public static class ImportEndpoints
             var medlemId = (await beh.AktuellAsync(user)).Id;
             await using var tx = await db.Database.BeginTransactionAsync(ct);
             db.Projekt.Add(r.Projekt);
-            db.Medlemmar.Add(new ProjektMedlem { ProjektId = r.Projekt.Id, AnvandarId = medlemId, TillagdAv = av.Namn });
+            db.Medlemmar.Add(new ProjektMedlem { Roll = Roller.Projektledare, ProjektId = r.Projekt.Id, AnvandarId = medlemId, TillagdAv = av.Namn });
             await db.SaveChangesAsync(ct);
 
             db.Komponenter.AddRange(r.Komponenter);

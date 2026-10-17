@@ -13,7 +13,7 @@ public sealed record SupportFilAndra(string? Namn, string? Kategori);
 
 /// <summary>
 /// HTML-verktyg och supportbiblioteket (PDF-manualer). Gemensamma för alla; alla inloggade kan använda dem,
-/// Admin, Projektledare och System kan ladda upp och ta bort.
+/// Admin och de som får ändra mallar kan ladda upp och ta bort.
 /// </summary>
 public static class VerktygEndpoints
 {
@@ -21,9 +21,9 @@ public static class VerktygEndpoints
     public const long MaxSupport = 300L * 1024 * 1024;
 
     private static async Task<IResult?> FarAndra(ClaimsPrincipal user, Behorighet beh) =>
-        await beh.HarRoll(user, Roller.Admin, Roller.Projektledare, Roller.System)
+        await beh.KanAndraMallar(user)
             ? null
-            : Results.Problem(statusCode: 403, title: "Bara Admin, Projektledare och System kan ladda upp och ta bort.");
+            : Results.Problem(statusCode: 403, title: "Bara Admin och de som får ändra mallar kan ladda upp och ta bort.");
 
     private static IResult Fel(string text) => Results.ValidationProblem(new Dictionary<string, string[]> { ["fil"] = [text] });
 

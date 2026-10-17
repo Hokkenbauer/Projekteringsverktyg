@@ -13,20 +13,27 @@ export type Rattigheter = {
   skriva: boolean;
 };
 
-export type Roll = "Admin" | "Projektledare" | "System" | "Tekniker" | "Lasare";
-export const ROLLER: { id: Roll; namn: string }[] = [
-  { id: "Admin", namn: "Admin" },
-  { id: "Projektledare", namn: "Projektledare" },
-  { id: "System", namn: "System" },
-  { id: "Tekniker", namn: "Tekniker" },
-  { id: "Lasare", namn: "Läsare" },
+/** Verktygsroll: deltagare i Projekteringsverktyget. */
+export type Roll = "Admin" | "Intern" | "Extern";
+export const ROLLER: { id: Roll; namn: string; text: string }[] = [
+  { id: "Admin", namn: "Admin", text: "Allt, även användare, kataloger och mallar" },
+  { id: "Intern", namn: "HECO-användare", text: "Ser alla projekt, kan skapa projekt" },
+  { id: "Extern", namn: "Extern deltagare", text: "Ser bara projekt där hen är medlem" },
 ];
-export const rollNamn = (r: string) => ROLLER.find((x) => x.id === r)?.namn ?? r;
+export const rollNamn = (r: string) => ROLLER.find((x) => x.id === r)?.namn ?? PROJEKTROLLER.find((x) => x.id === r)?.namn ?? r;
+
+/** Projektroll: gäller bara i ett projekt. */
+export type ProjektRoll = "Projektledare" | "Tekniker" | "Lasare";
+export const PROJEKTROLLER: { id: ProjektRoll; namn: string; text: string }[] = [
+  { id: "Projektledare", namn: "Projektledare", text: "Ändrar allt i projektet, hanterar medlemmar" },
+  { id: "Tekniker", namn: "Tekniker", text: "Ändrar i projektet" },
+  { id: "Lasare", namn: "Läsare", text: "Ser men ändrar inte" },
+];
 
 export type Mig = { id: string; namn: string; tema: TemaNamn; roll: Roll; rattigheter: Rattigheter };
 
-export type AnvandarInfo = { id: string; namn: string; epost: string; roll: Roll; senastInloggad: string };
-export type Medlem = { anvandarId: string; namn: string; epost: string; roll: Roll; tillagd: string; tillagdAv: string };
+export type AnvandarInfo = { id: string; namn: string; epost: string; roll: Roll; senastInloggad: string; farSkapaProjekt: boolean; farAndraMallar: boolean };
+export type Medlem = { anvandarId: string; namn: string; epost: string; roll: ProjektRoll; verktygsRoll: Roll; tillagd: string; tillagdAv: string };
 
 export type StatusRubrik = { id: string; namn: string; ordning: number };
 export type StatusUppgift = {

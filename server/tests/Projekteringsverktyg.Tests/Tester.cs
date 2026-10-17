@@ -100,19 +100,54 @@ public class RollTester
 {
     [Theory]
     [InlineData("Admin", true)]
-    [InlineData("Projektledare", true)]
-    [InlineData("System", true)]
-    [InlineData("Tekniker", false)]
-    [InlineData("Lasare", false)]
-    public void Ser_alla_projekt_efter_roll(string roll, bool forvantat) =>
+    [InlineData("Intern", true)]
+    [InlineData("Extern", false)]
+    public void Ser_alla_projekt_efter_verktygsroll(string roll, bool forvantat) =>
         Assert.Equal(forvantat, Projekteringsverktyg.Server.Data.Roller.SerAllaProjekt(roll));
 
     [Fact]
-    public void Lasare_far_inte_skriva()
+    public void Lasare_i_projektet_far_inte_skriva()
     {
-        var json = System.Text.Json.JsonSerializer.Serialize(Projekteringsverktyg.Server.Auth.Behorighet.Rattigheter("Lasare"));
+        var json = System.Text.Json.JsonSerializer.Serialize(Projekteringsverktyg.Server.Auth.Behorighet.ProjektRattigheter("Lasare"));
         Assert.Contains("\"skriva\":false", json);
-        Assert.Contains("\"hanteraAnvandare\":false", json);
+        Assert.Contains("\"hanteraMedlemmar\":false", json);
+        var pl = System.Text.Json.JsonSerializer.Serialize(Projekteringsverktyg.Server.Auth.Behorighet.ProjektRattigheter("Projektledare"));
+        Assert.Contains("\"hanteraMedlemmar\":true", pl);
+    }
+
+    [Fact]
+    public void Extern_far_bara_skapa_projekt_och_andra_mallar_om_admin_tillater()
+    {
+        var extern_ = new AnvandarPost { Roll = Roller.Extern };
+        Assert.False(Projekteringsverktyg.Server.Auth.Behorighet.FarSkapaProjekt(extern_));
+        Assert.False(Projekteringsverktyg.Server.Auth.Behorighet.FarAndraMallar(extern_));
+        extern_.FarSkapaProjekt = true;
+        Assert.True(Projekteringsverktyg.Server.Auth.Behorighet.FarSkapaProjekt(extern_));
+        Assert.True(Projekteringsverktyg.Server.Auth.Behorighet.FarSkapaProjekt(new AnvandarPost { Roll = Roller.Intern }));
+        Assert.False(Projekteringsverktyg.Server.Auth.Behorighet.FarAndraMallar(new AnvandarPost { Roll = Roller.Intern }));
+    }
+
+    [Fact]
+    public async Task Projektroll_galler_bara_i_sitt_projekt()
+    {
+        using var db = new PvDbContext(new DbContextOptionsBuilder<PvDbContext>().UseInMemoryDatabase("pv-" + Guid.NewGuid()).Options);
+        var a = new Projekt { Namn = "A" }; var b = new Projekt { Namn = "B" };
+        db.Projekt.AddRange(a, b);
+        db.Anvandare.Add(new AnvandarPost { Id = "ext", Namn = "Extern", Roll = Roller.Extern });
+        db.Anvandare.Add(new AnvandarPost { Id = "int", Namn = "Intern", Roll = Roller.Intern });
+        db.Medlemmar.Add(new ProjektMedlem { ProjektId = a.Id, AnvandarId = "ext", Roll = Roller.Projektledare });
+        await db.SaveChangesAsync();
+        var ext = new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity([new System.Security.Claims.Claim("oid", "ext"), new System.Security.Claims.Claim("name", "Extern")], "t"));
+        var intern = new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity([new System.Security.Claims.Claim("oid", "int"), new System.Security.Claims.Claim("name", "Intern")], "t"));
+
+        var beh = new Projekteringsverktyg.Server.Auth.Behorighet(db);
+        Assert.True(await beh.KanLedaProjekt(ext, a.Id));
+        Assert.False(await beh.KanLasa(ext, b.Id));
+        Assert.False(await beh.ArAdmin(ext));
+
+        var beh2 = new Projekteringsverktyg.Server.Auth.Behorighet(db);
+        Assert.True(await beh2.KanLasa(intern, b.Id));
+        Assert.False(await beh2.KanSkriva(intern, b.Id));
     }
 }
 
@@ -833,7 +868,7 @@ public class InbjudanTester
     }
 
     [Fact]
-    public async Task Inbjudan_ger_roll_och_projekt_vid_forsta_inloggningen()
+    public async Task Inbjudan_ger_projektroll_men_aldrig_verktygsroll()
     {
         using var db = NyDb();
         var p = new Projekt { Namn = "Husby" };
@@ -841,15 +876,16 @@ public class InbjudanTester
         db.Inbjudningar.Add(new Inbjudan { Epost = "anna@foretaget.se", Roll = Roller.Lasare, ProjektIds = p.Id.ToString(), SkapadAv = "Håkan" });
         await db.SaveChangesAsync();
 
-        var post = new AnvandarPost { Id = "oid-1", Namn = "Anna", Roll = Roller.Tekniker };
+        var post = new AnvandarPost { Id = "oid-1", Namn = "Anna", Roll = Roller.Extern };
         db.Anvandare.Add(post);
-        Assert.True(await Projekteringsverktyg.Server.AnvandarApi.Inbjudningar.TillampaAsync(db, post, new HashSet<string> { "anna@foretaget.se" }, nyAnvandare: true));
+        Assert.True(await Projekteringsverktyg.Server.AnvandarApi.Inbjudningar.TillampaAsync(db, post, new HashSet<string> { "anna@foretaget.se" }));
         await db.SaveChangesAsync();
 
-        Assert.Equal(Roller.Lasare, post.Roll);
-        Assert.True(await db.Medlemmar.AnyAsync(m => m.ProjektId == p.Id && m.AnvandarId == "oid-1"));
+        // Verktygsrollen ändras aldrig av en inbjudan; projektrollen gäller i projektet.
+        Assert.Equal(Roller.Extern, post.Roll);
+        Assert.Equal(Roller.Lasare, (await db.Medlemmar.SingleAsync(m => m.ProjektId == p.Id && m.AnvandarId == "oid-1")).Roll);
         Assert.Equal("Accepterad", (await db.Inbjudningar.SingleAsync()).Status);
         // Andra gången händer inget.
-        Assert.False(await Projekteringsverktyg.Server.AnvandarApi.Inbjudningar.TillampaAsync(db, post, new HashSet<string> { "anna@foretaget.se" }, nyAnvandare: false));
+        Assert.False(await Projekteringsverktyg.Server.AnvandarApi.Inbjudningar.TillampaAsync(db, post, new HashSet<string> { "anna@foretaget.se" }));
     }
 }
