@@ -2,7 +2,13 @@
 
 Här finns HECO:s egna driftkort från tidigare projekt (PDF, vektor) och verktygen som Claude använder för att ta fram nya flödesbilder (IO-bilder) till Ritbordet i Projekteringsverktyget.
 
-**Regel:** nya flödesbilder utgår alltid från den historiska bild som liknar systemet mest. Linjer, symboler, texter och I/O-streck tas exakt som de är. Bara beteckningar byts, och det som skiljer tas bort eller läggs till med kopior av samma symboler. Topologin (vilka aggregat, tankar, växlare och grenar som finns) hämtas ur projektets VS- och VE-underlag. Mer i Claude-skillen **heco-io-bilder** och i projektdokumentet *02 Beslut och regler*.
+**Metod (gäller från 2026-10-18):**
+1. Flödesbilden byggs på en mall ur Ritbordets bibliotek (*Ritbord › Bibliotek › Mallar*, Ritmall 1.1: Stena, N&N, CMC, Arboga, Futurum, Örebroporten). Välj den mall vars rör, kanaler, växlare och rum liknar systemet mest. Mallens egna symboler (ventiler, givare) tas bort.
+2. Komponenterna ritas med symboler ur *Ritbord › Bibliotek › Symboler* och får Karlsängskolans/projektets beteckningar.
+3. I/O-strecken dras som i HECO:s historiska driftkort (PDF:erna nedan): kort vågrät bit vid symbolen (givare åt höger, ventilställdon åt vänster), sedan **rakt ner** till AS-linjen och raden. Pumpar och mätare går rakt ner från symbolen. Ett streck per signal, cirka 3 px mellan parallella streck, aldrig två streck på samma x och aldrig fram och tillbaka. Placera symbolerna så att lägre symboler inte hamnar i ett streck från en högre.
+4. Topologin hämtas ur projektets VS/VE-underlag.
+
+De historiska PDF:erna används som facit för *hur* I/O-strecken dras och vad som visas (prefab-aggregat med Internstyr, DK1 Generella, VAV-blad).
 
 ## Mallar
 
@@ -30,6 +36,9 @@ Kräver Python 3 med `pymupdf` (och `cairosvg` för granskningsbilder).
 - `rutnat.py` – renderar en PDF med pt-rutnät, för att hitta koordinater.
 - `symbbox.py` – hittar en symbols yttermått i en PDF.
 - `granska.py` – renderar Ritbord-data till PNG för kontroll.
-- `exempel_karlsangskolan.py` – alla 38 bilder för Karlsängskolan (2025033) som mönster: DK1 Generella, värmepumpar med ackumulator, FJV/VS/VV, kyla, shuntgrupper, FLV/FLK, frånluftsfläktar, LB01–LB03 och VAV-blad.
+- `mallverk.py` – läser en mall ur Ritmall 1.1, tar bort delar (`bort`, `bort_text`), byter text, beskär och visar mallen med rutnät i mallens koordinater (för att placera symboler).
+- `rit3.py` – bygger driftkortsbilden: mall, symboler ur symbolbiblioteket (`symboler.json`), texter, ramar, larmrutor och automatisk I/O-dragning enligt reglerna ovan.
+- `exempel_karlsangskolan_mallar.py` – **gällande exempel**: Karlsängskolans 29 bilder på biblioteksmallar.
+- `exempel_karlsangskolan.py` – äldre försök (urklipp ur historiska PDF:er), behålls som referens. Tidigare bilder: DK1 Generella, värmepumpar med ackumulator, FJV/VS/VV, kyla, shuntgrupper, FLV/FLK, frånluftsfläktar, LB01–LB03 och VAV-blad.
 
 Bilderna levereras i projektfilen (`projekt.json`, `ritbord[]`) och läses in som nytt projekt eller med *Komplettera från fil*.
