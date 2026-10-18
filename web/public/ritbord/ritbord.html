@@ -982,6 +982,10 @@ function hitTest(p){
     for (let j = kids.length - 1; j >= 0; j--){
       const n = kids[j];
       if (!pickable(n)) continue;
+      if (arIoStreck(n)){
+        if (ioTraff(n, p, tol)) return n;
+        continue;
+      }
       if (plainLine(n)){
         const t = T(n);
         const a = { x:+n.getAttribute('x1')+t.tx, y:+n.getAttribute('y1')+t.ty };
@@ -1144,6 +1148,7 @@ function drawHandles(){
     if (b) overlay.appendChild(mk('rect', { x:b.x-2, y:b.y-2, width:b.w+4, height:b.h+4, class:'subbox' }));
   }
   const r = 7 * uPerPx(), one = only();
+  if (one && arIoStreck(one)){ ioHandtag(one, r); return; }
   if (one && plainLine(one)){
     // bakning får bara ske när inget drag pågår, annars räknas flytten två gånger
     if (!dragMode) bakeMove(one);
@@ -1275,6 +1280,7 @@ board.addEventListener('pointerdown', e => {
     dragStart.a0 = Math.atan2(p.y - dragStart.c.y, p.x - dragStart.c.x);
     return;
   }
+  if (e.target.classList.contains('io') && only() && arIoStreck(only())){ ioRedStart(only(), e.target); return; }
   if (e.target.classList.contains('handle')){
     push();
     dragMode = e.target.dataset.ep !== undefined ? 'endpoint' : 'resize';
@@ -1359,6 +1365,7 @@ board.addEventListener('pointermove', e => {
     return;
   }
   if (ioDraft){ ioMove(x, y, e.shiftKey); return; }
+  if (dragMode === 'ioedit'){ ioRedFlytta(x, y, e.shiftKey); return; }
   if (dragMode === 'draw' && draft){
     const dx = x - dragStart.x, dy = y - dragStart.y;
     if (draft.tagName === 'line'){
@@ -1442,6 +1449,7 @@ board.addEventListener('pointerup', e => {
     draft = null;
   }
   if (ioDraft){ const q = pt(e); ioSlapp(snap(q.x), snap(q.y), e.shiftKey); if (ioDraft){ $('rdLen').textContent = ''; drawHandles(); return; } }
+  if (dragMode === 'ioedit') ioRedSlapp();
   if (dragMode === 'endpoint' && only()) rebase(only());
   if (dragMode === 'submove' && selection[0]) rebase(selection[0]);
   if (dragMode === 'rotate') $('rdLen').textContent = '';
@@ -1476,6 +1484,8 @@ function loadTextPanel(t){
   if (fl && fl.startsWith('#')) $('strokeCol').value = fl;
 }
 board.addEventListener('dblclick', e => {
+  const one = only();
+  if (one && arIoStreck(one) && ioDubbelklick(one, pt(e))) return;
   const hit = hitTest(pt(e));
   if (!hit) return;
   const t = textUnder(hit, e);
@@ -1801,7 +1811,7 @@ function setTool(t){
   document.querySelectorAll('.tool').forEach(b => b.setAttribute('aria-pressed', b.dataset.tool === t));
   board.classList.toggle('selecting', t === 'select');
   if (t !== 'io' && ioDraft) ioAvbryt();
-  if (t === 'io') setMsg('I/O-streck: dra ner till raden, eller klicka för knäckar och klicka till sist nere vid raderna. Shift = fri vinkel.');
+  if (t === 'io') setMsg('I/O-streck: dra ner till raden, eller klicka för knäckar och klicka till sist nere vid raderna. Shift = fri vinkel. Ändra ett befintligt streck: markera det med pilen och dra i handtagen.');
   if (t !== 'select') select([]);
   updatePanels();
 }
@@ -3028,6 +3038,203 @@ function ioBakat(){
   if (d.pkt.length > 1){ d.pkt.pop(); const s = d.pkt[d.pkt.length - 1]; ioVisa(s.x, s.y, true); }
   else ioAvbryt();
   return true;
+}
+
+/* ---- Revidera ett befintligt I/O-streck ----
+   Markera strecket så visas handtag:
+   - runda på knäckarna och början: dra för att flytta (grannbitarna följer med så att allt förblir vinkelrätt)
+   - fyrkant i änden vid raden: dra upp/ner till en annan rad eller i sidled längs raden
+   - små romber mitt på varje bit: dra hela biten i sidled (lodrät bit) eller upp/ner (vågrät bit)
+   Dubbelklicka på en knäck för att ta bort den, dubbelklicka på en bit för att lägga till en knäck.
+   Punkterna (vid raden och där strecket korsar AS-linjen) ritas om automatiskt. */
+const arIoStreck = n => !!n && n.tagName === 'g' && !!n.querySelector('polyline') &&
+  (n.parentNode && n.parentNode.dataset && n.parentNode.dataset.io === 'streck');
+function ioPunkter(g){
+  const ln = g.querySelector('polyline');
+  return (ln.getAttribute('points') || '').trim().split(/\s+/).map(q => { const [x, y] = q.split(',').map(Number); return { x, y }; })
+    .filter(q => isFinite(q.x) && isFinite(q.y));
+}
+/** Flytt, skalning m.m. bakas in i punkterna så att handtagen och punkterna hamnar rätt. */
+function ioBaka(g){
+  const t = T(g);
+  if (!t.tx && !t.ty && t.sx === 1 && t.sy === 1 && !g.dataset.bm) return;
+  const m = itemMatrix(g);
+  const pkt = ioPunkter(g).map(q => { const r = new DOMPoint(q.x, q.y).matrixTransform(m); return { x: r.x, y: r.y }; });
+  delete g.dataset.bm; g.dataset.tx = 0; g.dataset.ty = 0; g.dataset.sx = 1; g.dataset.sy = 1;
+  g.removeAttribute('transform');
+  ioRita(g, pkt);
+}
+function ioRadFor(y){ return DK.rader.reduce((b, r) => Math.abs(r[1] * PT - y) < Math.abs(b[1] * PT - y) ? r : b); }
+/** Städar punkterna: inga dubbletter, inga mellanpunkter på en rak sträcka. */
+function ioStada(pkt){
+  const ut = [];
+  pkt.forEach(q => { const s = ut[ut.length - 1]; if (!s || Math.hypot(q.x - s.x, q.y - s.y) > 0.3) ut.push({ x: q.x, y: q.y }); });
+  for (let i = ut.length - 2; i >= 1; i--){
+    const a = ut[i - 1], b = ut[i], c = ut[i + 1];
+    if ((Math.abs(a.x - b.x) < 0.3 && Math.abs(b.x - c.x) < 0.3) || (Math.abs(a.y - b.y) < 0.3 && Math.abs(b.y - c.y) < 0.3)) ut.splice(i, 1);
+  }
+  return ut;
+}
+/** Ritar om strecket från punkterna: sista punkten fästs på närmaste rad, punkter vid raden och AS-linjen. */
+function ioRita(g, pkt){
+  pkt = ioStada(pkt);
+  if (pkt.length < 2) return;
+  const rad = ioRadFor(pkt[pkt.length - 1].y);
+  const yR = rad[1] * PT;
+  pkt[pkt.length - 1].y = yR;
+  // Sista biten ska vara lodrät ner till raden.
+  const fore = pkt[pkt.length - 2];
+  if (Math.abs(fore.x - pkt[pkt.length - 1].x) > 0.3 && Math.abs(fore.y - yR) > 0.3) pkt.splice(pkt.length - 1, 0, { x: pkt[pkt.length - 1].x, y: fore.y });
+  pkt = ioStada(pkt);
+  g.querySelector('polyline').setAttribute('points', pkt.map(q => `${+q.x.toFixed(2)},${+q.y.toFixed(2)}`).join(' '));
+  g.querySelectorAll('circle').forEach(c => c.remove());
+  const punkt = (cx, cy) => mk('circle', { cx, cy, r: 1.56 * PT, fill: '#000000', stroke: 'none' });
+  const sista = pkt[pkt.length - 1];
+  g.appendChild(punkt(sista.x, yR));
+  const yAs = DK.as.y * PT;
+  for (let i = 1; i < pkt.length; i++){
+    const a = pkt[i - 1], b = pkt[i];
+    if ((a.y - yAs) * (b.y - yAs) < 0) g.appendChild(punkt(a.x + (b.x - a.x) * (yAs - a.y) / (b.y - a.y), yAs));
+  }
+  g.dataset.name = 'I/O ' + rad[0];
+  g.dataset.rad = rad[0];
+  rebase(g);
+  return rad;
+}
+let ioRedigering = null;   // { g, typ:'v'|'s'|'e', i, pkt0 }
+function ioHandtag(g, r){
+  if (!dragMode) ioBaka(g);
+  const pkt = ioPunkter(g), n = pkt.length;
+  overlay.appendChild(mk('polyline', { points: pkt.map(q => `${q.x},${q.y}`).join(' '), class: 'selbox', fill: 'none' }));
+  for (let i = 0; i < n - 1; i++){
+    const a = pkt[i], b = pkt[i + 1];
+    const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2, k = r * 0.8;
+    const h = mk('path', { d: `M${mx} ${my - k} L${mx + k} ${my} L${mx} ${my + k} L${mx - k} ${my} Z`, class: 'handle io' });
+    h.dataset.ios = i;
+    h.style.cursor = Math.abs(a.x - b.x) < 0.3 ? 'ew-resize' : 'ns-resize';
+    overlay.appendChild(h);
+  }
+  pkt.forEach((q, i) => {
+    if (i === n - 1){
+      const h = mk('rect', { x: q.x - r, y: q.y - r, width: r * 2, height: r * 2, class: 'handle io' });
+      h.dataset.ioe = i; h.style.cursor = 'move'; overlay.appendChild(h);
+    } else {
+      const h = mk('circle', { cx: q.x, cy: q.y, r, class: 'handle io' });
+      h.dataset.iov = i; h.style.cursor = 'move'; overlay.appendChild(h);
+    }
+  });
+}
+let ioSenastTryck = null;   // handtagen ritas om vid varje släpp, så dubbelklick på ett handtag känns av här
+function ioRedStart(g, el){
+  const nyckel = (el.dataset.iov ?? '') + '/' + (el.dataset.ios ?? '') + '/' + (el.dataset.ioe ?? '');
+  const nu = performance.now();
+  if (ioSenastTryck && ioSenastTryck.nyckel === nyckel && ioSenastTryck.g === g && nu - ioSenastTryck.t < 450){
+    ioSenastTryck = null;
+    const pkt = ioPunkter(g);
+    const q = el.dataset.iov !== undefined ? pkt[+el.dataset.iov]
+      : el.dataset.ios !== undefined ? { x: (pkt[+el.dataset.ios].x + pkt[+el.dataset.ios + 1].x) / 2, y: (pkt[+el.dataset.ios].y + pkt[+el.dataset.ios + 1].y) / 2 } : null;
+    if (q && ioDubbelklick(g, q)) return;
+  }
+  ioSenastTryck = { nyckel, g, t: nu };
+  push();
+  const pkt0 = ioPunkter(g);
+  if (el.dataset.ios !== undefined) ioRedigering = { g, typ: 's', i: +el.dataset.ios, pkt0 };
+  else if (el.dataset.ioe !== undefined) ioRedigering = { g, typ: 'e', i: pkt0.length - 1, pkt0 };
+  else ioRedigering = { g, typ: 'v', i: +el.dataset.iov, pkt0 };
+  dragMode = 'ioedit';
+}
+/** Flyttar punkt i till (x, y). Grannpunkterna följer med så att bitarna förblir vågräta/lodräta. */
+function ioFlyttaPunkt(pkt0, i, x, y, fri){
+  const pkt = pkt0.map(q => ({ ...q }));
+  const gammal = pkt0[i];
+  pkt[i] = { x, y };
+  if (fri) return pkt;
+  [i - 1, i + 1].forEach(j => {
+    if (j < 0 || j >= pkt.length) return;
+    const g0 = pkt0[j];
+    if (Math.abs(g0.y - gammal.y) < 0.3 && Math.abs(g0.x - gammal.x) >= 0.3) pkt[j] = { ...pkt[j], y };      // vågrät bit
+    else if (Math.abs(g0.x - gammal.x) < 0.3) pkt[j] = { ...pkt[j], x };                                    // lodrät bit
+  });
+  // Starten sitter vid objektet: flyttas den med av misstag läggs en knäck in i stället.
+  if (i !== 0 && (pkt[0].x !== pkt0[0].x || pkt[0].y !== pkt0[0].y)){
+    const p0 = pkt0[0], p1 = pkt[1];
+    pkt[0] = { ...p0 };
+    const lod = Math.abs(p0.x - pkt0[1].x) < 0.3;
+    pkt.splice(1, 0, lod ? { x: p0.x, y: p1.y } : { x: p1.x, y: p0.y });
+  }
+  return pkt;
+}
+function ioRedFlytta(x, y, fri){
+  const d = ioRedigering; if (!d) return;
+  let pkt = d.pkt0.map(q => ({ ...q }));
+  if (d.typ === 's'){
+    let i = d.i;
+    // En bit som börjar i strecket startpunkt får en ny knäck, så att starten ligger kvar vid objektet.
+    if (i === 0){ pkt.unshift({ ...pkt[0] }); i = 1; }
+    const a = pkt[i], b = pkt[i + 1];
+    if (Math.abs(a.x - b.x) < 0.3){ a.x = x; b.x = x; } else { a.y = y; b.y = y; }
+    // Sista biten ner till raden ska förbli lodrät och fäst på raden.
+    if (i + 1 === pkt.length - 1 && Math.abs(a.x - b.x) >= 0.3) pkt.push({ x: b.x, y: d.pkt0[d.pkt0.length - 1].y });
+  } else if (d.typ === 'e'){
+    const rad = ioRadFor(y), yR = rad[1] * PT;
+    if (pkt.length === 2){
+      // Rakt streck: flyttas änden i sidled får strecket ett trappsteg halvvägs, starten ligger kvar.
+      const p0 = pkt[0];
+      if (Math.abs(x - p0.x) < 0.3) pkt = [p0, { x, y: yR }];
+      else { const ym = Math.round((p0.y + Math.min(yR, DK.as.y * PT - 6)) / 2); pkt = [p0, { x: p0.x, y: ym }, { x, y: ym }, { x, y: yR }]; }
+    } else pkt = ioFlyttaPunkt(pkt, pkt.length - 1, x, yR, false);
+    $('rdLen').textContent = 'I/O → ' + rad[0];
+  } else {
+    pkt = ioFlyttaPunkt(pkt, d.i, x, y, fri);
+  }
+  ioRita(d.g, pkt);
+  drawHandles();
+}
+function ioRedSlapp(){
+  const d = ioRedigering; ioRedigering = null;
+  if (!d) return;
+  const rad = ioRita(d.g, ioPunkter(d.g));
+  const sista = ioPunkter(d.g).slice(-1)[0];
+  if (rad && (sista.x < rad[2] * PT || sista.x > rad[3] * PT)) setMsg('Obs: strecket hamnar utanför raden ' + rad[0]);
+  else if (rad) setMsg('I/O-strecket ändrat (' + rad[0] + ')');
+}
+/** Dubbelklick: på en knäck tas den bort, på en bit läggs en knäck till mitt på biten. */
+function ioDubbelklick(g, p){
+  const pkt = ioPunkter(g);
+  const tol = 8 * uPerPx();
+  for (let i = 1; i < pkt.length - 1; i++){
+    if (Math.hypot(pkt[i].x - p.x, pkt[i].y - p.y) <= tol){
+      push();
+      // Ett trappsteg (två knäckar) tas bort och ersätts med ett enkelt hörn, så att strecket blir enklare.
+      const n = pkt.length;
+      let fran, till;
+      if (i + 1 < n - 1){ fran = i; till = i + 1; } else if (i - 1 > 0){ fran = i - 1; till = i; } else { fran = i; till = i; }
+      const a = pkt[fran - 1], c = pkt[till + 1];
+      pkt.splice(fran, till - fran + 1);
+      if (Math.abs(a.x - c.x) >= 0.3 && Math.abs(a.y - c.y) >= 0.3) pkt.splice(fran, 0, { x: c.x, y: a.y });
+      ioRita(g, pkt); drawHandles(); setMsg('Knäcken togs bort – strecket förenklades'); return true;
+    }
+  }
+  for (let i = 0; i < pkt.length - 1; i++){
+    if (distSeg(p, pkt[i], pkt[i + 1]) <= tol){
+      push();
+      const a = pkt[i], b = pkt[i + 1];
+      const lod = Math.abs(a.x - b.x) < 0.3;
+      const m = lod ? { x: a.x, y: p.y } : { x: p.x, y: a.y };
+      // Två punkter på samma ställe = ett trappsteg som kan dras ut med rombhandtaget.
+      pkt.splice(i + 1, 0, { ...m }, { ...m });
+      ioRita(g, pkt); drawHandles(); setMsg('Knäck tillagd – dra i romben för att flytta den nya biten');
+      return true;
+    }
+  }
+  return false;
+}
+/** Avstånd till själva strecket (för att träffa rätt streck i stället för hela rutan). */
+function ioTraff(g, p, tol){
+  const m = itemMatrix(g);
+  const pkt = ioPunkter(g).map(q => { const r = new DOMPoint(q.x, q.y).matrixTransform(m); return { x: r.x, y: r.y }; });
+  for (let i = 0; i < pkt.length - 1; i++) if (distSeg(p, pkt[i], pkt[i + 1]) <= tol) return true;
+  return false;
 }
 
 const basnamn = () => ($('baseName').value || 'bild').trim().replace(/[\\/:*?"<>|]+/g, '_');
