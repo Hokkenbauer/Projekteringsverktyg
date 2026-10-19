@@ -975,3 +975,19 @@ public class ProjektKompletteringTester
         Assert.Equal("Bravida", (await db.Projekt.SingleAsync(x => x.Id == p.Id)).Kund);   // tomt fält i projektet fylls i
     }
 }
+
+public class FunktionstextSamladTester
+{
+    [Fact]
+    public void Flera_texter_blir_en_Word_fil_med_sidbrytning_mellan()
+    {
+        var html = string.Join("<p><br data-w=\"page\"/></p>", ["<h1>VS01</h1><p>Text ett</p>", "<h1>LB01</h1><p>Text två</p>"]);
+        var fil = WordHtml.TillWord(html, null);
+        using var zip = new System.IO.Compression.ZipArchive(new MemoryStream(fil));
+        using var r = new StreamReader(zip.GetEntry("word/document.xml")!.Open());
+        var xml = r.ReadToEnd();
+        Assert.Contains("Text ett", xml);
+        Assert.Contains("Text två", xml);
+        Assert.Contains("w:type=\"page\"", xml);
+    }
+}

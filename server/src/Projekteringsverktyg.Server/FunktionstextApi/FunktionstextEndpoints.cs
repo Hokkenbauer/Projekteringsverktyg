@@ -95,6 +95,43 @@ public static partial class FunktionstextEndpoints
             return Results.File(word, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", FilEndpoints.RentNamn(d.Namn.EndsWith(".docx", StringComparison.OrdinalIgnoreCase) ? d.Namn : $"{d.Namn}.docx"));
         });
 
+        // Flera (eller alla) texter i en Word-fil, utan flödesbilder: varje text börjar på en ny sida.
+        // Första textens Word-original används som mall (stilar, spalter, sidfot), sidfoten fylls i som för driftkort.
+        // ids = kommaseparerade i önskad ordning; utan ids tas alla projektets texter.
+        g.MapGet("/word", async (Guid projektId, string? ids, PvDbContext db, IFilLagring lagring, CancellationToken ct) =>
+        {
+            var alla = await db.Dokument.AsNoTracking().Where(x => x.ProjektId == projektId && x.Typ == "funktionstext")
+                .OrderBy(x => x.Ordning).ThenBy(x => x.Skapad).ToListAsync(ct);
+            var valda = alla;
+            if (!string.IsNullOrWhiteSpace(ids))
+            {
+                var ordning = ids.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(x => Guid.TryParse(x.Trim(), out var g) ? g : Guid.Empty).ToList();
+                valda = ordning.Select(id => alla.FirstOrDefault(d => d.Id == id)).Where(d => d is not null).Select(d => d!).ToList();
+            }
+            if (valda.Count == 0) return Fel("Inga funktionstexter att skriva ut.");
+            var forsta = valda[0];
+            var (meta0, _) = WordHtml.Dela(forsta.Data);
+            byte[]? mall = null;
+            if (Guid.TryParse(meta0.Kalla, out var filId))
+            {
+                var fil = await db.Filer.AsNoTracking().FirstOrDefaultAsync(f => f.Id == filId && f.ProjektId == projektId, ct);
+                if (fil is not null)
+                {
+                    await using var st = await lagring.OppnaAsync(fil.BlobNamn, ct);
+                    if (st is not null) { using var m = new MemoryStream(); await st.CopyToAsync(m, ct); mall = m.ToArray(); }
+                }
+            }
+            var html = string.Join("<p><br data-w=\"page\"/></p>", valda.Select(d => WordHtml.Dela(d.Data).Html));
+            byte[] word;
+            try { word = WordHtml.TillWord(html, mall); }
+            catch (InvalidDataException e) { return Fel(e.Message); }
+            word = await DriftkortApi.DriftkortSidfot.TillampaAsync(db, projektId, word, ct);
+            var projekt = await db.Projekt.AsNoTracking().Where(p => p.Id == projektId).Select(p => new { p.Nummer, p.Namn }).FirstOrDefaultAsync(ct);
+            var namn = valda.Count == 1 ? forsta.Namn : $"Funktionstexter {projekt?.Nummer} {projekt?.Namn}".Trim();
+            return Results.File(word, "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                FilEndpoints.RentNamn(namn.EndsWith(".docx", StringComparison.OrdinalIgnoreCase) ? namn : $"{namn}.docx"));
+        });
+
         return app;
     }
 

@@ -5,6 +5,7 @@ import { arFormaterad, dela, harWordFormat, jamfor, sattIhop, textAv } from "../
 import { useKatalog } from "../../lib/katalog";
 import type { Komponent, Projekt, ProjektDokument } from "../../lib/typer";
 import { skrivUt } from "../../lib/utskrift";
+import { Dialog } from "../../shell/Dialog";
 import { RikEditor } from "./RikEditor";
 
 type Mall = { namn: string; text: string };
@@ -235,6 +236,22 @@ export function TextKatalogVy(p: Props) {
     if (!sparade?.length) return;
     skrivUt(p.rubrik, p.projekt, { typ: "html", html: sparade.map((d) => `<div class="ftnamn">${escH(d.namn)}</div>${dela(d.data).html}`).join("") });
   };
+  // Utskrift i Word utan flödesbilder: en text, några eller alla i en fil, i mallens Word-stil med projektets sidfot.
+  const [wordVal, setWordVal] = useState<Set<string> | null>(null);
+  const [wordArbetar, setWordArbetar] = useState(false);
+  const laddaNerWord = async (ids: string[]) => {
+    if (!ids.length) return;
+    setWordArbetar(true);
+    try {
+      await lamna();
+      const forsta = sparade?.find((d) => d.id === ids[0]);
+      const namn = ids.length === 1 && forsta ? (/\.docx$/i.test(forsta.namn) ? forsta.namn : `${forsta.namn}.docx`)
+        : `Funktionstexter ${[p.projekt?.nummer, p.projekt?.namn].filter(Boolean).join(" ")}.docx`;
+      await laddaNer(`/api/projekt/${p.projektId}/funktionstexter/word?ids=${ids.join(",")}`, namn);
+      setWordVal(null);
+    } catch (e) { p.visaMeddelande(`Word-filen kunde inte skapas: ${(e as Error).message}`); }
+    setWordArbetar(false);
+  };
   const skrivUtValt = () => {
     if (arFormaterad(text)) skrivUt(titel || p.rubrik, p.projekt, { typ: "html", html: dela(text).html });
     else skrivUt(titel || p.rubrik, p.projekt, { typ: "text", text });
@@ -323,7 +340,11 @@ export function TextKatalogVy(p: Props) {
           )}
           <input ref={importFil} type="file" multiple hidden accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             onChange={(e) => { const f = [...(e.target.files ?? [])]; e.target.value = ""; void importera(f); }} />
-          {ft && !!sparade?.length && <button className="knapp" onClick={skrivUtAlla}>Skriv ut alla projektets texter</button>}
+          {ft && !!sparade?.length && (
+            <button className="knapp primar" title="Funktionstexterna i Word utan flödesbilder, i mallarnas Word-stil med projektets sidfot. Välj alla eller några."
+              onClick={() => setWordVal(new Set(sparade.map((d) => d.id)))}>Skriv ut i Word (utan bild)…</button>
+          )}
+          {ft && !!sparade?.length && <button className="knapp" onClick={skrivUtAlla} title="Snabb utskrift från webbläsaren (inte Word-stil)">Skriv ut alla (webb)</button>}
           {p.kanRedigeraKatalog && <button className="knapp" onClick={() => void nyRubrik()}>+ Ny rubrik i katalogen</button>}
         </div>
       </div>
@@ -414,7 +435,7 @@ export function TextKatalogVy(p: Props) {
                     <button className="knapp fara" onClick={() => void taBortSparad()}>Ta bort</button>
                   </>
                 )}
-                {valdSparad && <button className="knapp" onClick={() => void lamna().then(() => laddaNer(`/api/projekt/${p.projektId}/funktionstexter/${valdSparad.id}/word`, /\.docx$/i.test(valdSparad.namn) ? valdSparad.namn : `${valdSparad.namn}.docx`))}>Word</button>}
+                {valdSparad && <button className="knapp" title="Den här texten i Word utan flödesbild, i mallens Word-stil med projektets sidfot" onClick={() => void lamna().then(() => laddaNer(`/api/projekt/${p.projektId}/funktionstexter/${valdSparad.id}/word`, /\.docx$/i.test(valdSparad.namn) ? valdSparad.namn : `${valdSparad.namn}.docx`))}>Word (utan bild)</button>}
                 <button className="knapp" onClick={skrivUtValt}>Skriv ut / PDF</button>
               </div>
               {val.typ === "sparad" && arFormaterad(text) ? (
@@ -468,6 +489,37 @@ export function TextKatalogVy(p: Props) {
           )}
         </section>
       </div>
+      {ft && wordVal && sparade && (
+        <Dialog
+          titel="Skriv ut funktionstexter i Word" oppen={!!wordVal} onStang={() => setWordVal(null)}
+          fot={<>
+            <span className="dampad">{wordVal.size} av {sparade.length} valda</span>
+            <button className="knapp" onClick={() => setWordVal(null)}>Avbryt</button>
+            <button className="knapp primar" disabled={!wordVal.size || wordArbetar}
+              onClick={() => void laddaNerWord(sparade.filter((d) => wordVal.has(d.id)).map((d) => d.id))}>
+              {wordArbetar ? "Skapar…" : wordVal.size === 1 ? "Skapa Word-fil" : "Skapa en Word-fil med valda"}
+            </button>
+          </>}
+        >
+          <p className="dampad liten" style={{ marginTop: 0 }}>
+            Texterna hamnar i en Word-fil i den ordning de står i listan, utan flödesbilder. Varje text börjar på en ny sida.
+            Stil, spalter och sidfot tas från den första textens Word-mall; status, datum och loggor från Sidfot för driftkort.
+          </p>
+          <div className="knappgrupp" style={{ marginBottom: 8 }}>
+            <button type="button" className="knapp liten" onClick={() => setWordVal(new Set(sparade.map((d) => d.id)))}>Välj alla</button>
+            <button type="button" className="knapp liten" onClick={() => setWordVal(new Set())}>Välj ingen</button>
+          </div>
+          <div className="wordval">
+            {sparade.map((d) => (
+              <label key={d.id} className="kryssrad">
+                <input type="checkbox" checked={wordVal.has(d.id)}
+                  onChange={(e) => setWordVal((v) => { const n = new Set(v); if (e.target.checked) n.add(d.id); else n.delete(d.id); return n; })} />
+                {d.namn}
+              </label>
+            ))}
+          </div>
+        </Dialog>
+      )}
       {ft && (
         <DriftkortSidfotDialog
           projektId={p.projektId} projekt={p.projekt} oppen={sidfotOppen} lasläge={p.lasläge}
