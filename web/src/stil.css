@@ -144,8 +144,11 @@ h2 { font-size: 15px; font-weight: 600; margin: 0 0 10px; }
 .grid-ram { overflow: auto; max-height: calc(100vh - 160px); border: 1px solid var(--linje); border-radius: var(--r); background: var(--yta); }
 table.grid { border-collapse: collapse; width: 100%; min-width: 900px; }
 .grid th { position: sticky; top: 0; background: var(--yta-2); font-family: var(--font-smal); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--dampad); text-align: left; padding: 8px; border-bottom: 1px solid var(--linje); white-space: nowrap; user-select: none; cursor: pointer; }
-.grid th.smal { cursor: default; width: 36px; }
-.grid th.markera-rubrik { width: auto; font-size: 10.5px; text-align: center; }
+.grid th.smal, .grid td.smal { width: 36px; min-width: 36px; max-width: 36px; }
+.grid th.smal { cursor: default; }
+.grid th.markera-rubrik { font-size: 10px; letter-spacing: 0; text-align: center; white-space: normal; line-height: 1.15; padding: 4px 2px; }
+/* Kolumnen med rubrik ("För utskrift", "Styckvis") har fast bredd och trycks inte ihop när andra kolumner ändras. */
+.grid th.markera-rubrik, .grid td.markera-cell { width: 64px; min-width: 64px; max-width: 64px; }
 .grid .pil { margin-left: 4px; }
 .grid td { border-bottom: 1px solid var(--linje); padding: 0; }
 .grid tr:last-child td { border-bottom: 0; }

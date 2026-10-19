@@ -261,7 +261,7 @@ export function DataGrid<T extends Rad>({
                   </td>
                 )}
                 {onTaBort && (
-                  <td className="smal">
+                  <td className={markeraRubrik ? "smal markera-cell" : "smal"}>
                     <input type="checkbox" aria-label="Markera rad" checked={markerade.has(r.id)} onChange={() => vaxla(r.id)} />
                   </td>
                 )}
