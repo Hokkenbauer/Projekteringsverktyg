@@ -154,6 +154,11 @@ main{flex:1;position:relative;min-width:0;background:var(--canvas)}
 #overlay .komm text{stroke:none;fill:var(--komm);font-family:var(--sans);font-weight:600;font-size:13px}
 #overlay .komm .kommRuta{stroke-width:1.6px}
 #overlay .komm.sel .kommRuta{stroke-width:2.4px;stroke-dasharray:5 3}
+#overlay .komm.klar{opacity:.45}
+#kommEditKat button.klarknapp{margin-left:6px}
+#kommEditKat button.klarknapp.on{background:var(--done,#2f9e44);border-color:var(--done,#2f9e44);color:#fff;box-shadow:0 1px 4px rgba(0,0,0,.25)}
+.kommRad.klar .t{text-decoration:line-through;opacity:.6}
+.kommRad .klarbox{margin:0;cursor:pointer}
 #overlay .kommSpets{stroke:var(--panel);stroke-width:1.5px}
 #kommEdit{position:absolute;z-index:6;box-sizing:border-box;font:600 13px/17px var(--sans);padding:4px 7px;border:2px solid var(--komm);color:var(--komm);
   background:var(--kommbg);border-radius:3px;resize:none;overflow:hidden;white-space:pre;outline:none;box-shadow:0 2px 10px rgba(0,0,0,.35)}
@@ -192,6 +197,10 @@ main{flex:1;position:relative;min-width:0;background:var(--canvas)}
 .pvtx{fill:var(--panel);stroke:var(--accent);pointer-events:none}
 .pvtx.first{fill:var(--accent)}
 #planWrap.adjusting #overlay{pointer-events:none;opacity:.45}
+#planHud .hudoga{display:inline-flex;align-items:center;gap:3px;background:none;border:1px solid transparent;border-radius:4px;padding:1px 4px;margin:-2px 0;color:inherit;font:inherit;cursor:pointer}
+#planHud .hudoga:hover{border-color:var(--line);color:var(--txt)}
+#planHud .hudoga.av{color:var(--warn,#e0a800)}
+#planHud .hudoga svg{width:13px;height:13px}
 #planHud{position:absolute;left:10px;bottom:10px;display:flex;gap:7px;align-items:center;background:var(--flyt);border:1px solid var(--line);border-radius:6px;padding:5px 9px;font-size:11px;color:var(--txt2);backdrop-filter:blur(4px)}
 #planTools{position:absolute;right:10px;top:10px;display:flex;flex-direction:column;gap:6px;align-items:flex-end;max-height:calc(100% - 20px);overflow:auto}
 .toolgrp{display:flex;gap:4px;align-items:center;background:var(--flyt);border:1px solid var(--line);border-radius:6px;padding:4px;backdrop-filter:blur(4px)}
@@ -1214,7 +1223,7 @@ function hud(){
   if(!f){$('#planHud').textContent='Ingen plan vald';return;}
   const nv=f.layers.filter(l=>l.visible).length;
   const dn=f.components.filter(c=>c.done).length;
-  $('#planHud').innerHTML=`<b>${esc(curBld()?curBld().name:'')}</b> › ${esc(f.name)} <span class="muted">|</span> ${Math.round(view.scale*100)} % <span class="muted">|</span> ${nv}/${f.layers.length} bakgrunder <span class="muted">|</span> ${f.components.length} komp · ${f.rooms.length} rum <span class="muted">|</span> <span style="color:var(--done)">${dn} klara</span>`;
+  $('#planHud').innerHTML=`<b>${esc(curBld()?curBld().name:'')}</b> › ${esc(f.name)} <span class="muted">|</span> ${Math.round(view.scale*100)} % <span class="muted">|</span> ${nv}/${f.layers.length} bakgrunder <span class="muted">|</span> <button class="hudoga${ui.doljKomp?' av':''}" data-hudkomp title="${ui.doljKomp?'Komponenterna är släckta – klicka för att tända':'Släck alla komponenter'} (H)">${ic(ui.doljKomp?'eyeOff':'eye')}${f.components.length} komp</button> · ${f.rooms.length} rum <span class="muted">|</span> <span style="color:var(--done)">${dn} klara</span>`;
 }
 let baseT=null;
 function scheduleBase(){
@@ -1231,10 +1240,25 @@ function scheduleBase(){
 /* =======================================================================
    LAGERPANEL
    ======================================================================= */
+/** Tänd/släck alla komponenter på ritningen (bara visningen, sparas per webbläsare). Knappar: Bakgrunder, statusraden, tangent H. */
+function vaxlaKomponenter(dolj){
+  ui.doljKomp=dolj===undefined?!ui.doljKomp:!!dolj;
+  try{localStorage.setItem('pv.doljKomp',ui.doljKomp?'1':'0');}catch(_){}
+  if(ui.doljKomp&&ui.sel&&ui.sel.kind==='comp')ui.sel=null;
+  buildOverlay();draw();hud();renderLayers();
+  flash(ui.doljKomp?'Alla komponenter är släckta. Tänd dem med ögat (eller H).':'Komponenterna visas.');
+}
+try{ui.doljKomp=localStorage.getItem('pv.doljKomp')==='1';}catch(_){}
+document.addEventListener('click',e=>{if(e.target.closest('[data-hudkomp]'))vaxlaKomponenter();});
 function renderLayers(){
   const f=curFloor();
   const head=`<div class="lhead"><span class="lab">Bakgrunder</span>
-    <button class="ghost" id="lAdd" title="Lägg till PDF">${ic('plus')}</button></div>`;
+    <button class="ghost" id="lAdd" title="Lägg till PDF">${ic('plus')}</button></div>
+    <div class="lrow${ui.doljKomp?' hidden':''}"><div class="l1">
+      <button class="ghost${ui.doljKomp?' act':''}" data-hudkomp title="${ui.doljKomp?'Tänd':'Släck'} alla komponenter (H)">${ic(ui.doljKomp?'eyeOff':'eye')}</button>
+      <span class="lname" style="margin-left:6px">Komponenter</span>
+      <span class="muted" style="font-size:10.5px;margin-left:auto">${f?f.components.filter(c=>c.x!=null).length+' placerade':''}</span>
+    </div></div>`;
   if(!f||!f.layers.length){
     $('#layersPanel').innerHTML=head+`<div class="lempty">${f?'Ingen PDF importerad ännu.':'Inget plan valt.'}</div>`;
     const b=$('#lAdd');if(b)b.onclick=importPdf;return;
@@ -1380,7 +1404,7 @@ function buildOverlay(){
     return `<g data-junction="${j.id}"><rect class="${cls}" x="${(wx-s).toFixed(2)}" y="${(wy-s).toFixed(2)}" width="${(s*2).toFixed(2)}" height="${(s*2).toFixed(2)}" transform="rotate(45 ${wx.toFixed(2)} ${wy.toFixed(2)})"/></g>`;
   }).join('');
   const k=P.settings.symScale||1;
-  const comps=f.components.filter(c=>c.x!=null&&compVisible(c,f,bld)).map(c=>{
+  const comps=ui.doljKomp?'':f.components.filter(c=>c.x!=null&&compVisible(c,f,bld)).map(c=>{
     const t=typeById(c.typeId);
     const cls='comp'+((ui.sel&&ui.sel.id===c.id)||ui.multi.has(c.id)?' sel':'')+(isHit(c,'comp')?' hit':'')+(c.done?' done':'');
     return `<g class="${cls}" data-comp="${c.id}"><g transform="scale(${k})">`+
@@ -3084,18 +3108,21 @@ async function renderPlanCanvas(floor,box,scale,opts){
     const kb=pick(BG_PRESETS,P.settings.bg,2),kk=Math.max(0.6,scale*0.6);
     floor.kommentarer.forEach(km=>{
       if(!(km.text||'').trim())return;
+      if(km.klar&&P.settings.visaAvslutade===false)return;
       const kc=kommFargFor(km);
+      oc.globalAlpha=km.klar?0.45:1;
       const ax=W2(km.ax*floor.ref.w),ay=H2(km.ay*floor.ref.h),bx=W2(km.bx*floor.ref.w),by=H2(km.by*floor.ref.h);
       const v=Math.atan2(ay-by,ax-bx);
       oc.strokeStyle=kc;oc.fillStyle=kc;oc.lineWidth=2*kk;oc.lineCap='round';
       oc.beginPath();oc.moveTo(bx,by);oc.lineTo(ax-7*kk*Math.cos(v),ay-7*kk*Math.sin(v));oc.stroke();
       const sp=kommPilspets(ax,ay,bx,by,13*kk);
       oc.beginPath();oc.moveTo(sp[0][0],sp[0][1]);oc.lineTo(sp[1][0],sp[1][1]);oc.lineTo(sp[2][0],sp[2][1]);oc.closePath();oc.fill();
-      const m=kommStorlek(km.text,kk),x=bx-m.b/2,y=by-m.h/2;
-      oc.fillStyle=kb;oc.globalAlpha=0.94;oc.fillRect(x,y,m.b,m.h);oc.globalAlpha=1;
+      const m=kommStorlek(kommVisadText(km),kk),x=bx-m.b/2,y=by-m.h/2,alfa=km.klar?0.45:1;
+      oc.fillStyle=kb;oc.globalAlpha=0.94*alfa;oc.fillRect(x,y,m.b,m.h);oc.globalAlpha=alfa;
       oc.lineWidth=1.6*kk;oc.strokeRect(x,y,m.b,m.h);
       oc.fillStyle=kc;oc.font=`600 ${13*kk}px `+getComputedStyle(document.body).fontFamily;oc.textBaseline='alphabetic';oc.textAlign='left';
       m.rader.forEach((r,i)=>oc.fillText(r,x+8*kk,y+(5+13+i*17)*kk));
+      oc.globalAlpha=1;
     });
   }
   return out;
@@ -3764,6 +3791,16 @@ function kommKatAndra(){if(!Array.isArray(P.settings.kommKat)||!P.settings.kommK
 function kommKatFor(k){const l=kommKatLista();return l.find(x=>x.id===(k&&k.kat))||l[0];}
 /** Antal kommentarer i kategorin på alla plan. */
 function kommAntalAlla(id){let n=0;eachFloor(f=>(f.kommentarer||[]).forEach(k=>{if(kommKatFor(k).id===id)n++;}));return n;}
+/** Avslutade kommentarer visas nedtonade med en bock först. */
+function kommVisadText(k){return (k.klar?'✓ ':'')+(k.text||'');}
+function kommSattKlar(id,klar){
+  let hit=null;eachFloor(f=>(f.kommentarer||[]).forEach(k=>{if(k.id===id)hit=k;}));
+  if(!hit)return false;
+  if(klar)hit.klar=true;else delete hit.klar;
+  ritaKommentarer();renderKommPanel();kommRitaKatVal();
+  return true;
+}
+window.pvSattKommentarKlar=kommSattKlar;
 function kommFargFor(k){const c=kommKatFor(k);return c&&c.farg?c.farg:kommFarg();}
 const kommMat=document.createElement('canvas').getContext('2d');
 function kommStorlek(text,k){
@@ -3784,18 +3821,18 @@ function ritaKommentarer(){
   const visa=P.settings.visaKomm!==false;
   if(!f||!ref||!visa){kg.innerHTML='';kommPlaceraEditor();return;}
   const bg=pick(BG_PRESETS,P.settings.bg,2);
-  const lista=kommLista().slice();
+  const lista=kommLista().filter(k=>!k.klar||P.settings.visaAvslutade!==false||k.id===ui.kommRed||k.id===ui.kommSel);
   if(ui.kommUtkast)lista.push(Object.assign({id:'_utkast',text:'',kat:ui.kommSenastKat},ui.kommUtkast));
   kg.innerHTML=lista.map(k=>{
     const c=kommFargFor(k);
     const A=w2s(k.ax*ref.w,k.ay*ref.h),B=w2s(k.bx*ref.w,k.by*ref.h);
     const v=Math.atan2(A.y-B.y,A.x-B.x),ex=A.x-7*Math.cos(v),ey=A.y-7*Math.sin(v);
     const spets=kommPilspets(A.x,A.y,B.x,B.y,13).map(q=>q[0].toFixed(1)+','+q[1].toFixed(1)).join(' ');
-    let h=`<g class="komm${ui.kommSel===k.id?' sel':''}" data-komm="${k.id}" style="--komm:${c}">`+
+    let h=`<g class="komm${ui.kommSel===k.id?' sel':''}${k.klar?' klar':''}" data-komm="${k.id}" style="--komm:${c}">`+
       `<line x1="${B.x.toFixed(1)}" y1="${B.y.toFixed(1)}" x2="${ex.toFixed(1)}" y2="${ey.toFixed(1)}" stroke="${c}" stroke-width="2" stroke-linecap="round"/>`+
       `<polygon points="${spets}" fill="${c}"/>`;
     if(k.id!=='_utkast'&&ui.kommRed!==k.id){
-      const m=kommStorlek(k.text);
+      const m=kommStorlek(kommVisadText(k));
       const x=B.x-m.b/2,y=B.y-m.h/2;
       h+=`<g data-kommbox="1"><rect class="kommRuta" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${m.b.toFixed(1)}" height="${m.h.toFixed(1)}" rx="3" fill="${bg}" fill-opacity="0.94" stroke="${c}"/>`+
         `<text fill="${c}">${m.rader.map((r,i)=>`<tspan x="${(x+8).toFixed(1)}" y="${(y+5+13+i*17).toFixed(1)}">${esc(r)||' '}</tspan>`).join('')}</text></g>`;
@@ -3896,8 +3933,9 @@ function kommPlaceraEditor(){
     kat.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();});
     kat.addEventListener('click',e=>{
       e.stopPropagation();
-      const knapp=e.target.closest('[data-kat]');if(!knapp)return;
       const x=kommLista().find(y=>y.id===ui.kommRed);if(!x)return;
+      if(e.target.closest('[data-klar]')){kommSattKlar(x.id,!x.klar);return;}
+      const knapp=e.target.closest('[data-kat]');if(!knapp)return;
       x.kat=knapp.dataset.kat;ui.kommSenastKat=x.kat;
       ta.style.setProperty('--komm',kommFargFor(x));
       kommRitaKatVal();ritaKommentarer();renderKommPanel();
@@ -3910,7 +3948,8 @@ function kommPlaceraEditor(){
 function kommRitaKatVal(){
   const kat=document.getElementById('kommEditKat');if(!kat)return;
   const k=kommLista().find(x=>x.id===ui.kommRed),vald=kommKatFor(k).id;
-  kat.innerHTML=kommKatLista().map(c=>`<button type="button" data-kat="${esc(c.id)}" class="${c.id===vald?'on':''}" style="--kf:${c.farg||kommFarg()}" title="Kategori: ${esc(c.namn)}"><i></i>${esc(c.namn)}</button>`).join('');
+  kat.innerHTML=kommKatLista().map(c=>`<button type="button" data-kat="${esc(c.id)}" class="${c.id===vald?'on':''}" style="--kf:${c.farg||kommFarg()}" title="Kategori: ${esc(c.namn)}"><i></i>${esc(c.namn)}</button>`).join('')+
+    `<button type="button" data-klar="1" class="klarknapp${k&&k.klar?' on':''}" title="Status: markera kommentaren som avslutad (den tonas ned och kan döljas)">✓ Avslutad</button>`;
 }
 function kommStangEditor(utanSpara){
   const knapp=document.getElementById('kommEditDel');if(knapp)knapp.remove();
@@ -3943,8 +3982,9 @@ function renderKommPanel(){
       <span class="lname">Kommentarer</span>
       <span class="muted" style="font-size:10.5px;margin-left:4px">${n} st</span>
     </div></div>
+    <label class="kommRad" style="cursor:pointer"><input type="checkbox" id="kommVisaAvsl" ${P.settings.visaAvslutade!==false?'checked':''} style="margin:0">Visa avslutade kommentarer (nedtonade) – gäller även PDF-export</label>
     ${n?`<div style="max-height:180px;overflow:auto;border-bottom:1px solid var(--line);padding:4px 0">${f.kommentarer.map(k=>
-      `<div class="kommRad"><span class="kommPrick" style="--kf:${kommFargFor(k)}" title="${esc(kommKatFor(k).namn)}"></span><span class="t" data-kommgo="${k.id}" title="Visa och ändra">${esc((k.text||'').split('\n')[0]||'(tom)')}</span><button class="ghost" data-kommtabort="${k.id}" title="Ta bort kommentaren">${ic('trash')}</button></div>`).join('')}</div>`:''}
+      `<div class="kommRad${k.klar?' klar':''}"><input type="checkbox" class="klarbox" data-kommklar="${k.id}" ${k.klar?'checked':''} title="Avslutad"><span class="kommPrick" style="--kf:${kommFargFor(k)}" title="${esc(kommKatFor(k).namn)}"></span><span class="t" data-kommgo="${k.id}" title="Visa och ändra">${esc((k.text||'').split('\n')[0]||'(tom)')}</span><button class="ghost" data-kommtabort="${k.id}" title="Ta bort kommentaren">${ic('trash')}</button></div>`).join('')}</div>`:''}
     <div class="lempty" style="text-align:left">Klicka på ✎ Kommentarslager och dra från t.ex. ett rum till där texten ska stå. Klicka på en ruta för att ändra texten, dra i den för att flytta. Ta bort med ✕ på rutan (håll musen över den), med Ta bort medan du skriver, med Delete när den är markerad eller i listan ovan. Vid PDF-export väljer du om kommentarerna ska med.</div>
     ${ui.kommSel?`<div style="padding:0 10px 8px"><button id="kommDel">Ta bort markerad kommentar</button></div>`:''}
     <div class="lhead" style="border-top:1px solid var(--line)"><span class="lab">Inställningar · kategorier</span></div>
@@ -3974,6 +4014,8 @@ function renderKommPanel(){
     const sista=el.querySelectorAll('[data-katnamn]');const f=sista[sista.length-1];if(f){f.focus();f.select();}
   };
   el.querySelectorAll('[data-kommtabort]').forEach(b=>b.onclick=()=>kommTaBort(b.dataset.kommtabort));
+  el.querySelectorAll('[data-kommklar]').forEach(b=>b.onchange=()=>kommSattKlar(b.dataset.kommklar,b.checked));
+  const va=$('#kommVisaAvsl');if(va)va.onchange=()=>{P.settings.visaAvslutade=va.checked;ritaKommentarer();};
   el.querySelectorAll('[data-kommgo]').forEach(b=>b.onclick=()=>{
     if(ui.lager!=='komm')setLager('komm');
     const k=kommLista().find(x=>x.id===b.dataset.kommgo);if(!k||!ref)return;
@@ -4115,6 +4157,7 @@ window.addEventListener('keydown',e=>{
   if(ui.lager==='kabel'&&(e.key==='j'||e.key==='J'))setTool(ui.tool==='junction'?'select':'junction');
   if((e.key==='k'||e.key==='K')&&ui.sel)toggleDone(ui.sel.kind,ui.sel.id);
   if(e.key==='f'||e.key==='F')fitView();
+  if(e.key==='h'||e.key==='H'){vaxlaKomponenter();e.preventDefault();return;}
   if((e.key==='Delete'||e.key==='Backspace')&&ui.sel){treeAction('del',ui.sel.kind,ui.sel.id);e.preventDefault();}
 });
 window.addEventListener('resize',()=>{if(ui.view==='plan')resize();});
@@ -4574,6 +4617,7 @@ async function pvVisaKomponent(pvId){
   let hit=null;eachFloor((f,b)=>f.components.forEach(c=>{if(c.pvId===pvId)hit={c,f,b};}));
   if(!hit)return false;
   setView('plan');
+  if(ui.doljKomp)vaxlaKomponenter(false);
   if(ui.floorId!==hit.f.id)await openFloor(hit.f.id);
   select({kind:'comp',id:hit.c.id});
   if(hit.c.x!=null&&ref){

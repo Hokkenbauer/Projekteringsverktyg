@@ -30,7 +30,14 @@ type Verktyg = Window & {
   pvTema?: (t: Record<string, string | boolean>) => void;
   pvVisaKomponent?: (id: string) => Promise<boolean>;
   pvVisaKommentar?: (id: string) => Promise<boolean>;
+  pvSattKommentarKlar?: (id: string, klar: boolean) => boolean;
 };
+
+/**
+ * Den öppna placeringsritningen (om fliken visas). Placeringskommentarer ändrar då status direkt i ritverktyget,
+ * så att ändringen sparas med ritningens vanliga sparning i stället för att krocka med den.
+ */
+export let oppenRitning: { sattKommentarKlar: (id: string, klar: boolean) => boolean } | null = null;
 
 
 type Props = {
@@ -162,6 +169,13 @@ export function PlaceringsritningVy(p: Props) {
       props.current.onFokusVisad();
     }, 400);
   };
+
+  useEffect(() => {
+    const o = { sattKommentarKlar: (id: string, klar: boolean) => !!(redo.current && verktyg()?.pvSattKommentarKlar?.(id, klar)) };
+    oppenRitning = o;
+    return () => { if (oppenRitning === o) oppenRitning = null; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /** Öppnar planet med kommentaren som Placeringskommentarer bad om, och centrerar den. */
   const visaKommentar = () => {

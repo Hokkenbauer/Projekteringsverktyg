@@ -597,3 +597,4 @@ td.egen .kommkat { padding: 6px 8px; }
 .summering button.chip { cursor: pointer; color: inherit; font: inherit; font-size: 12.5px; }
 .summering button.chip:hover { border-color: var(--accent); }
 .summering button.chip.vald { border-color: var(--accent); background: var(--accent-mjuk); }
+.summering .chip-avdelare { width: 1px; background: var(--linje); margin: 2px 4px; }

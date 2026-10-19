@@ -658,7 +658,7 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
         {flik === "projektstatus" && <ProjektStatusVy projektId={projektId} rattigheter={ratt} uppdaterad={statusVersion} visaMeddelande={visaMeddelande} />}
         {flik === "medlemmar" && <MedlemmarVy projektId={projektId} rattigheter={ratt} visaMeddelande={visaMeddelande} />}
         {flik === "anteckningar" && anteckningar && <AnteckningarVy key={projektId} anteckningar={anteckningar} onSpara={sparaAnteckningar} lasläge={!ratt.skriva} onPopUt={() => oppnaPopUt("anteckningar")} />}
-        {flik === "placeringskommentarer" && <KommentarerVy projektId={projektId} projekt={projekt} uppdaterad={ritningSparad} onVisa={visaKommentar} onPopUt={() => oppnaPopUt("kommentarer")} />}
+        {flik === "placeringskommentarer" && <KommentarerVy projektId={projektId} projekt={projekt} uppdaterad={ritningSparad} onVisa={visaKommentar} onPopUt={() => oppnaPopUt("kommentarer")} lasläge={!skrivbar} visaMeddelande={visaMeddelande} />}
         {vald?.flik.lista && flik !== "signallista" && listVy(false)}
         {flik === "signallista" && (
           <SignallistaVy
@@ -857,7 +857,7 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
               </button>
             ))}
           </div>
-          {popFlik === "kommentarer" ? <KommentarerVy projektId={projektId} projekt={projekt} uppdaterad={ritningSparad} onVisa={visaKommentar} />
+          {popFlik === "kommentarer" ? <KommentarerVy projektId={projektId} projekt={projekt} uppdaterad={ritningSparad} onVisa={visaKommentar} lasläge={!skrivbar} visaMeddelande={visaMeddelande} />
             : popFlik === "lista"
             ? <AttGoraVy rader={attGora} blinkar={blinkar} onAndra={andraAttGora} onNy={nyAttGora} onTaBort={taBortAttGora} onFlytta={(ids) => void flyttaAttGora(ids)} lasläge={!ratt.skriva} />
             : anteckningar && <AnteckningarVy key={`${projektId}-pop`} anteckningar={anteckningar} onSpara={sparaAnteckningar} lasläge={!ratt.skriva} />}
