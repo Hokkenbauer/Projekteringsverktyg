@@ -991,3 +991,28 @@ public class FunktionstextSamladTester
         Assert.Contains("w:type=\"page\"", xml);
     }
 }
+
+public class AtaTester
+{
+    [Fact]
+    public void ATA_far_fast_lopnummer_efter_hogsta()
+    {
+        var def = Projekteringsverktyg.Server.ListApi.Listdefinitioner.Hitta("ata")!;
+        var data = new Dictionary<string, string>();
+        Projekteringsverktyg.Server.ListApi.ListEndpoints.SattNummer(def, data, []);
+        Assert.Equal("Ä001", data["nr"]);
+        var befintliga = new[] { new ListRad { Data = "{\"nr\":\"Ä001\"}" }, new ListRad { Data = "{\"nr\":\"Ä007\"}" } };
+        Projekteringsverktyg.Server.ListApi.ListEndpoints.SattNummer(def, data, befintliga);
+        Assert.Equal("Ä008", data["nr"]);
+    }
+
+    [Fact]
+    public void ATA_status_ar_ett_val_at_gangen()
+    {
+        var def = Projekteringsverktyg.Server.ListApi.Listdefinitioner.Hitta("ata")!;
+        var data = new Dictionary<string, string> { ["ejBestalld"] = "true" };
+        Projekteringsverktyg.Server.ListApi.ListEndpoints.Satt(def.Kolumn("bestalld")!, data, "true", "Håkan Engström", DateOnly.FromDateTime(DateTime.Today));
+        Assert.Equal("true", data["bestalld"]);
+        Assert.Equal("", data["ejBestalld"]);
+    }
+}

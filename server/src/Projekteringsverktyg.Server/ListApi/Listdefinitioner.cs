@@ -27,9 +27,13 @@ public sealed record KolumnDef(
     /// <summary>Förslag i textkolumnen från komponenternas värden i detta fält (t.ex. produkttyp).</summary>
     string? Forslag = null,
     /// <summary>För typ koppling: förslagen är komponenter vars signaltyp innehåller detta (t.ex. "modbus").</summary>
-    string? KopplingSignaltyp = null)
+    string? KopplingSignaltyp = null,
+    /// <summary>För kryss: kryssrutor som bockas ur när den här bockas i (bara ett val åt gången, t.ex. ÄTA-status).</summary>
+    string[]? Utesluter = null)
 {
     /// <summary>
+    /// nummer = fast löpnummer som sätts när raden skapas (t.ex. Ä001) och aldrig ändras, även om rader tas bort.
+    /// Formatet står i Standard ("Ä{0:000}").
     /// koppling = pekar på en komponent (värdet är komponentens Id; går ingen komponent att hitta sparas texten som den är).
     /// fran = visar ett fält från komponenten som kolumnen Faktorer[0] pekar på.
     /// </summary>
@@ -329,6 +333,22 @@ public static class Listdefinitioner
                 new("hanterad", "Hanterad", "kryss", SatterDatum: "datum", SatterSign: "sign"),
                 new("datum", "Datum", "datum"),
                 new("sign", "Sign.", Mono: true, Bredd: 52),
+            ]),
+
+        new("ata", "ÄTA-lista", "Projektering",
+            "Ändrings- och tilläggsarbeten. Varje rad får ett fast nummer (Ä001, Ä002 …) som aldrig ändras. Skriv ut hela listan, eller styckvis: en färdig underrättelse om ÄTA-arbete per rad.",
+            Kopplad: false,
+            Kolumner:
+            [
+                new("nr", "ÄTA", "nummer", Standard: "Ä{0:000}", Mono: true, Bredd: 70),
+                new("kommentar", "Kommentar", Bredd: 360, Fyll: true),
+                new("ejBestalld", "Ej beställd", "kryss", Utesluter: ["bestalld", "utreds"]),
+                new("bestalld", "Beställd", "kryss", Utesluter: ["ejBestalld", "utreds"]),
+                new("utreds", "Utreds", "kryss", Utesluter: ["ejBestalld", "bestalld"]),
+                new("atgard", "Förslag på åtgärd", Bredd: 260),
+                new("kostnad", "Kostnad (kr exkl. moms)", Mono: true, Bredd: 110),
+                new("svarSenast", "Svar senast", "datum"),
+                new("datum", "Datum", "datum"),
             ]),
 
         new("kalkylmangder", "Kalkylmängder", "Projektering",

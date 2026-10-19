@@ -2,6 +2,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { DataGrid, type Blink, type Kolumn } from "../../grid/DataGrid";
 import type { Kataloger, Komponent, ListDef, ListRad, Projekt } from "../../lib/typer";
 import { skrivUt } from "../../lib/utskrift";
+import { ataStyckvis } from "./AtaUtskrift";
 
 /** En rad som tabellen visar: id + ett textvärde per kolumn. */
 export type VisadRad = Record<string, string> & { id: string };
@@ -65,6 +66,7 @@ export function byggRader(def: ListDef, rader: ListRad[], komponenter: Komponent
         const a = tal(hamta(kol.faktorer[0]!)), b = tal(hamta(kol.faktorer[1]!));
         ut[vn(kol.nyckel)] = a !== null && b !== null ? String(a - b) : "";
       }
+      else if (kol.typ === "nummer") ut[vn(kol.nyckel)] = data[kol.nyckel] ?? "";
       else ut[vn(kol.nyckel)] = data[kol.nyckel] ?? kol.standard ?? "";
     }
     return ut;
@@ -117,6 +119,8 @@ export function ListVy({ def, grupp, rader, komponenter, projekt, blinkar, lasl�
   const visade = useMemo(() => byggRader(def, rader ?? [], komponenter), [def, rader, komponenter]);
   // Anmärkningsbilagan: bara ikryssade rader skrivs ut (inga ikryssade = alla).
   const valForUtskrift = def.id === "anmarkningar";
+  // ÄTA-listan: hela listan skrivs alltid ut; ikryssade rader styr bara "Skriv ut styckvis".
+  const ata = def.id === "ata";
   const [markerade, setMarkerade] = useState<string[]>([]);
 
   const kopplingsForslag = (signaltyp: string | null | undefined) => komponenter
@@ -197,9 +201,9 @@ export function ListVy({ def, grupp, rader, komponenter, projekt, blinkar, lasl�
         : k.typ === "datum" ? valtDatum(r[vn(k.nyckel)]) : r[vn(k.nyckel)] ?? ""))),
       sammanfattning: summering ? summering.map(([t, n]) => `${t}: ${n}`).join("   ·   ") : undefined,
     }, {
-      liggande: valForUtskrift || undefined,
-      kategori: valForUtskrift ? "Anmärkningsbilaga" : def.id === "egenkontroll" || def.id.startsWith("kontroll-") ? "Egenkontroll/checklista" : undefined,
-      kolumnlinjer: def.id === "iplista" || valForUtskrift || undefined,
+      liggande: valForUtskrift || ata || undefined,
+      kategori: valForUtskrift ? "Anmärkningsbilaga" : ata ? "ÄTA-lista" : def.id === "egenkontroll" || def.id.startsWith("kontroll-") ? "Egenkontroll/checklista" : undefined,
+      kolumnlinjer: def.id === "iplista" || valForUtskrift || ata || undefined,
     });
   };
 
@@ -218,10 +222,14 @@ export function ListVy({ def, grupp, rader, komponenter, projekt, blinkar, lasl�
           {extraKnappar}
           {def.kopplad && <button className="knapp" onClick={() => onFlik("komponenter")}>Till Komponenter</button>}
           <button className="knapp" onClick={onExcel}>Exportera till Excel</button>
-          {!utanUtskrift && <button className="knapp" onClick={utskrift}>Skriv ut / PDF</button>}
+          {!utanUtskrift && <button className="knapp" onClick={utskrift}>{ata ? "Skriv ut hela listan / PDF" : "Skriv ut / PDF"}</button>}
+          {ata && <button className="knapp" disabled={visade.length === 0}
+            title="En färdig underrättelse om ÄTA-arbete per rad (ikryssade rader, eller alla om inga är ikryssade)"
+            onClick={() => ataStyckvis(markerade.length ? visade.filter((r) => markerade.includes(r.id)) : visade, projekt)}>Skriv ut styckvis / PDF</button>}
         </div>
       </div>
-      <p className="ingress">{def.ingress}{valForUtskrift && " Bocka i rutan För utskrift på de rader som ska med i utskriften (inga ikryssade = alla). Utskriften blir liggande A4."}</p>
+      <p className="ingress">{def.ingress}{valForUtskrift && " Bocka i rutan För utskrift på de rader som ska med i utskriften (inga ikryssade = alla). Utskriften blir liggande A4."}
+        {ata && " Bocka i Styckvis på de ÄTA som ska skrivas ut som egna underrättelser (inga ikryssade = alla). Bara ett av Ej beställd, Beställd och Utreds kan vara ikryssat."}</p>
       {summering && summering.length > 0 && (
         <div className="summering" aria-label="Antal per signaltyp">
           <span className="chip">Totalt <b>{visade.length}</b></span>
@@ -241,8 +249,8 @@ export function ListVy({ def, grupp, rader, komponenter, projekt, blinkar, lasl�
           tomText={tomText}
           onInfo={def.kopplad && onInfo ? (r) => onInfo(r.id) : undefined}
           fokusId={fokusId}
-          markeraRubrik={valForUtskrift ? "För utskrift" : undefined}
-          onMarkerade={valForUtskrift ? setMarkerade : undefined}
+          markeraRubrik={valForUtskrift ? "För utskrift" : ata ? "Styckvis" : undefined}
+          onMarkerade={valForUtskrift || ata ? setMarkerade : undefined}
           cellKlass={(r, nyckel) => {
             const kol = def.kolumner.find((k) => vn(k.nyckel) === nyckel);
             if (kol?.typ === "differens") {

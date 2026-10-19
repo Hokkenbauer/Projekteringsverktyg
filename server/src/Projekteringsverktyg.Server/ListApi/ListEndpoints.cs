@@ -30,6 +30,18 @@ public static class ListEndpoints
         catch (JsonException) { return new(); }
     }
 
+/// <summary>Fasta löpnummer (typ nummer): nästa nummer efter det högsta som finns i listan.</summary>
+    public static void SattNummer(ListDef def, Dictionary<string, string> data, IEnumerable<ListRad> befintliga, int extra = 0)
+    {
+        foreach (var k in def.Kolumner.Where(k => k.Typ == "nummer"))
+        {
+            var hogsta = befintliga.Select(r => LasData(r.Data).GetValueOrDefault(k.Nyckel, ""))
+                .Select(v => System.Text.RegularExpressions.Regex.Match(v, @"\d+")).Where(m => m.Success)
+                .Select(m => int.TryParse(m.Value, out var n) ? n : 0).DefaultIfEmpty(0).Max();
+            data[k.Nyckel] = string.Format(System.Globalization.CultureInfo.InvariantCulture, k.Standard ?? "{0}", hogsta + 1 + extra);
+        }
+    }
+
     public static ListRadDto Dto(ListRad r) => new(r.Id, r.KomponentId, LasData(r.Data), r.Ordning, r.Version, r.Andrad, r.AndradAv);
 
     /// <summary>Signatur av ett namn: "Erik Engström" blir "EE".</summary>
@@ -57,6 +69,7 @@ public static class ListEndpoints
             nytt = pa ? "true" : "";
             if (kol.SatterDatum is not null) data[kol.SatterDatum] = pa ? idag.ToString("yyyy-MM-dd") : "";
             if (kol.SatterSign is not null) data[kol.SatterSign] = pa ? Initialer(avNamn) : "";
+            if (pa && kol.Utesluter is not null) foreach (var x in kol.Utesluter) data[x] = "";
         }
         // Valkolumner tillåter även egna värden, precis som i dagens program.
         data[kol.Nyckel] = nytt;
@@ -106,7 +119,9 @@ public static class ListEndpoints
 
             var av = Anvandare.Fran(user);
             var max = await db.ListRader.Where(r => r.ProjektId == projektId && r.Lista == lista).MaxAsync(r => (int?)r.Ordning) ?? 0;
-            var data = def.Kolumner.Where(k => k.Standard is not null).ToDictionary(k => k.Nyckel, k => k.Standard!);
+            var data = def.Kolumner.Where(k => k.Standard is not null && k.Typ != "nummer").ToDictionary(k => k.Nyckel, k => k.Standard!);
+            if (def.Kolumner.Any(k => k.Typ == "nummer"))
+                SattNummer(def, data, await db.ListRader.Where(r => r.ProjektId == projektId && r.Lista == lista).ToListAsync());
             var rad = new ListRad { ProjektId = projektId, Lista = lista, Ordning = max + 1, Data = JsonSerializer.Serialize(data, Json), AndradAv = av.Namn };
             db.ListRader.Add(rad);
             Andringslogg.Logga(db, projektId, av, "Lista", rad.Id, $"lade till en rad i {def.Namn}");
@@ -128,9 +143,13 @@ public static class ListEndpoints
             var av = Anvandare.Fran(user);
             var max = await db.ListRader.Where(r => r.ProjektId == projektId && r.Lista == lista).MaxAsync(r => (int?)r.Ordning) ?? 0;
             var skapade = new List<ListRad>();
+            var harNummer = def.Kolumner.Any(k => k.Typ == "nummer");
+            List<ListRad> befintligaRader = harNummer
+                ? await db.ListRader.Where(r => r.ProjektId == projektId && r.Lista == lista).ToListAsync() : new List<ListRad>();
             foreach (var n in nya)
             {
-                var data = def.Kolumner.Where(k => k.Standard is not null).ToDictionary(k => k.Nyckel, k => k.Standard!);
+                var data = def.Kolumner.Where(k => k.Standard is not null && k.Typ != "nummer").ToDictionary(k => k.Nyckel, k => k.Standard!);
+                if (harNummer) SattNummer(def, data, befintligaRader, skapade.Count);
                 foreach (var (falt, varde) in n)
                     if (def.Kolumn(falt) is { Redigerbar: true } && !string.IsNullOrWhiteSpace(varde))
                         data[falt] = varde.Length > MaxLangd ? varde[..MaxLangd] : varde.Trim();
@@ -286,6 +305,7 @@ public static class ListEndpoints
         "antal" or "differens" or "fran" or "koppling" => data.GetValueOrDefault(c.Nyckel, ""),
         "kryss" => data.GetValueOrDefault(c.Nyckel) == "true" ? "Ja" : "",
         "datum" => Datum(data.GetValueOrDefault(c.Nyckel, "")),
+        "nummer" => data.GetValueOrDefault(c.Nyckel, ""),
         _ => data.GetValueOrDefault(c.Nyckel, c.Standard ?? ""),
     };
 

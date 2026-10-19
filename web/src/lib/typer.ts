@@ -127,7 +127,7 @@ export type ListaHandelse = {
 export type ListKolumn = {
   nyckel: string;
   rubrik: string;
-  typ: "text" | "val" | "kryss" | "datum" | "komponent" | "lopnr" | "produkt" | "antal" | "differens" | "koppling" | "fran";
+  typ: "text" | "val" | "kryss" | "datum" | "komponent" | "lopnr" | "produkt" | "antal" | "differens" | "koppling" | "fran" | "nummer";
   val: string[] | null;
   komponentFalt: keyof Komponent | null;
   standard: string | null;
