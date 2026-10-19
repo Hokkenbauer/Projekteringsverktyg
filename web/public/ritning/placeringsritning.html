@@ -1223,7 +1223,7 @@ function hud(){
   if(!f){$('#planHud').textContent='Ingen plan vald';return;}
   const nv=f.layers.filter(l=>l.visible).length;
   const dn=f.components.filter(c=>c.done).length;
-  $('#planHud').innerHTML=`<b>${esc(curBld()?curBld().name:'')}</b> › ${esc(f.name)} <span class="muted">|</span> ${Math.round(view.scale*100)} % <span class="muted">|</span> ${nv}/${f.layers.length} bakgrunder <span class="muted">|</span> <button class="hudoga${ui.doljKomp?' av':''}" data-hudkomp title="${ui.doljKomp?'Komponenterna är släckta – klicka för att tända':'Släck alla komponenter'} (H)">${ic(ui.doljKomp?'eyeOff':'eye')}${f.components.length} komp</button> · ${f.rooms.length} rum <span class="muted">|</span> <span style="color:var(--done)">${dn} klara</span>`;
+  $('#planHud').innerHTML=`<b>${esc(curBld()?curBld().name:'')}</b> › ${esc(f.name)} <span class="muted">|</span> ${Math.round(view.scale*100)} % <span class="muted">|</span> ${nv}/${f.layers.length} bakgrunder <span class="muted">|</span> <button class="hudoga${ui.doljKomp?' av':''}" data-hudkomp title="${ui.doljKomp?'Komponenterna är släckta – klicka för att tända':'Släck alla komponenter'} (H)">${ic(ui.doljKomp?'eyeOff':'eye')}${f.components.length} komp</button> · <button class="hudoga${ui.doljRum?' av':''}" data-hudrum title="${ui.doljRum?'Rummen är släckta – klicka för att tända':'Släck alla rum'} (Shift+H)">${ic(ui.doljRum?'eyeOff':'eye')}${f.rooms.length} rum</button> <span class="muted">|</span> <span style="color:var(--done)">${dn} klara</span>`;
 }
 let baseT=null;
 function scheduleBase(){
@@ -1248,8 +1248,16 @@ function vaxlaKomponenter(dolj){
   buildOverlay();draw();hud();renderLayers();
   flash(ui.doljKomp?'Alla komponenter är släckta. Tänd dem med ögat (eller H).':'Komponenterna visas.');
 }
-try{ui.doljKomp=localStorage.getItem('pv.doljKomp')==='1';}catch(_){}
-document.addEventListener('click',e=>{if(e.target.closest('[data-hudkomp]'))vaxlaKomponenter();});
+/** Tänd/släck alla inritade rum (bara visningen, sparas per webbläsare). */
+function vaxlaRum(dolj){
+  ui.doljRum=dolj===undefined?!ui.doljRum:!!dolj;
+  try{localStorage.setItem('pv.doljRum',ui.doljRum?'1':'0');}catch(_){}
+  if(ui.doljRum&&ui.sel&&ui.sel.kind==='room')ui.sel=null;
+  buildOverlay();draw();hud();renderLayers();
+  flash(ui.doljRum?'Alla rum är släckta. Tänd dem med ögat (eller Shift+H).':'Rummen visas.');
+}
+try{ui.doljKomp=localStorage.getItem('pv.doljKomp')==='1';ui.doljRum=localStorage.getItem('pv.doljRum')==='1';}catch(_){}
+document.addEventListener('click',e=>{if(e.target.closest('[data-hudkomp]'))vaxlaKomponenter();else if(e.target.closest('[data-hudrum]'))vaxlaRum();});
 function renderLayers(){
   const f=curFloor();
   const head=`<div class="lhead"><span class="lab">Bakgrunder</span>
@@ -1258,6 +1266,11 @@ function renderLayers(){
       <button class="ghost${ui.doljKomp?' act':''}" data-hudkomp title="${ui.doljKomp?'Tänd':'Släck'} alla komponenter (H)">${ic(ui.doljKomp?'eyeOff':'eye')}</button>
       <span class="lname" style="margin-left:6px">Komponenter</span>
       <span class="muted" style="font-size:10.5px;margin-left:auto">${f?f.components.filter(c=>c.x!=null).length+' placerade':''}</span>
+    </div></div>
+    <div class="lrow${ui.doljRum?' hidden':''}"><div class="l1">
+      <button class="ghost${ui.doljRum?' act':''}" data-hudrum title="${ui.doljRum?'Tänd':'Släck'} alla rum (Shift+H)">${ic(ui.doljRum?'eyeOff':'eye')}</button>
+      <span class="lname" style="margin-left:6px">Rum</span>
+      <span class="muted" style="font-size:10.5px;margin-left:auto">${f?f.rooms.length+' st':''}</span>
     </div></div>`;
   if(!f||!f.layers.length){
     $('#layersPanel').innerHTML=head+`<div class="lempty">${f?'Ingen PDF importerad ännu.':'Inget plan valt.'}</div>`;
@@ -1382,7 +1395,7 @@ function buildOverlay(){
   if(!f||!ref){svg.innerHTML='';return;}
   const bld=curBld();
   overlayColors();
-  const rooms=f.rooms.filter(r=>!r.hidden&&!f.hidden&&!bld.hidden).map(r=>{
+  const rooms=ui.doljRum?'':f.rooms.filter(r=>!r.hidden&&!f.hidden&&!bld.hidden).map(r=>{
     const cls='roomShape'+(ui.sel&&ui.sel.id===r.id?' sel':'')+(isHit(r,'room')?' hit':'')+(r.done||r.placerad?' done':'');
     const c=centroid(r.points);
     return `<g data-room="${r.id}"><polygon class="${cls}" points="${ptsAttr(r.points)}"/>`+
@@ -3740,6 +3753,7 @@ $('#btnPoly').onclick=()=>setTool(ui.tool==='poly'?'select':'poly');
 $('#btnCable').onclick=()=>setTool(ui.tool==='cable'?'select':'cable');
 $('#btnJunction').onclick=()=>setTool(ui.tool==='junction'?'select':'junction');
 function setTool(t){
+  if((t==='rect'||t==='poly')&&ui.doljRum)vaxlaRum(false); // nya rum ska synas när de ritas
   if(ui.tool==='poly'&&t!=='poly'&&ui.poly){ui.poly=null;const tg=svg.querySelector('#tg');if(tg)tg.innerHTML='';}
   if(ui.tool==='cable'&&t!=='cable'&&ui.poly){ui.poly=null;const tg=svg.querySelector('#tg');if(tg)tg.innerHTML='';}
   ui.tool=t;
@@ -4157,6 +4171,7 @@ window.addEventListener('keydown',e=>{
   if(ui.lager==='kabel'&&(e.key==='j'||e.key==='J'))setTool(ui.tool==='junction'?'select':'junction');
   if((e.key==='k'||e.key==='K')&&ui.sel)toggleDone(ui.sel.kind,ui.sel.id);
   if(e.key==='f'||e.key==='F')fitView();
+  if(e.key==='H'&&e.shiftKey){vaxlaRum();e.preventDefault();return;}
   if(e.key==='h'||e.key==='H'){vaxlaKomponenter();e.preventDefault();return;}
   if((e.key==='Delete'||e.key==='Backspace')&&ui.sel){treeAction('del',ui.sel.kind,ui.sel.id);e.preventDefault();}
 });
