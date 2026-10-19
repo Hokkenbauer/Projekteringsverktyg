@@ -589,3 +589,11 @@ table.grid.fasta th:last-child, table.grid.fasta td:last-child { border-right: 1
 .projektlogga .loggaruta img{max-width:100%;max-height:100%;object-fit:contain}
 .projektlogga .loggaval{display:flex;flex-direction:column;gap:6px;min-width:0}
 .wordval{display:flex;flex-direction:column;gap:2px;max-height:50vh;overflow:auto}
+
+/* Placeringskommentarer: kategori med färgprick, filterknappar */
+.kommkat { display: inline-flex; align-items: center; gap: 6px; }
+.kommkat i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: 0 0 auto; }
+td.egen .kommkat { padding: 6px 8px; }
+.summering button.chip { cursor: pointer; color: inherit; font: inherit; font-size: 12.5px; }
+.summering button.chip:hover { border-color: var(--accent); }
+.summering button.chip.vald { border-color: var(--accent); background: var(--accent-mjuk); }

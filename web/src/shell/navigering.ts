@@ -33,6 +33,7 @@ export const NAVIGERING: Grupp[] = [
     flikar: [
       { id: "att-gora", namn: "Lista", fas: 1, klar: true },
       { id: "anteckningar", namn: "Anteckningar", fas: 1, klar: true },
+      { id: "placeringskommentarer", namn: "Placeringskommentarer", fas: 1, klar: true },
     ],
   },
   {

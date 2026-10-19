@@ -7,6 +7,7 @@ import { anslutTillProjekt } from "../../lib/synk";
 import type { Anteckningar, AttGora, Kataloger, Skap, Komponent, KomponentHandelse, ListaHandelse, ListDef, ListRad, Logg, Mig, Narvarande, Projekt, Rattigheter } from "../../lib/typer";
 import { skrivUt } from "../../lib/utskrift";
 import { NAVIGERING, hittaFlik, type Flik } from "../../shell/navigering";
+import { KommentarerVy } from "../att-gora/KommentarerVy";
 import { AnteckningarVy } from "../att-gora/AnteckningarVy";
 import { AttGoraVy, type AttGoraFalt } from "../att-gora/AttGoraVy";
 import { FlytandeFonster } from "../../shell/FlytandeFonster";
@@ -65,6 +66,8 @@ type Props = {
   visaMeddelande: (text: string) => void;
 };
 
+type PopFlik = "lista" | "anteckningar" | "kommentarer";
+
 export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka, visaMeddelande }: Props) {
   const [projekt, setProjekt] = useState<Projekt | null>(null);
   const [komponenter, setKomponenter] = useState<Komponent[]>([]);
@@ -96,6 +99,9 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
   const [infoId, setInfoId] = useState<string | null>(null);
   const [fokus, setFokus] = useState<{ flik: string; id: string } | null>(null);
   const [ritningFokus, setRitningFokus] = useState<string | null>(null);
+  const [kommentarFokus, setKommentarFokus] = useState<string | null>(null);
+  /** Räknas upp vid varje sparning av ritningen, även egna (för Placeringskommentarer). */
+  const [ritningSparad, setRitningSparad] = useState(0);
   const [valdKontroll, setValdKontroll] = useState<Record<string, Kontroll | null>>({});
   // Vilka listor och texter som är hämtade, så att livesynken vet vad som ska uppdateras.
   const hamtadeListor = useRef<Set<string>>(new Set());
@@ -243,6 +249,7 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
       if (h.avId !== mig.id) setRitbordVersion((v) => v + 1);
     } else if (h.lista === "ritning") {
       if (h.avId !== mig.id) setRitningVersion((v) => v + 1);
+      setRitningSparad((v) => v + 1);
     } else if (h.lista === "filer") {
       if (h.avId !== mig.id) setFilVersion((v) => v + 1);
     } else if (h.lista === "attGora") {
@@ -287,8 +294,8 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
   // ---- Att göra ----
   const [attGoraUte, setAttGoraUte] = useState(() => { try { return localStorage.getItem("pv.attGoraUte") === "1"; } catch { return false; } });
   useEffect(() => { try { localStorage.setItem("pv.attGoraUte", attGoraUte ? "1" : "0"); } catch { /* bara bekvämlighet */ } }, [attGoraUte]);
-  const [popFlik, setPopFlik] = useState<"lista" | "anteckningar">(() => { try { return localStorage.getItem("pv.popFlik") === "anteckningar" ? "anteckningar" : "lista"; } catch { return "lista"; } });
-  const oppnaPopUt = (f: "lista" | "anteckningar") => { setPopFlik(f); setAttGoraUte(true); try { localStorage.setItem("pv.popFlik", f); } catch { /* */ } };
+  const [popFlik, setPopFlik] = useState<PopFlik>(() => { try { const v = localStorage.getItem("pv.popFlik"); return v === "anteckningar" || v === "kommentarer" ? v : "lista"; } catch { return "lista"; } });
+  const oppnaPopUt = (f: PopFlik) => { setPopFlik(f); setAttGoraUte(true); try { localStorage.setItem("pv.popFlik", f); } catch { /* */ } };
   const andraAttGora = async (rad: AttGora, falt: AttGoraFalt, varde: string) => {
     const fore = rad;
     const bool = varde === "true";
@@ -523,6 +530,13 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
     onFlik(malFlik);
   };
   const fokusHar = fokus && fokus.flik === flik ? fokus.id : null;
+  /** Från Placeringskommentarer: öppna placeringsritningen och visa kommentaren. */
+  const visaKommentar = (id: string) => {
+    const grupp = hittaFlik("placeringsritningar")?.grupp.namn;
+    if (grupp) setOppnaGrupper((g) => new Set(g).add(grupp));
+    setKommentarFokus(id);
+    onFlik("placeringsritningar");
+  };
 
   const listVy = (inbaddad: boolean) => listDef && vald ? (
     <ListVy
@@ -644,6 +658,7 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
         {flik === "projektstatus" && <ProjektStatusVy projektId={projektId} rattigheter={ratt} uppdaterad={statusVersion} visaMeddelande={visaMeddelande} />}
         {flik === "medlemmar" && <MedlemmarVy projektId={projektId} rattigheter={ratt} visaMeddelande={visaMeddelande} />}
         {flik === "anteckningar" && anteckningar && <AnteckningarVy key={projektId} anteckningar={anteckningar} onSpara={sparaAnteckningar} lasläge={!ratt.skriva} onPopUt={() => oppnaPopUt("anteckningar")} />}
+        {flik === "placeringskommentarer" && <KommentarerVy projektId={projektId} projekt={projekt} uppdaterad={ritningSparad} onVisa={visaKommentar} onPopUt={() => oppnaPopUt("kommentarer")} />}
         {vald?.flik.lista && flik !== "signallista" && listVy(false)}
         {flik === "signallista" && (
           <SignallistaVy
@@ -726,6 +741,8 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
             uppdaterad={ritningVersion}
             fokusKomponent={ritningFokus}
             onFokusVisad={() => setRitningFokus(null)}
+            fokusKommentar={kommentarFokus}
+            onKommentarVisad={() => setKommentarFokus(null)}
             onVisaKomponent={setInfoId}
             lasläge={!skrivbar}
             laggKomponent={lagg}
@@ -833,14 +850,15 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
       {attGoraUte && (
         <FlytandeFonster nyckel="attGora" titel={`Att göra – ${projekt?.namn ?? ""}`} onStang={() => setAttGoraUte(false)}>
           <div className="popflikar" role="tablist">
-            {(["lista", "anteckningar"] as const).map((f) => (
+            {(["lista", "anteckningar", "kommentarer"] as const).map((f) => (
               <button key={f} role="tab" aria-selected={popFlik === f} className={popFlik === f ? "aktiv" : ""}
                 onClick={() => { setPopFlik(f); try { localStorage.setItem("pv.popFlik", f); } catch { /* */ } }}>
-                {f === "lista" ? `Lista (${attGora.filter((a) => !a.klar).length})` : "Anteckningar"}
+                {f === "lista" ? `Lista (${attGora.filter((a) => !a.klar).length})` : f === "anteckningar" ? "Anteckningar" : "Placeringskommentarer"}
               </button>
             ))}
           </div>
-          {popFlik === "lista"
+          {popFlik === "kommentarer" ? <KommentarerVy projektId={projektId} projekt={projekt} uppdaterad={ritningSparad} onVisa={visaKommentar} />
+            : popFlik === "lista"
             ? <AttGoraVy rader={attGora} blinkar={blinkar} onAndra={andraAttGora} onNy={nyAttGora} onTaBort={taBortAttGora} onFlytta={(ids) => void flyttaAttGora(ids)} lasläge={!ratt.skriva} />
             : anteckningar && <AnteckningarVy key={`${projektId}-pop`} anteckningar={anteckningar} onSpara={sparaAnteckningar} lasläge={!ratt.skriva} />}
         </FlytandeFonster>

@@ -29,6 +29,7 @@ type Verktyg = Window & {
   pvMarkeraSparad?: (data: string) => void;
   pvTema?: (t: Record<string, string | boolean>) => void;
   pvVisaKomponent?: (id: string) => Promise<boolean>;
+  pvVisaKommentar?: (id: string) => Promise<boolean>;
 };
 
 
@@ -49,6 +50,9 @@ type Props = {
   /** Komponent som ska visas på ritningen (från Komponentinformation). */
   fokusKomponent: string | null;
   onFokusVisad: () => void;
+  /** Kommentar som ska visas på ritningen (från Att göra → Placeringskommentarer). */
+  fokusKommentar?: string | null;
+  onKommentarVisad?: () => void;
   /** Öppna Komponentinformation för en komponent som markerats i ritningen. */
   onVisaKomponent: (id: string) => void;
 };
@@ -140,6 +144,7 @@ export function PlaceringsritningVy(p: Props) {
       v.pvSyncCatalogs?.(JSON.stringify(props.current.kataloger));
       synkaKomponenter();
       visaFokus();
+      visaKommentar();
     } catch (e) {
       props.current.visaMeddelande(`Ritningen kunde inte hämtas: ${(e as Error).message}`);
     }
@@ -156,6 +161,17 @@ export function PlaceringsritningVy(p: Props) {
       if (!hittad) props.current.visaMeddelande("Komponenten finns inte på ritningen än. Den ligger under Att placera.");
       props.current.onFokusVisad();
     }, 400);
+  };
+
+  /** Öppnar planet med kommentaren som Placeringskommentarer bad om, och centrerar den. */
+  const visaKommentar = () => {
+    const id = props.current.fokusKommentar;
+    if (!id || !verktyg()?.pvVisaKommentar || !redo.current) return;
+    window.setTimeout(async () => {
+      const hittad = await verktyg()?.pvVisaKommentar?.(id);
+      if (!hittad) props.current.visaMeddelande("Kommentaren finns inte längre på ritningen.");
+      props.current.onKommentarVisad?.();
+    }, 300);
   };
 
   /** Ändrar fält på en komponent ett i taget, med senaste versionen varje gång. */
@@ -310,6 +326,7 @@ export function PlaceringsritningVy(p: Props) {
   }, [p.kataloger]);
 
   useEffect(() => { if (p.fokusKomponent) visaFokus(); }, [p.fokusKomponent]);
+  useEffect(() => { if (p.fokusKommentar) visaKommentar(); }, [p.fokusKommentar]);
 
   // Ritverktyget följer webbappens färgtema, även när temat byts.
   useEffect(() => {

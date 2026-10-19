@@ -139,6 +139,14 @@ main{flex:1;position:relative;min-width:0;background:var(--canvas)}
 #overlay .kommDel:hover circle{fill:#c62828}
 #kommEditDel{position:absolute;z-index:7;font:600 11px/1 var(--sans);padding:4px 7px;border-radius:4px;border:1px solid #c62828;background:#c62828;color:#fff;cursor:pointer;display:flex;gap:4px;align-items:center}
 #kommEditDel:hover{background:#a31515}
+/* Kategorival under textrutan (Minnesanteckning, Fel, Avvikelse, Fråga …). */
+#kommEditKat{position:absolute;z-index:7;display:flex;flex-wrap:wrap;gap:4px;max-width:360px}
+#kommEditKat button{font:600 11px/1 var(--sans);padding:4px 8px;border-radius:4px;border:1px solid var(--line);background:var(--panel);color:var(--txt);cursor:pointer;display:flex;gap:5px;align-items:center;box-shadow:0 1px 4px rgba(0,0,0,.25)}
+#kommEditKat button.on{border-color:var(--kf);box-shadow:0 0 0 1px var(--kf) inset,0 1px 4px rgba(0,0,0,.25)}
+#kommEditKat i,.kommPrick{width:10px;height:10px;border-radius:50%;background:var(--kf);display:inline-block;flex:0 0 auto}
+.kommKatRad{display:flex;align-items:center;gap:6px;padding:3px 10px;font-size:12px}
+.kommKatRad input[type=text]{flex:1;min-width:0;font-size:12px;padding:3px 6px}
+.kommKatRad input[type=color]{width:26px;height:22px;padding:0;border:1px solid var(--line);background:none;cursor:pointer;flex:0 0 auto}
 .kommRad{display:flex;align-items:center;gap:6px;padding:3px 10px;font-size:12px}
 .kommRad .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
 .kommRad .t:hover{color:var(--accent)}
@@ -3073,9 +3081,10 @@ async function renderPlanCanvas(floor,box,scale,opts){
   /* kommentarer */
   const medKomm=opts.cableLayerIds?opts.cableLayerIds.includes(KOMM_LAGER):P.settings.visaKomm!==false;
   if(floor.ref&&floor.kommentarer&&floor.kommentarer.length&&medKomm){
-    const kc=kommFarg(),kb=pick(BG_PRESETS,P.settings.bg,2),kk=Math.max(0.6,scale*0.6);
+    const kb=pick(BG_PRESETS,P.settings.bg,2),kk=Math.max(0.6,scale*0.6);
     floor.kommentarer.forEach(km=>{
       if(!(km.text||'').trim())return;
+      const kc=kommFargFor(km);
       const ax=W2(km.ax*floor.ref.w),ay=H2(km.ay*floor.ref.h),bx=W2(km.bx*floor.ref.w),by=H2(km.by*floor.ref.h);
       const v=Math.atan2(ay-by,ax-bx);
       oc.strokeStyle=kc;oc.fillStyle=kc;oc.lineWidth=2*kk;oc.lineCap='round';
@@ -3746,6 +3755,16 @@ function kommFarg(){
   const [r,g,b]=/^#[0-9a-f]{6}$/i.test(bg)?hexRGB(bg):[14,28,44];
   return (r*77+g*151+b*28)/256>140?'#c8006a':'#ff4fd8';
 }
+/** Kommentarskategorier (Inställningar i kommentarslagrets meny). Tom färg = automatisk färg efter bakgrunden. */
+const KOMM_STANDARD=[{id:'allman',namn:'Allmän',farg:''},{id:'minne',namn:'Minnesanteckning',farg:'#1e88e5'},
+  {id:'fel',namn:'Fel',farg:'#e53935'},{id:'avvikelse',namn:'Avvikelse',farg:'#f57c00'},{id:'fraga',namn:'Fråga',farg:'#00a39a'}];
+function kommKatLista(){return Array.isArray(P.settings.kommKat)&&P.settings.kommKat.length?P.settings.kommKat:KOMM_STANDARD;}
+/** Kategorilistan för ändring (standardlistan kopieras in i ritningen första gången). */
+function kommKatAndra(){if(!Array.isArray(P.settings.kommKat)||!P.settings.kommKat.length)P.settings.kommKat=KOMM_STANDARD.map(x=>Object.assign({},x));return P.settings.kommKat;}
+function kommKatFor(k){const l=kommKatLista();return l.find(x=>x.id===(k&&k.kat))||l[0];}
+/** Antal kommentarer i kategorin på alla plan. */
+function kommAntalAlla(id){let n=0;eachFloor(f=>(f.kommentarer||[]).forEach(k=>{if(kommKatFor(k).id===id)n++;}));return n;}
+function kommFargFor(k){const c=kommKatFor(k);return c&&c.farg?c.farg:kommFarg();}
 const kommMat=document.createElement('canvas').getContext('2d');
 function kommStorlek(text,k){
   k=k||1;
@@ -3764,15 +3783,15 @@ function ritaKommentarer(){
   const f=curFloor();
   const visa=P.settings.visaKomm!==false;
   if(!f||!ref||!visa){kg.innerHTML='';kommPlaceraEditor();return;}
-  const c=kommFarg(),bg=pick(BG_PRESETS,P.settings.bg,2);
+  const bg=pick(BG_PRESETS,P.settings.bg,2);
   const lista=kommLista().slice();
-  if(ui.kommUtkast)lista.push(Object.assign({id:'_utkast',text:''},ui.kommUtkast));
-  kg.style.setProperty('--komm',c);
+  if(ui.kommUtkast)lista.push(Object.assign({id:'_utkast',text:'',kat:ui.kommSenastKat},ui.kommUtkast));
   kg.innerHTML=lista.map(k=>{
+    const c=kommFargFor(k);
     const A=w2s(k.ax*ref.w,k.ay*ref.h),B=w2s(k.bx*ref.w,k.by*ref.h);
     const v=Math.atan2(A.y-B.y,A.x-B.x),ex=A.x-7*Math.cos(v),ey=A.y-7*Math.sin(v);
     const spets=kommPilspets(A.x,A.y,B.x,B.y,13).map(q=>q[0].toFixed(1)+','+q[1].toFixed(1)).join(' ');
-    let h=`<g class="komm${ui.kommSel===k.id?' sel':''}" data-komm="${k.id}">`+
+    let h=`<g class="komm${ui.kommSel===k.id?' sel':''}" data-komm="${k.id}" style="--komm:${c}">`+
       `<line x1="${B.x.toFixed(1)}" y1="${B.y.toFixed(1)}" x2="${ex.toFixed(1)}" y2="${ey.toFixed(1)}" stroke="${c}" stroke-width="2" stroke-linecap="round"/>`+
       `<polygon points="${spets}" fill="${c}"/>`;
     if(k.id!=='_utkast'&&ui.kommRed!==k.id){
@@ -3823,7 +3842,7 @@ function kommUpp(d,e){
       flash('Håll in vänster musknapp på rummet, dra ut en bit och släpp där texten ska stå.');
       return;
     }
-    const k={id:uid('km'),ax:u.ax,ay:u.ay,bx:u.bx,by:u.by,text:''};
+    const k={id:uid('km'),ax:u.ax,ay:u.ay,bx:u.bx,by:u.by,text:'',kat:kommKatFor({kat:ui.kommSenastKat}).id};
     kommLista().push(k);
     renderKommPanel();
     kommRedigera(k.id);
@@ -3838,7 +3857,7 @@ function kommRedigera(id){
   ui.kommRed=id;ui.kommSel=id;
   const ta=document.createElement('textarea');
   ta.id='kommEdit';ta.value=k.text||'';ta.placeholder='Skriv kommentar…';ta.spellcheck=true;ta.wrap='off';
-  ta.style.setProperty('--komm',kommFarg());ta.style.setProperty('--kommbg',pick(BG_PRESETS,P.settings.bg,2));
+  ta.style.setProperty('--komm',kommFargFor(k));ta.style.setProperty('--kommbg',pick(BG_PRESETS,P.settings.bg,2));
   ta.addEventListener('pointerdown',e=>e.stopPropagation());
   ta.addEventListener('wheel',e=>e.stopPropagation());
   ta.addEventListener('input',()=>{const x=kommLista().find(y=>y.id===id);if(x)x.text=ta.value;kommPlaceraEditor();});
@@ -3870,9 +3889,32 @@ function kommPlaceraEditor(){
     wrap.appendChild(del);
   }
   del.style.left=(B.x+b/2+6)+'px';del.style.top=(B.y-h/2)+'px';
+  // Kategori väljs direkt när musen släppts (och kan bytas när kommentaren ändras).
+  let kat=document.getElementById('kommEditKat');
+  if(!kat){
+    kat=document.createElement('div');kat.id='kommEditKat';
+    kat.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();});
+    kat.addEventListener('click',e=>{
+      e.stopPropagation();
+      const knapp=e.target.closest('[data-kat]');if(!knapp)return;
+      const x=kommLista().find(y=>y.id===ui.kommRed);if(!x)return;
+      x.kat=knapp.dataset.kat;ui.kommSenastKat=x.kat;
+      ta.style.setProperty('--komm',kommFargFor(x));
+      kommRitaKatVal();ritaKommentarer();renderKommPanel();
+    });
+    wrap.appendChild(kat);
+    kommRitaKatVal();
+  }
+  kat.style.left=(B.x-b/2)+'px';kat.style.top=(B.y+h/2+5)+'px';
+}
+function kommRitaKatVal(){
+  const kat=document.getElementById('kommEditKat');if(!kat)return;
+  const k=kommLista().find(x=>x.id===ui.kommRed),vald=kommKatFor(k).id;
+  kat.innerHTML=kommKatLista().map(c=>`<button type="button" data-kat="${esc(c.id)}" class="${c.id===vald?'on':''}" style="--kf:${c.farg||kommFarg()}" title="Kategori: ${esc(c.namn)}"><i></i>${esc(c.namn)}</button>`).join('');
 }
 function kommStangEditor(utanSpara){
   const knapp=document.getElementById('kommEditDel');if(knapp)knapp.remove();
+  const katVal=document.getElementById('kommEditKat');if(katVal)katVal.remove();
   const ta=document.getElementById('kommEdit');if(!ta||ta.dataset.stangs)return;
   ta.dataset.stangs='1'; // remove() nedan ger blur, som annars stänger en gång till
   const id=ui.kommRed;ui.kommRed=null;
@@ -3902,9 +3944,35 @@ function renderKommPanel(){
       <span class="muted" style="font-size:10.5px;margin-left:4px">${n} st</span>
     </div></div>
     ${n?`<div style="max-height:180px;overflow:auto;border-bottom:1px solid var(--line);padding:4px 0">${f.kommentarer.map(k=>
-      `<div class="kommRad"><span class="t" data-kommgo="${k.id}" title="Visa och ändra">${esc((k.text||'').split('\n')[0]||'(tom)')}</span><button class="ghost" data-kommtabort="${k.id}" title="Ta bort kommentaren">${ic('trash')}</button></div>`).join('')}</div>`:''}
+      `<div class="kommRad"><span class="kommPrick" style="--kf:${kommFargFor(k)}" title="${esc(kommKatFor(k).namn)}"></span><span class="t" data-kommgo="${k.id}" title="Visa och ändra">${esc((k.text||'').split('\n')[0]||'(tom)')}</span><button class="ghost" data-kommtabort="${k.id}" title="Ta bort kommentaren">${ic('trash')}</button></div>`).join('')}</div>`:''}
     <div class="lempty" style="text-align:left">Klicka på ✎ Kommentarslager och dra från t.ex. ett rum till där texten ska stå. Klicka på en ruta för att ändra texten, dra i den för att flytta. Ta bort med ✕ på rutan (håll musen över den), med Ta bort medan du skriver, med Delete när den är markerad eller i listan ovan. Vid PDF-export väljer du om kommentarerna ska med.</div>
-    ${ui.kommSel?`<div style="padding:0 10px 8px"><button id="kommDel">Ta bort markerad kommentar</button></div>`:''}`;
+    ${ui.kommSel?`<div style="padding:0 10px 8px"><button id="kommDel">Ta bort markerad kommentar</button></div>`:''}
+    <div class="lhead" style="border-top:1px solid var(--line)"><span class="lab">Inställningar · kategorier</span></div>
+    <div style="padding:2px 0 6px">${kommKatLista().map((c,i)=>`<div class="kommKatRad">
+      <input type="color" data-katfarg="${esc(c.id)}" value="${c.farg||kommFarg()}" title="${c.farg?'Färg':'Automatisk färg efter bakgrunden – välj en färg för att låsa den'}">
+      <input type="text" data-katnamn="${esc(c.id)}" value="${esc(c.namn)}">
+      <span class="muted" style="font-size:10.5px">${kommAntalAlla(c.id)} st</span>
+      ${kommKatLista().length>1?`<button class="ghost" data-kattabort="${esc(c.id)}" title="Ta bort kategorin (kommentarerna får kategorin ${esc(kommKatLista()[i===0?1:0].namn)})">${ic('trash')}</button>`:''}
+    </div>`).join('')}
+    <div style="padding:4px 10px 0"><button id="kommKatNy">+ Lägg till kategori</button></div>
+    <div class="lempty" style="text-align:left">Kategorin väljs i knapparna under textrutan när du släppt musknappen, och kan bytas när du klickar på kommentaren. Alla kommentarer finns samlade under Att göra → Placeringskommentarer.</div></div>`;
+  el.querySelectorAll('[data-katfarg]').forEach(x=>{
+    x.oninput=()=>{const c=kommKatAndra().find(y=>y.id===x.dataset.katfarg);if(c){c.farg=x.value;ritaKommentarer();}};
+    x.onchange=()=>renderKommPanel();
+  });
+  el.querySelectorAll('[data-katnamn]').forEach(x=>x.onchange=()=>{
+    const c=kommKatAndra().find(y=>y.id===x.dataset.katnamn);if(c&&x.value.trim()){c.namn=x.value.trim();}renderKommPanel();
+  });
+  el.querySelectorAll('[data-kattabort]').forEach(x=>x.onclick=()=>{
+    const l=kommKatAndra(),i=l.findIndex(y=>y.id===x.dataset.kattabort);if(i<0||l.length<2)return;
+    const ersatt=l[i===0?1:0].id;
+    eachFloor(f=>(f.kommentarer||[]).forEach(k=>{if(kommKatFor(k).id===l[i].id)k.kat=ersatt;}));
+    l.splice(i,1);ritaKommentarer();renderKommPanel();
+  });
+  const ny=$('#kommKatNy');if(ny)ny.onclick=()=>{
+    const l=kommKatAndra();l.push({id:uid('kk'),namn:'Ny kategori',farg:'#6d4c41'});renderKommPanel();
+    const sista=el.querySelectorAll('[data-katnamn]');const f=sista[sista.length-1];if(f){f.focus();f.select();}
+  };
   el.querySelectorAll('[data-kommtabort]').forEach(b=>b.onclick=()=>kommTaBort(b.dataset.kommtabort));
   el.querySelectorAll('[data-kommgo]').forEach(b=>b.onclick=()=>{
     if(ui.lager!=='komm')setLager('komm');
@@ -4516,6 +4584,21 @@ async function pvVisaKomponent(pvId){
   return true;
 }
 window.pvVisaKomponent=pvVisaKomponent;
+
+/** Öppnar planet där kommentaren ligger, tänder kommentarslagret, markerar kommentaren och centrerar vyn på den. */
+async function pvVisaKommentar(id){
+  let hit=null;eachFloor((f,b)=>(f.kommentarer||[]).forEach(k=>{if(k.id===id)hit={k,f,b};}));
+  if(!hit)return false;
+  setView('plan');
+  if(ui.floorId!==hit.f.id)await openFloor(hit.f.id);
+  P.settings.visaKomm=true;
+  if(ui.lager!=='komm')setLager('komm');
+  ui.kommSel=id;
+  if(ref){view.tx=cw/2-hit.k.bx*ref.w*view.scale;view.ty=ch/2-hit.k.by*ref.h*view.scale;buildOverlay();draw();scheduleDetail();}
+  ritaKommentarer();renderKommPanel();
+  return true;
+}
+window.pvVisaKommentar=pvVisaKommentar;
 
 /** Var en komponent ligger på ritningen: [{byggnad, plan, rum, placerad}]. */
 function pvKomponentPlats(pvId){
