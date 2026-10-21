@@ -1,3 +1,4 @@
+import { useSmalSkarm } from "../../lib/skarm";
 import { useEffect, useState } from "react";
 import { api, ApiFel, skicka } from "../../lib/api";
 import type { ProjektStatus, Rattigheter, StatusUppgift } from "../../lib/typer";
@@ -13,6 +14,7 @@ type Props = {
 const datum = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("sv-SE") : "");
 
 export function ProjektStatusVy({ projektId, rattigheter, uppdaterad, visaMeddelande }: Props) {
+  const smal = useSmalSkarm();
   const [data, setData] = useState<ProjektStatus | null>(null);
   const [nya, setNya] = useState<Record<string, string>>({});
 
@@ -78,8 +80,8 @@ export function ProjektStatusVy({ projektId, rattigheter, uppdaterad, visaMeddel
                 </span>
               </div>
               {rader.length > 0 && (
-                <div className="grid-ram">
-                  <table className="grid statusgrid">
+                <div className={`grid-ram${smal ? " kortram" : ""}`}>
+                  <table className={`grid statusgrid${smal ? " kort" : ""}`}>
                     <thead>
                       <tr>
                         <th className="smal">Klar</th>
@@ -93,14 +95,14 @@ export function ProjektStatusVy({ projektId, rattigheter, uppdaterad, visaMeddel
                     <tbody>
                       {rader.map((u) => (
                         <tr key={u.id} className={u.klar ? "klar" : undefined}>
-                          <td className="kryss">
+                          <td className="kryss" data-rubrik="Klar">
                             <input type="checkbox" aria-label={`Klar: ${u.text}`} checked={u.klar} disabled={!kanSkriva}
                               onChange={(e) => andra(u, "klar", String(e.target.checked))} />
                           </td>
-                          <td><TextCell varde={u.text} lasläge={!kanUnderrubriker} etikett="Underrubrik" onSpara={(v) => andra(u, "text", v)} /></td>
-                          <td><TextCell varde={u.kommentar} lasläge={!kanSkriva} etikett="Kommentar" onSpara={(v) => andra(u, "kommentar", v)} /></td>
-                          <td><TextCell varde={u.utfordAv} lasläge={!kanSkriva} etikett="Utförd av" onSpara={(v) => andra(u, "utfordAv", v)} /></td>
-                          <td className="ro">{datum(u.klarDatum)}</td>
+                          <td className="forsta"><TextCell varde={u.text} lasläge={!kanUnderrubriker} etikett="Underrubrik" onSpara={(v) => andra(u, "text", v)} /></td>
+                          <td data-rubrik="Kommentar"><TextCell varde={u.kommentar} lasläge={!kanSkriva} etikett="Kommentar" onSpara={(v) => andra(u, "kommentar", v)} /></td>
+                          <td data-rubrik="Utförd av"><TextCell varde={u.utfordAv} lasläge={!kanSkriva} etikett="Utförd av" onSpara={(v) => andra(u, "utfordAv", v)} /></td>
+                          <td className={`ro${u.klarDatum ? "" : " tomt"}`} data-rubrik="Datum">{datum(u.klarDatum)}</td>
                           {kanUnderrubriker && (
                             <td className="smal"><button className="ikonknapp" title="Ta bort underrubriken" onClick={() => taBort(u)}>✕</button></td>
                           )}

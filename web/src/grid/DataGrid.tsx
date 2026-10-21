@@ -1,4 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useSmalSkarm } from "../lib/skarm";
+
+type Visning = "auto" | "tabell" | "kort";
+const lasVisning = (): Visning => { try { const v = localStorage.getItem("pv.visning"); return v === "tabell" || v === "kort" ? v : "auto"; } catch { return "auto"; } };
 
 /**
  * Den gemensamma tabellmotorn. Varje flik som är en tabell beskriver bara sina kolumner;
@@ -60,6 +64,12 @@ export function DataGrid<T extends Rad>({
   rader, kolumner, sokPlatshallare, onAndra, onNy: nyIn, onTaBort: taBortIn, blinkar = [], verktyg, lasläge = false, tomText, cellVarning, cellKlass, markeradeVerktyg, onInfo, fokusId, onFlytta: flyttaIn, markeraRubrik, onMarkerade,
 }: Props<T>) {
   const ram = useRef<HTMLDivElement>(null);
+  // Mobil: varje rad visas som ett kort (rubrik + värde under varandra). Kan växlas till tabell; valet gäller alla tabeller.
+  const smal = useSmalSkarm();
+  const [visning, setVisning] = useState<Visning>(lasVisning);
+  const kort = visning === "kort" || (visning === "auto" && smal);
+  const valjVisning = (v: Visning) => { setVisning(v); try { localStorage.setItem("pv.visning", v); } catch { /* bara bekvämlighet */ } };
+  const [flerOppen, setFlerOppen] = useState(false);
   const onNy = lasläge ? undefined : nyIn;
   const onTaBort = lasläge ? undefined : taBortIn;
   const [sok, setSok] = useState("");
@@ -109,6 +119,13 @@ export function DataGrid<T extends Rad>({
     ids.splice(till, 0, id);
     if (ids.some((x, i) => x !== rader[i]!.id)) flyttaIn?.(ids);
   };
+
+  // Kortets rubrik: den kolumn som bäst beskriver raden (beteckning, text, namn …), annars första textkolumnen.
+  const rubrikKolumn = useMemo(() => {
+    const prio = ["beteckning", "signal", "text", "anmarkning", "namn", "nr", "kommentar", "rubrik"];
+    for (const p of prio) { const k = kolumner.find((x) => x.nyckel === p && !x.cell); if (k) return k.nyckel; }
+    return kolumner.find((x) => (x.typ === "text" || x.typ === "ro") && !x.cell)?.nyckel ?? kolumner[0]?.nyckel;
+  }, [kolumner]);
 
   const synliga = useMemo(() => {
     let lista = rader;
@@ -177,8 +194,27 @@ export function DataGrid<T extends Rad>({
             Ta bort markerade{markerade.size ? ` (${markerade.size})` : ""}
           </button>
         )}
-        {markeradeVerktyg?.([...markerade])}
-        {verktyg}
+        {(markeradeVerktyg || verktyg) && smal && (
+          <button className={`knapp fler-knapp${flerOppen ? " vald" : ""}`} aria-expanded={flerOppen} onClick={() => setFlerOppen((v) => !v)}>Fler {flerOppen ? "▴" : "▾"}</button>
+        )}
+        <div className={`fler-verktyg${smal && !flerOppen ? " dold" : ""}`}>
+          {markeradeVerktyg?.([...markerade])}
+          {verktyg}
+        </div>
+        {kort && (
+          <select className="kortsortering" aria-label="Sortera" value={sortering ? `${sortering.nyckel}|${sortering.riktning}` : ""}
+            onChange={(e) => { const [n, rk] = e.target.value.split("|"); setSortering(n ? { nyckel: n, riktning: Number(rk) as 1 | -1 } : null); }}>
+            <option value="">{harFlytta ? "Egen ordning" : "Ingen sortering"}</option>
+            {kolumner.filter((k) => !k.cell || k.typ !== "ro").map((k) => [1, -1].map((rk) => (
+              <option key={`${k.nyckel}|${rk}`} value={`${k.nyckel}|${rk}`}>Sortera: {k.rubrik || k.nyckel} {rk > 0 ? "▲" : "▼"}</option>
+            )))}
+          </select>
+        )}
+        {smal && (
+          <button className="knapp visningsknapp" title={kort ? "Visa som tabell" : "Visa som kort"} onClick={() => valjVisning(kort ? "tabell" : "kort")}>
+            {kort ? "▤ Tabell" : "▦ Kort"}
+          </button>
+        )}
         {harFlytta && !kanFlytta && (
           <button className="knapp" onClick={() => { setSok(""); setSortering(null); }} title="Rader kan bara flyttas när listan visas i egen ordning">Visa egen ordning</button>
         )}
@@ -191,10 +227,10 @@ export function DataGrid<T extends Rad>({
           {k.forslag!.map((v) => <option key={v} value={v} />)}
         </datalist>
       ))}
-      <div className="grid-ram" ref={ram}>
+      <div className={`grid-ram${kort ? " kortram" : ""}`} ref={ram}>
         <table
-          ref={tabell} className={`grid ${bredder ? "fasta" : ""}`}
-          style={bredder ? { width: Object.values(bredder).reduce((a, b) => a + b, 0) + 36 * ((kanFlytta ? 1 : 0) + (onTaBort ? 1 : 0) + (onInfo ? 1 : 0)), minWidth: 0 } : undefined}
+          ref={tabell} className={`grid ${kort ? "kort" : bredder ? "fasta" : ""}`}
+          style={bredder && !kort ? { width: Object.values(bredder).reduce((a, b) => a + b, 0) + 36 * ((kanFlytta ? 1 : 0) + (onTaBort ? 1 : 0) + (onInfo ? 1 : 0)), minWidth: 0 } : undefined}
         >
           <thead>
             <tr>
@@ -261,8 +297,8 @@ export function DataGrid<T extends Rad>({
                   </td>
                 )}
                 {onTaBort && (
-                  <td className={markeraRubrik ? "smal markera-cell" : "smal"}>
-                    <input type="checkbox" aria-label="Markera rad" checked={markerade.has(r.id)} onChange={() => vaxla(r.id)} />
+                  <td className={markeraRubrik ? "smal markera-cell" : "smal"} data-rubrik={markeraRubrik}>
+                    <input type="checkbox" aria-label={markeraRubrik ?? "Markera rad"} checked={markerade.has(r.id)} onChange={() => vaxla(r.id)} />
                   </td>
                 )}
                 {onInfo && (
@@ -272,10 +308,11 @@ export function DataGrid<T extends Rad>({
                 )}
                 {kolumner.map((k) => {
                   const blink = blinkar.find((b) => b.radId === r.id && b.nyckel === k.nyckel);
-                  if (k.cell) return <td key={k.nyckel} className={`egen${blink ? " blinkar" : ""}`}>{k.cell(r)}</td>;
+                  if (k.cell) return <td key={k.nyckel} className={`egen${blink ? " blinkar" : ""}${k.nyckel === rubrikKolumn ? " forsta" : ""}`} data-rubrik={k.rubrik}>{k.cell(r)}</td>;
                   return (
                     <Cell
                       key={k.nyckel}
+                      forsta={k.nyckel === rubrikKolumn}
                       kolumn={k}
                       varde={String(r[k.nyckel] ?? "")}
                       blink={blink}
@@ -312,8 +349,10 @@ function kolumnStil<T>(k: Kolumn<T>): CSSProperties | undefined {
   return undefined;
 }
 
-function Cell<T>({ kolumn, varde, blink, varning, extraKlass, onSpara, lasläge }: {
+function Cell<T>({ kolumn, varde, blink, varning, extraKlass, onSpara, lasläge, forsta }: {
   kolumn: Kolumn<T>; varde: string; blink?: Blink; varning?: string; extraKlass?: string; onSpara: (v: string) => void; lasläge: boolean;
+  /** Första kolumnen blir kortets rubrik i kortvyn. */
+  forsta?: boolean;
 }) {
   const [utkast, setUtkast] = useState(varde);
   const fokus = useRef(false);
@@ -325,11 +364,12 @@ function Cell<T>({ kolumn, varde, blink, varning, extraKlass, onSpara, lasläge 
   }, [varde]);
 
   const stil = blink ? ({ "--blink": blink.farg } as CSSProperties) : undefined;
-  const klass = [kolumn.mono ? "mono" : "", blink ? "blinkar" : "", varning ? "varnar" : "", extraKlass ?? ""].join(" ").trim() || undefined;
+  const klass = [kolumn.mono ? "mono" : "", blink ? "blinkar" : "", varning ? "varnar" : "", extraKlass ?? "", forsta ? "forsta" : "", varde ? "" : "tomt"].join(" ").trim() || undefined;
+  const r = kolumn.rubrik;
 
   if (kolumn.typ === "ro") {
     return (
-      <td className={["ro", klass].filter(Boolean).join(" ")} style={stil} key={blink?.tid} title={varning}>
+      <td className={["ro", klass].filter(Boolean).join(" ")} style={stil} key={blink?.tid} title={varning} data-rubrik={r}>
         <span>{varde}</span>
       </td>
     );
@@ -337,7 +377,7 @@ function Cell<T>({ kolumn, varde, blink, varning, extraKlass, onSpara, lasläge 
 
   if (kolumn.typ === "datum") {
     return (
-      <td className={klass} style={stil} key={blink?.tid} title={varning}>
+      <td className={klass} style={stil} key={blink?.tid} title={varning} data-rubrik={r}>
         <input
           type="date" aria-label={kolumn.rubrik} value={/^0001-/.test(varde) ? "" : varde} readOnly={lasläge} disabled={lasläge}
           onChange={(e) => { if (e.target.value !== varde) onSpara(e.target.value); }}
@@ -348,7 +388,7 @@ function Cell<T>({ kolumn, varde, blink, varning, extraKlass, onSpara, lasläge 
 
   if (kolumn.typ === "kryss") {
     return (
-      <td className={["kryss", klass].filter(Boolean).join(" ")} style={stil} key={blink?.tid}>
+      <td className={["kryss", klass].filter(Boolean).join(" ")} style={stil} key={blink?.tid} data-rubrik={r}>
         <input type="checkbox" aria-label={kolumn.rubrik} checked={varde === "true"} disabled={lasläge} onChange={(e) => onSpara(String(e.target.checked))} />
       </td>
     );
@@ -358,7 +398,7 @@ function Cell<T>({ kolumn, varde, blink, varning, extraKlass, onSpara, lasläge 
     const val = kolumn.val ?? [];
     const alternativ = varde && !val.includes(varde) ? [varde, ...val] : val;
     return (
-      <td className={klass} style={stil} key={blink?.tid}>
+      <td className={klass} style={stil} key={blink?.tid} data-rubrik={r}>
         <select aria-label={kolumn.rubrik} value={varde} disabled={lasläge} onChange={(e) => onSpara(e.target.value)}>
           <option value="" />
           {alternativ.map((o) => <option key={o} value={o}>{o}</option>)}
@@ -368,7 +408,7 @@ function Cell<T>({ kolumn, varde, blink, varning, extraKlass, onSpara, lasläge 
   }
 
   return (
-    <td className={klass} style={stil} key={blink?.tid} title={varning}>
+    <td className={klass} style={stil} key={blink?.tid} title={varning} data-rubrik={r}>
       <input
         type="text" aria-label={kolumn.rubrik} spellCheck={false} value={utkast} readOnly={lasläge} size={1}
         list={kolumn.forslag?.length ? forslagId(kolumn.forslag) : undefined}

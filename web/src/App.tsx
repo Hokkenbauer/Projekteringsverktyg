@@ -24,6 +24,15 @@ export function App() {
   const [fel, setFel] = useState<string | null>(null);
   const [vag, setVag] = useState<Vag>(lasVag);
   const [meddelande, setMeddelande] = useState<string | null>(null);
+  /** Kontomenyn (bara på mobil, där användare, tema och logga ut ligger bakom en knapp). */
+  const [kontoOppen, setKontoOppen] = useState(false);
+  useEffect(() => {
+    if (!kontoOppen) return;
+    const stang = (e: PointerEvent) => { if (!(e.target as Element).closest(".toppmeny, .kontoknapp")) setKontoOppen(false); };
+    document.addEventListener("pointerdown", stang);
+    return () => document.removeEventListener("pointerdown", stang);
+  }, [kontoOppen]);
+  useEffect(() => setKontoOppen(false), [vag]);
 
   useEffect(() => {
     const vid = () => setVag(lasVag());
@@ -90,6 +99,11 @@ export function App() {
       <header className="topprad">
         <a className="varumarke" href="#/" title="Till projektlistan"><span className="logga" role="img" aria-label="HECO Automation" /><span className="varumarke-namn">Projekteringsverktyg</span></a>
         <span className="flex" />
+        <button className="kontoknapp" aria-expanded={kontoOppen} aria-label="Konto och inställningar" onClick={() => setKontoOppen((v) => !v)}>
+          {mig.namn.split(/\s+/).map((d) => d[0]).slice(0, 2).join("").toUpperCase()}
+        </button>
+        <div className={`toppmeny${kontoOppen ? " oppen" : ""}`}>
+        <span className="toppmeny-namn">{mig.namn} · {rollNamn(mig.roll)}</span>
         {mig.rattigheter.hanteraAnvandare && <a className="knapp" href="#/admin">Användare och roller</a>}
         {inloggning.utvecklingslage ? (
           <label className="kontroll">
@@ -100,7 +114,7 @@ export function App() {
             />
           </label>
         ) : (
-          <span className="kontroll">{mig.namn} · {rollNamn(mig.roll)}</span>
+          <span className="kontroll toppmeny-dator">{mig.namn} · {rollNamn(mig.roll)}</span>
         )}
         <label className="kontroll">
           Tema
@@ -109,6 +123,8 @@ export function App() {
           </select>
         </label>
         {!inloggning.utvecklingslage && <button className="knapp" onClick={inloggning.loggaUt}>Logga ut</button>}
+        <span className="toppmeny-version">Version {config.version}</span>
+        </div>
       </header>
 
       {vag.typ === "admin" && mig.rattigheter.hanteraAnvandare ? (

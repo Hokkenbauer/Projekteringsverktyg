@@ -120,7 +120,31 @@ main{flex:1;position:relative;min-width:0;background:var(--canvas)}
 .pitem .want{font-size:10px;color:var(--accent2);white-space:nowrap}
 .pdone{padding:26px 14px;text-align:center;color:var(--done);font-size:12px}
 
-#planWrap{position:absolute;inset:0;overflow:hidden}
+#planWrap{position:absolute;inset:0;overflow:hidden;touch-action:none}
+/* Visningsläge (mobil och padda): bara titta – dra med fingret, nyp för att zooma, tryck på en komponent för information. */
+#btnVisning{display:none}
+body.pek #btnVisning{display:inline-flex}
+body.visningslage #btnRect,body.visningslage #btnPoly,body.visningslage .kabelverktyg,body.visningslage #btnImport,
+body.visningslage #btnKabelLager,body.visningslage #btnKommLager,body.visningslage #btnCsv,body.visningslage #btnOpen,
+body.visningslage #btnHelp,body.visningslage #btnRight,body.visningslage #right,body.visningslage #addBuilding,
+body.visningslage #left .phead.split,body.visningslage #left .phead.split+.pbody,body.visningslage #pvSparstatus,
+body.visningslage #tree [data-act]:not([data-act="eye"]),body.visningslage #leftDrag,body.visningslage #kommPanel .klarbox,
+body.visningslage #kommPanel [data-kommtabort],body.visningslage #kommPanel #kommKatNy,body.visningslage #kommPanel [data-kattabort],
+body.visningslage #kommDel{display:none!important}
+body.visningslage .pop.delad>button[data-pop]{border-radius:6px;border-left:1px solid var(--line2)}
+body.visningslage #kommPanel input{pointer-events:none}
+body.visningslage #btnKabelLager+button[data-pop]::before{content:"≋ Kablar "}
+body.visningslage #btnKommLager+button[data-pop]::before{content:"✎ Kommentarer "}
+@media (max-width:600px){body.visningslage #planHud{font-size:10px;padding:3px 7px;gap:4px}}
+#visaKort{position:absolute;left:10px;right:10px;bottom:10px;z-index:12;max-width:420px;margin:0 auto;background:var(--panel);border:1px solid var(--line2);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.4);padding:10px 12px;font-size:13px}
+#visaKort h3{margin:0 0 4px;font:600 15px/1.3 var(--mono);display:flex;gap:8px;align-items:center}
+#visaKort h3 .grow{flex:1}
+#visaKort .rad{display:flex;gap:8px;padding:2px 0}
+#visaKort .rad span:first-child{width:96px;flex:0 0 auto;color:var(--txt3);font-size:11px;text-transform:uppercase;letter-spacing:.05em;padding-top:2px}
+#visaKort .knappar{display:flex;gap:8px;margin-top:8px}
+#visaKort .knappar button{flex:1;justify-content:center;padding:8px}
+body.pek .topbar button,body.pek .topbar .seg button{min-height:34px}
+body.visningslage #planHud{bottom:auto;top:10px;left:50%;transform:translateX(-50%);max-width:calc(100% - 20px);flex-wrap:wrap;justify-content:center}
 .crosshair-h,.crosshair-v{position:absolute;pointer-events:none;background:color-mix(in srgb, var(--accent) 55%, transparent);display:none;z-index:5}
 .crosshair-h{left:0;right:0;height:1px}
 .crosshair-v{top:0;bottom:0;width:1px}
@@ -441,6 +465,7 @@ body.ljust .comp text, body.ljust #overlay text{font-weight:700}
         <button id="btnHelp">Kortkommandon</button>
         <button id="btnNew" hidden>Nytt</button>
       </div></div>
+    <button id="btnVisning" title="Växla mellan att titta (dra och nyp) och att redigera ritningen">👁<span class="etikett"> Visningsläge</span></button>
     <button id="btnRight" class="ikon" title="Visa eller dölj egenskaper">◧</button>
   </div>
 
@@ -4031,8 +4056,14 @@ function renderKommPanel(){
   el.querySelectorAll('[data-kommklar]').forEach(b=>b.onchange=()=>kommSattKlar(b.dataset.kommklar,b.checked));
   const va=$('#kommVisaAvsl');if(va)va.onchange=()=>{P.settings.visaAvslutade=va.checked;ritaKommentarer();};
   el.querySelectorAll('[data-kommgo]').forEach(b=>b.onclick=()=>{
-    if(ui.lager!=='komm')setLager('komm');
     const k=kommLista().find(x=>x.id===b.dataset.kommgo);if(!k||!ref)return;
+    if(ui.visning){
+      // Visningsläge: bara visa kommentaren, inte öppna den för ändring.
+      const r=wrap.getBoundingClientRect(),p=w2s(k.bx*ref.w,k.by*ref.h);
+      view.tx+=r.width/2-p.x;view.ty+=r.height/2-p.y;P.settings.visaKomm=true;ui.kommSel=k.id;draw();scheduleDetail();
+      $$('.pop.open').forEach(x=>x.classList.remove('open'));return;
+    }
+    if(ui.lager!=='komm')setLager('komm');
     // Centrera kommentaren och öppna den för ändring.
     const r=wrap.getBoundingClientRect(),p=w2s(k.bx*ref.w,k.by*ref.h);
     view.tx+=r.width/2-p.x;view.ty+=r.height/2-p.y;draw();scheduleDetail();
@@ -4651,7 +4682,7 @@ async function pvVisaKommentar(id){
   setView('plan');
   if(ui.floorId!==hit.f.id)await openFloor(hit.f.id);
   P.settings.visaKomm=true;
-  if(ui.lager!=='komm')setLager('komm');
+  if(ui.lager!=='komm'&&!ui.visning)setLager('komm');
   ui.kommSel=id;
   if(ref){view.tx=cw/2-hit.k.bx*ref.w*view.scale;view.ty=ch/2-hit.k.by*ref.h*view.scale;buildOverlay();draw();scheduleDetail();}
   ritaKommentarer();renderKommPanel();
@@ -4718,6 +4749,122 @@ setView=function(v){_setView(v);$$('.planbara').forEach(g=>g.style.display=v==='
 try{const v=pvVard();if(v&&v.redo)v.redo();}catch(e){}
 window.addEventListener('beforeunload',()=>{if(pvKopplad&&pvFor()!==pvSenastSparad)pvSparaNu();});
 
+
+/* =======================================================================
+   VISNINGSLÄGE OCH PEKSKÄRM
+   Telefon: alltid visningsläge (titta, inte ändra). Padda: visningsläge från början,
+   knappen 👁 växlar till redigering. Två fingrar nyper för att zooma (även när man redigerar).
+   ======================================================================= */
+const pekskarm=window.matchMedia('(pointer: coarse)').matches;
+const telefon=()=>Math.min(window.innerWidth,window.innerHeight)<=600;
+document.body.classList.toggle('pek',pekskarm&&!telefon());
+function sattVisning(v){
+  if(telefon())v=true;
+  ui.visning=!!v;
+  document.body.classList.toggle('visningslage',ui.visning);
+  if(ui.visning){
+    if(typeof kommStangEditor==='function')kommStangEditor();
+    if(ui.lager)setLager(ui.lager);
+    if(ui.tool!=='select')setTool('select');
+    document.body.classList.add('hoger-dold');
+  }
+  const b=$('#btnVisning');
+  if(b){b.classList.toggle('on',ui.visning);b.innerHTML=ui.visning?'✎<span class="etikett"> Redigera</span>':'👁<span class="etikett"> Visningsläge</span>';
+    b.title=ui.visning?'Redigera ritningen (rita rum, flytta komponenter)':'Bara titta: dra med fingret och nyp för att zooma';}
+  visaKortStang();
+  try{localStorage.setItem('pv.ritVisning',ui.visning?'1':'0');}catch(_){}
+  if(typeof resize==='function')resize();
+}
+$('#btnVisning').onclick=()=>sattVisning(!ui.visning);
+
+// Komponentkort längst ned (visningsläge): tryck på en komponent.
+function visaKortStang(){const k=document.getElementById('visaKort');if(k)k.remove();}
+function visaKortFor(id){
+  visaKortStang();
+  const r=findComp(id);if(!r)return;
+  const c=r.comp,t=typeById(c.typeId),f=r.floor,rum=c.roomId?f.rooms.find(x=>x.id===c.roomId):null;
+  const rad=(a,b)=>b?`<div class="rad"><span>${a}</span><span>${esc(b)}</span></div>`:'';
+  const k=document.createElement('div');k.id='visaKort';
+  k.innerHTML=`<h3><span class="grow">${esc(c.tag||'')}</span>${c.done?'<span style="color:var(--done)">✓ Klar</span>':''}<button class="ghost" data-stang title="Stäng">✕</button></h3>`+
+    rad('Typ',c.pvKomponenttyp||t.name)+rad('Beskrivning',c.pvBeskrivning)+rad('Plats',[r.bld.name,f.name,rum?rum.name:''].filter(Boolean).join(' › '))+
+    rad('Signaltyp',c.pvSignaltyp)+rad('Ansluts till',c.pvAnslutsTill)+rad('Produkt',[c.pvProdukt,c.pvProdukttyp].filter(Boolean).join(' '))+
+    (c.pvId&&pvVard()?`<div class="knappar"><button data-info>Komponentinformation</button></div>`:'');
+  k.addEventListener('pointerdown',e=>e.stopPropagation());
+  k.querySelector('[data-stang]').onclick=()=>{visaKortStang();select(null);};
+  const info=k.querySelector('[data-info]');if(info)info.onclick=()=>{const v=pvVard();if(v&&v.visaKomponent)v.visaKomponent(c.pvId);};
+  wrap.appendChild(k);
+}
+
+// Pekare som är nere (för nyp med två fingrar).
+const pekare=new Map();let nyp=null,senastTryck=null;
+const wpos=e=>{const r=wrap.getBoundingClientRect();return {x:e.clientX-r.left,y:e.clientY-r.top};};
+function nypLage(){const [a,b]=[...pekare.values()];return {d:Math.max(1,Math.hypot(a.x-b.x,a.y-b.y)),cx:(a.x+b.x)/2,cy:(a.y+b.y)/2};}
+wrap.addEventListener('pointerdown',e=>{
+  if(!stack.length)return;
+  if(e.target.closest('#visaKort'))return;
+  const p=wpos(e);
+  if(e.pointerType==='touch'){
+    pekare.set(e.pointerId,p);
+    if(pekare.size===2){
+      // Andra fingret: avbryt det som pågick och börja nypa.
+      drag=null;const n=nypLage();nyp={...n,scale:view.scale,tx:view.tx,ty:view.ty};
+      try{wrap.setPointerCapture(e.pointerId);}catch(_){}
+      e.stopImmediatePropagation();e.preventDefault();return;
+    }
+  }
+  if(!ui.visning)return;
+  // Visningsläge: allt är att dra (panorera); ett kort tryck på en komponent visar information.
+  e.stopImmediatePropagation();e.preventDefault();
+  if(e.button!==0&&e.pointerType==='mouse'){return;}
+  const cg=e.target.closest('[data-comp]');
+  drag={mode:'pan',mx:p.x,my:p.y,tx:view.tx,ty:view.ty,tryck:{comp:cg?cg.dataset.comp:null,sx:p.x,sy:p.y,t:Date.now()}};
+  try{wrap.setPointerCapture(e.pointerId);}catch(_){}
+},{capture:true});
+wrap.addEventListener('pointermove',e=>{
+  if(pekare.has(e.pointerId))pekare.set(e.pointerId,wpos(e));
+  if(nyp&&pekare.size>=2){
+    const n=nypLage(),s=clamp(nyp.scale*n.d/nyp.d,0.03,40);
+    const wx=(nyp.cx-nyp.tx)/nyp.scale,wy=(nyp.cy-nyp.ty)/nyp.scale;
+    view.scale=s;view.tx=n.cx-wx*s;view.ty=n.cy-wy*s;
+    scheduleDetail();draw();
+    e.stopImmediatePropagation();return;
+  }
+},{capture:true});
+function pekareUpp(e){
+  pekare.delete(e.pointerId);
+  if(nyp){
+    if(pekare.size<2){nyp=null;drag=null;scheduleBase();scheduleDetail();}
+    e.stopImmediatePropagation();return;
+  }
+  if(!ui.visning||!drag||!drag.tryck)return;
+  const d=drag,p=wpos(e);drag=null;
+  e.stopImmediatePropagation();
+  try{wrap.releasePointerCapture(e.pointerId);}catch(_){}
+  if(Math.hypot(p.x-d.tryck.sx,p.y-d.tryck.sy)>8||Date.now()-d.tryck.t>600)return;
+  // Kort tryck.
+  if(d.tryck.comp){select({kind:'comp',id:d.tryck.comp});visaKortFor(d.tryck.comp);senastTryck=null;return;}
+  const nu=Date.now();
+  if(senastTryck&&nu-senastTryck.t<350&&Math.hypot(p.x-senastTryck.x,p.y-senastTryck.y)<30){
+    // Dubbeltryck: zooma in kring punkten.
+    const fore=s2w(p.x,p.y);view.scale=clamp(view.scale*2,0.03,40);
+    view.tx=p.x-fore.x*view.scale;view.ty=p.y-fore.y*view.scale;scheduleDetail();scheduleBase();draw();senastTryck=null;return;
+  }
+  senastTryck={t:nu,x:p.x,y:p.y};
+  if(document.getElementById('visaKort')){visaKortStang();select(null);}
+}
+wrap.addEventListener('pointerup',pekareUpp,{capture:true});
+wrap.addEventListener('pointercancel',e=>{pekare.delete(e.pointerId);if(pekare.size<2)nyp=null;drag=null;},{capture:true});
+wrap.addEventListener('dblclick',e=>{if(ui.visning)e.stopImmediatePropagation();},{capture:true});
+// Paletten och Att placera drar komponenter till ritningen – inte i visningsläge.
+document.addEventListener('dragstart',e=>{if(ui.visning)e.preventDefault();},true);
+
+(function startVisning(){
+  let v=pekskarm||telefon();
+  try{const s=localStorage.getItem('pv.ritVisning');if(s==='0'&&pekskarm&&!telefon())v=false;}catch(_){}
+  if(!pekskarm&&!telefon())v=false;
+  sattVisning(v);
+})();
+window.addEventListener('resize',()=>{document.body.classList.toggle('pek',pekskarm&&!telefon());if(telefon()&&!ui.visning)sattVisning(true);});
 </script>
 </body>
 </html>

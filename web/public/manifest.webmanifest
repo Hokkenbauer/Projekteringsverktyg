@@ -1,0 +1,16 @@
+{
+  "name": "Projekteringsverktyg – HECO Automation",
+  "short_name": "Projektering",
+  "description": "Projektering, driftsättning och dokumentation av styr- och övervakningsanläggningar.",
+  "lang": "sv",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0B1622",
+  "theme_color": "#0F1E30",
+  "icons": [
+    { "src": "/logga/ikon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/logga/ikon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/logga/ikon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

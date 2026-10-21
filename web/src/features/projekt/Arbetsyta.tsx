@@ -110,6 +110,9 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
   const [status, setStatus] = useState<"ansluten" | "ateransluter" | "frankopplad">("ateransluter");
   const [blinkar, setBlinkar] = useState<Blink[]>([]);
   const [fel, setFel] = useState<string | null>(null);
+  /** Flikmenyn som utfällbar panel (mobil och padda stående). */
+  const [menyOppen, setMenyOppen] = useState(false);
+  useEffect(() => setMenyOppen(false), [flik]);
   const listorRef = useRef(listor);
   listorRef.current = listor;
   const [oppnaGrupper, setOppnaGrupper] = useState<Set<string>>(
@@ -575,7 +578,9 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
 
   return (
     <div className="arbetsyta">
-      <nav className="sidnav" aria-label="Flikar">
+      {menyOppen && <div className="menyskugga" onClick={() => setMenyOppen(false)} aria-hidden="true" />}
+      <nav className={`sidnav${menyOppen ? " oppen" : ""}`} aria-label="Flikar"
+        onClick={(e) => { if ((e.target as Element).closest(".flik, .tillbaka")) setMenyOppen(false); }}>
         <button className="tillbaka" onClick={onTillbaka}>← Alla projekt</button>
         {NAVIGERING.map((g) => {
           const oppen = oppnaGrupper.has(g.namn);
@@ -622,6 +627,10 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
 
       <main className="huvudyta">
         <div className="projekthuvud">
+          <button className="menyknapp" aria-label="Meny: alla flikar" aria-expanded={menyOppen} onClick={() => setMenyOppen(true)}>
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
+            <span>Meny</span>
+          </button>
           <div className="projektnamn">
             <b>{projekt?.namn ?? "…"}</b>
             <span>{[projekt?.nummer, projekt?.kund].filter(Boolean).join(" · ")}</span>
