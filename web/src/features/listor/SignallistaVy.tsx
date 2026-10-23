@@ -53,8 +53,8 @@ export function SignallistaVy({ komponenter, projekt, blinkar, lasläge, onAndra
   const antalPerTyp = sammanfatta(rader.map((r) => ({ id: r.id, typ: r.typ, funktion: "", beskrivning: "" })));
   const skriv = () => skrivUt("Signallista (I/O)", projekt, {
     typ: "tabell", sammanfattning: `${rader.length} signaler: ${antalPerTyp}`,
-    kolumner: ["Signalnamn", "Typ", "Beskrivning", "Komponenttyp", "Ansluts till"],
-    rader: rader.map((r) => [r.signalnamn, r.typ, r.beskrivning, r.komponenttyp, r.anslutsTill]),
+    kolumner: ["Nr", "Signalnamn", "Typ", "Beskrivning", "Komponenttyp", "Ansluts till"],
+    rader: rader.map((r, i) => [String(i + 1), r.signalnamn, r.typ, r.beskrivning, r.komponenttyp, r.anslutsTill]),
   });
 
   return (

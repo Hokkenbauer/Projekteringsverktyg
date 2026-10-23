@@ -12,6 +12,7 @@ using Projekteringsverktyg.Server.Synk;
 
 namespace Projekteringsverktyg.Server.ListApi;
 
+public sealed record ListOrdning(List<Guid> Ids);
 public sealed record ListRadDto(Guid Id, Guid? KomponentId, Dictionary<string, string> Data, int Ordning, int Version, DateTimeOffset Andrad, string AndradAv);
 public sealed record ListFaltAndring(string Falt, string? Varde, int Version);
 
@@ -232,6 +233,37 @@ public static class ListEndpoints
             return Results.NoContent();
         });
 
+        // Ny ordning på raderna i en fri lista (dra och släpp eller pilar). Rader som inte skickas med hamnar sist i sin gamla ordning.
+        g.MapPut("/ordning", async (Guid projektId, string lista, ListOrdning ordning, ClaimsPrincipal user, PvDbContext db, IHubContext<ProjektHub> hub) =>
+        {
+            var def = Listdefinitioner.Hitta(lista);
+            if (def is null) return Results.NotFound();
+            if (def.Kopplad) return Fel("lista", "Raderna i den här listan följer Komponenter och kan inte flyttas.");
+            var poster = await db.ListRader.Where(r => r.ProjektId == projektId && r.Lista == lista)
+                .OrderBy(r => r.Ordning).ThenBy(r => r.Andrad).ToListAsync();
+            var plats = new Dictionary<Guid, int>();
+            for (var n = 0; n < ordning.Ids.Count; n++) plats.TryAdd(ordning.Ids[n], n);
+            var sorterade = poster.OrderBy(p => plats.TryGetValue(p.Id, out var pl) ? pl : int.MaxValue).ToList();
+            var av = Anvandare.Fran(user);
+            var andrade = new List<ListRad>();
+            for (var i = 0; i < sorterade.Count; i++)
+            {
+                if (sorterade[i].Ordning == i + 1) continue;
+                sorterade[i].Ordning = i + 1;
+                sorterade[i].Version++;
+                sorterade[i].Andrad = DateTimeOffset.UtcNow;
+                sorterade[i].AndradAv = av.Namn;
+                andrade.Add(sorterade[i]);
+            }
+            var synliga = sorterade.Where(r => !AutoRader.ArDold(r)).Select(Dto).ToList();
+            if (andrade.Count == 0) return Results.Ok(synliga);
+            Andringslogg.Logga(db, projektId, av, "Lista", projektId, $"ändrade ordningen i {def.Namn}");
+            try { await db.SaveChangesAsync(); }
+            catch (DbUpdateConcurrencyException) { return Results.Conflict(new { meddelande = "Listan har ändrats av någon annan. Försök igen." }); }
+            foreach (var rad in andrade) await Skicka(hub, projektId, lista, "ordning", Dto(rad), av);
+            return Results.Ok(synliga);
+        });
+
         g.MapGet("/excel", async (Guid projektId, string lista, PvDbContext db) =>
         {
             var projekt = await db.Projekt.FirstOrDefaultAsync(p => p.Id == projektId);
@@ -293,6 +325,9 @@ public static class ListEndpoints
             namn = await db.Kontroller.Where(k => k.Id == kid && k.ProjektId == projektId).Select(k => k.Namn).FirstOrDefaultAsync() ?? namn;
         if (lista.StartsWith(Listdefinitioner.KraftPrefix) && Guid.TryParse(lista[Listdefinitioner.KraftPrefix.Length..], out var sid))
             namn = "Kraftberäkning " + (await db.Skap.Where(k => k.Id == sid && k.ProjektId == projektId).Select(k => k.Namn).FirstOrDefaultAsync() ?? "");
+        // Alla listor har löpnummer. Listor utan egen löpnummerkolumn får "Nr" först.
+        if (!kolumner.Any(c => c.Typ == "lopnr"))
+            return (namn, kolumner.Select(c => c.Rubrik).Prepend("Nr").ToList(), rader.Select((r, i) => r.Prepend((object?)(i + 1)).ToArray()).ToList());
         return (namn, kolumner.Select(c => c.Rubrik).ToList(), rader);
     }
 

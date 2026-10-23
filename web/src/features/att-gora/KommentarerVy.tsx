@@ -125,8 +125,8 @@ export function KommentarerVy({ projektId, projekt, uppdaterad, onVisa, onPopUt,
 
   const utskrift = () => skrivUt("Placeringskommentarer", projekt, {
     typ: "tabell",
-    kolumner: ["Kategori", "Kommentar", "Byggnad", "Plan", "Rum", "Avslutad"],
-    rader: visade.map((r) => [r.kategori, r.text, r.byggnad, r.plan, r.rum, r.avslutad === "true" ? "✔" : ""]),
+    kolumner: ["Nr", "Kategori", "Kommentar", "Byggnad", "Plan", "Rum", "Avslutad"],
+    rader: visade.map((r, i) => [String(i + 1), r.kategori, r.text, r.byggnad, r.plan, r.rum, r.avslutad === "true" ? "✔" : ""]),
   }, { liggande: true, kolumnlinjer: true });
 
   return (

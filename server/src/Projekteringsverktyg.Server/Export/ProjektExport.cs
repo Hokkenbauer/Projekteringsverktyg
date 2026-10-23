@@ -109,8 +109,8 @@ public static class ProjektExport
             blad.Add(new Excel.Blad(tabell.Namn, titel(tabell.Namn), tabell.Rubriker, tabell.Rader));
         }
         if (attGora.Count > 0)
-            blad.Add(new Excel.Blad("Att göra", titel("Att göra"), ["Att göra", "Pågående", "Åtgärdad", "Kommentar", "Ändrad", "Ändrad av"],
-                attGora.Select(a => new object?[] { a.Text, a.Pagaende ? "Ja" : "", a.Klar ? "Ja" : "", a.Kommentar, Tid(a.Andrad), a.AndradAv })));
+            blad.Add(new Excel.Blad("Att göra", titel("Att göra"), ["Nr", "Att göra", "Pågående", "Åtgärdad", "Kommentar", "Ändrad", "Ändrad av"],
+                attGora.Select((a, i) => new object?[] { i + 1, a.Text, a.Pagaende ? "Ja" : "", a.Klar ? "Ja" : "", a.Kommentar, Tid(a.Andrad), a.AndradAv })));
         if (status.Count > 0)
             blad.Add(new Excel.Blad("Projektstatus", titel("Projektstatus"), ["Rubrik", "Uppgift", "Klar", "Utförd av", "Klar datum", "Kommentar"],
                 status.OrderBy(s => rubriker.GetValueOrDefault(s.RubrikId)?.Ordning ?? 999).ThenBy(s => s.Ordning)

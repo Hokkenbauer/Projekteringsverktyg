@@ -58,10 +58,12 @@ type Props<T extends Rad> = {
   markeraRubrik?: string;
   /** Anropas när markeringen ändras. */
   onMarkerade?: (ids: string[]) => void;
+  /** Alla tabeller har en Nr-kolumn (radens plats i listans egen ordning). Sätts för listor som har ett eget löpnummer. */
+  utanLopnummer?: boolean;
 };
 
 export function DataGrid<T extends Rad>({
-  rader, kolumner, sokPlatshallare, onAndra, onNy: nyIn, onTaBort: taBortIn, blinkar = [], verktyg, lasläge = false, tomText, cellVarning, cellKlass, markeradeVerktyg, onInfo, fokusId, onFlytta: flyttaIn, markeraRubrik, onMarkerade,
+  rader, kolumner, sokPlatshallare, onAndra, onNy: nyIn, onTaBort: taBortIn, blinkar = [], verktyg, lasläge = false, tomText, cellVarning, cellKlass, markeradeVerktyg, onInfo, fokusId, onFlytta: flyttaIn, markeraRubrik, onMarkerade, utanLopnummer,
 }: Props<T>) {
   const ram = useRef<HTMLDivElement>(null);
   // Mobil: varje rad visas som ett kort (rubrik + värde under varandra). Kan växlas till tabell; valet gäller alla tabeller.
@@ -126,6 +128,10 @@ export function DataGrid<T extends Rad>({
     for (const p of prio) { const k = kolumner.find((x) => x.nyckel === p && !x.cell); if (k) return k.nyckel; }
     return kolumner.find((x) => (x.typ === "text" || x.typ === "ro") && !x.cell)?.nyckel ?? kolumner[0]?.nyckel;
   }, [kolumner]);
+
+  // Löpnummer: platsen i listans egen ordning. Numret följer raden även när man söker eller sorterar.
+  const nummer = useMemo(() => new Map(rader.map((r, i) => [r.id, i + 1])), [rader]);
+  const visaNr = !utanLopnummer;
 
   const synliga = useMemo(() => {
     let lista = rader;
@@ -230,7 +236,7 @@ export function DataGrid<T extends Rad>({
       <div className={`grid-ram${kort ? " kortram" : ""}`} ref={ram}>
         <table
           ref={tabell} className={`grid ${kort ? "kort" : bredder ? "fasta" : ""}`}
-          style={bredder && !kort ? { width: Object.values(bredder).reduce((a, b) => a + b, 0) + 36 * ((kanFlytta ? 1 : 0) + (onTaBort ? 1 : 0) + (onInfo ? 1 : 0)), minWidth: 0 } : undefined}
+          style={bredder && !kort ? { width: Object.values(bredder).reduce((a, b) => a + b, 0) + 36 * ((kanFlytta ? 1 : 0) + (onTaBort ? 1 : 0) + (onInfo ? 1 : 0)) + (visaNr ? 48 : 0), minWidth: 0 } : undefined}
         >
           <thead>
             <tr>
@@ -239,6 +245,7 @@ export function DataGrid<T extends Rad>({
                 ? <th className="smal markera-rubrik" title="Bocka i raderna som ska med i utskriften">{markeraRubrik}</th>
                 : <th className="smal" aria-label="Markera" />)}
               {onInfo && <th className="smal" aria-label="Information" />}
+              {visaNr && <th className="lopnr" title="Löpnummer (radens plats i listan)">Nr</th>}
               {kolumner.map((k) => (
                 <th key={k.nyckel} data-kol={k.nyckel} onClick={() => sortera(k.nyckel)}
                   style={bredder?.[k.nyckel] ? { width: bredder[k.nyckel], minWidth: bredder[k.nyckel], maxWidth: bredder[k.nyckel] } : kolumnStil(k)}>
@@ -256,7 +263,7 @@ export function DataGrid<T extends Rad>({
           </thead>
           <tbody>
             {synliga.length === 0 && (
-              <tr><td colSpan={kolumner.length + 3} className="tom">
+              <tr><td colSpan={kolumner.length + 4} className="tom">
                 {rader.length === 0 ? (tomText ?? "Inga rader än. Klicka på Ny rad för att börja.") : "Inga rader matchar sökningen."}
               </td></tr>
             )}
@@ -306,6 +313,7 @@ export function DataGrid<T extends Rad>({
                     <button className="infoknapp" title="Komponentinformation: var finns komponenten?" aria-label="Komponentinformation" onClick={() => onInfo(r)}>i</button>
                   </td>
                 )}
+                {visaNr && <td className="lopnr" data-rubrik="Nr">{nummer.get(r.id)}</td>}
                 {kolumner.map((k) => {
                   const blink = blinkar.find((b) => b.radId === r.id && b.nyckel === k.nyckel);
                   if (k.cell) return <td key={k.nyckel} className={`egen${blink ? " blinkar" : ""}${k.nyckel === rubrikKolumn ? " forsta" : ""}`} data-rubrik={k.rubrik}>{k.cell(r)}</td>;

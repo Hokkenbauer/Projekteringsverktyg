@@ -113,9 +113,11 @@ type Props = {
   forslagExtra?: Record<string, string[]>;
   /** Extra knappar i rubrikraden (t.ex. Importera). */
   extraKnappar?: ReactNode;
+  /** Ny ordning på raderna (fria listor): hela ordningen som rad-id:n. */
+  onFlytta?: (ids: string[]) => void;
 };
 
-export function ListVy({ def, grupp, rader, komponenter, projekt, blinkar, lasläge, onAndra, onNy, onTaBort, onExcel, onFlik, inbaddad, utanUtskrift, onInfo, fokusId, kataloger, forslagExtra, extraKnappar }: Props) {
+export function ListVy({ def, grupp, rader, komponenter, projekt, blinkar, lasläge, onAndra, onNy, onTaBort, onExcel, onFlik, inbaddad, utanUtskrift, onInfo, fokusId, kataloger, forslagExtra, extraKnappar, onFlytta }: Props) {
   const visade = useMemo(() => byggRader(def, rader ?? [], komponenter), [def, rader, komponenter]);
   // Anmärkningsbilagan: bara ikryssade rader skrivs ut (inga ikryssade = alla).
   const valForUtskrift = def.id === "anmarkningar";
@@ -190,15 +192,18 @@ export function ListVy({ def, grupp, rader, komponenter, projekt, blinkar, lasl�
     return [...antal.entries()].sort((a, b) => a[0].localeCompare(b[0], "sv"));
   }, [def.id, visade]);
 
+  // Alla listor har löpnummer. Har listan ett eget (t.ex. Pos.) visas inte DataGridens Nr.
+  const egetLopnr = def.kolumner.some((k) => k.typ === "lopnr");
   const utskrift = () => {
     const ut = def.kolumner;
+    const nr = new Map(visade.map((r, i) => [r.id, String(i + 1)]));
     const valda = valForUtskrift && markerade.length ? visade.filter((r) => markerade.includes(r.id)) : visade;
     const titel = def.id === "iplista" && projekt?.namn ? `${def.namn} ${projekt.namn}` : def.namn;
     skrivUt(titel, projekt, {
       typ: "tabell",
-      kolumner: ut.map((k) => k.rubrik),
-      rader: valda.map((r) => ut.map((k) => (k.typ === "kryss" ? (r[vn(k.nyckel)] === "true" ? "✔" : "")
-        : k.typ === "datum" ? valtDatum(r[vn(k.nyckel)]) : r[vn(k.nyckel)] ?? ""))),
+      kolumner: [...(egetLopnr ? [] : ["Nr"]), ...ut.map((k) => k.rubrik)],
+      rader: valda.map((r) => [...(egetLopnr ? [] : [nr.get(r.id) ?? ""]), ...ut.map((k) => (k.typ === "kryss" ? (r[vn(k.nyckel)] === "true" ? "✔" : "")
+        : k.typ === "datum" ? valtDatum(r[vn(k.nyckel)]) : r[vn(k.nyckel)] ?? ""))]),
       sammanfattning: summering ? summering.map(([t, n]) => `${t}: ${n}`).join("   ·   ") : undefined,
     }, {
       liggande: valForUtskrift || ata || undefined,
@@ -244,6 +249,8 @@ export function ListVy({ def, grupp, rader, komponenter, projekt, blinkar, lasl�
           onAndra={(r, nyckel, v) => andra(r, nyckel, v)}
           onNy={def.kopplad ? undefined : onNy}
           onTaBort={def.kopplad ? undefined : onTaBort}
+          onFlytta={def.kopplad ? undefined : onFlytta}
+          utanLopnummer={egetLopnr}
           blinkar={blinkar}
           lasläge={lasläge}
           tomText={tomText}

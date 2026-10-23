@@ -322,6 +322,18 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
       visaMeddelande(`Raden kunde inte skapas: ${(e as Error).message}`);
     }
   };
+  /** Fria listor (t.ex. Kraftberäkning): ny ordning på raderna. */
+  const flyttaLista = async (listaId: string, ids: string[]) => {
+    const fore = listor[listaId];
+    setListor((alla) => alla[listaId] ? { ...alla, [listaId]: alla[listaId]!.map((x) => ({ ...x, ordning: ids.indexOf(x.id) + 1 || x.ordning })) } : alla);
+    try {
+      const svar = await api<ListRad[]>(`/api/projekt/${projektId}/listor/${listaId}/ordning`, { method: "PUT", body: skicka({ ids }) });
+      setListor((alla) => ({ ...alla, [listaId]: svar }));
+    } catch (e) {
+      if (fore) setListor((alla) => ({ ...alla, [listaId]: fore }));
+      visaMeddelande(`Ordningen kunde inte sparas: ${(e as Error).message}`);
+    }
+  };
   const flyttaAttGora = async (ids: string[]) => {
     const fore = attGora;
     setAttGora((l) => l.map((x) => ({ ...x, ordning: ids.indexOf(x.id) + 1 || x.ordning })));
@@ -554,6 +566,7 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
       onAndra={(r, falt, v) => void andraLista(listDef, r, falt, v)}
       onNy={() => void nyListRad(listDef)}
       onTaBort={(ids) => void taBortListRader(listDef, ids)}
+      onFlytta={(ids) => void flyttaLista(listDef.id, ids)}
       onExcel={() => void laddaNer(`/api/projekt/${projektId}/listor/${listDef.id}/excel`, `${listDef.namn}.xlsx`).catch((e) => visaMeddelande((e as Error).message))}
       onFlik={onFlik}
       inbaddad={inbaddad}

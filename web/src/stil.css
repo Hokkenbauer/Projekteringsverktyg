@@ -751,3 +751,10 @@ table.grid.statusgrid.kort td.ro.tomt { display: none; }
   .anteckningar.utan-radbryt { white-space: pre-wrap; overflow-x: hidden; }
 }
 table.grid.statusgrid.kort td.smal { order: -1; }
+
+/* Löpnummer (Nr) först i alla tabeller */
+.grid th.lopnr, .grid td.lopnr { width: 48px; min-width: 48px; max-width: 48px; text-align: right; }
+.grid th.lopnr { cursor: default; padding-right: 10px; }
+.grid td.lopnr { padding: 7px 10px 7px 4px; font-family: var(--font-mono); font-size: 12px; color: var(--dampad); font-variant-numeric: tabular-nums; }
+table.grid.kort td.lopnr { order: -2; display: flex; width: auto !important; min-width: 0 !important; padding: 4px 2px 4px 6px; }
+table.grid.kort td.lopnr::before { content: "#"; padding: 0; font-family: var(--font-mono); font-size: 12px; text-transform: none; letter-spacing: 0; }

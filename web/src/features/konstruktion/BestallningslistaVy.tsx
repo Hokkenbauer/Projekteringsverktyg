@@ -69,7 +69,7 @@ export function BestallningslistaVy(p: Props) {
 
   const excel = () => void skrivExcel(`Beställningslista ${p.projekt?.nummer ?? ""}`.trim(), [{
     namn: "Beställningslista", bredder: [18, 50, 36, 8],
-    rader: [["Källa", "Beskrivning", "Fabrikat / information", "Antal"], ...rader.map((r) => [r.kalla, r.beskrivning, r.fabrikat, Number(r.antal)])],
+    rader: [["Nr", "Källa", "Beskrivning", "Fabrikat / information", "Antal"], ...rader.map((r, i) => [i + 1, r.kalla, r.beskrivning, r.fabrikat, Number(r.antal)])],
   }]).catch((e) => p.visaMeddelande((e as Error).message));
 
   return (
@@ -79,7 +79,7 @@ export function BestallningslistaVy(p: Props) {
         <h1>{p.rubrik}</h1>
         <div className="knappar">
           <button className="knapp" onClick={excel}>Exportera till Excel</button>
-          <button className="knapp" onClick={() => skrivUt(p.rubrik, p.projekt, { typ: "tabell", kolumner: ["Källa", "Beskrivning", "Fabrikat / information", "Antal"], rader: rader.map((r) => [r.kalla, r.beskrivning, r.fabrikat, r.antal]) })}>Skriv ut / PDF</button>
+          <button className="knapp" onClick={() => skrivUt(p.rubrik, p.projekt, { typ: "tabell", kolumner: ["Nr", "Källa", "Beskrivning", "Fabrikat / information", "Antal"], rader: rader.map((r, i) => [String(i + 1), r.kalla, r.beskrivning, r.fabrikat, r.antal]) })}>Skriv ut / PDF</button>
         </div>
       </div>
       <p className="ingress">
