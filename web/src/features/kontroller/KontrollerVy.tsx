@@ -25,9 +25,15 @@ type Props = {
   children?: ReactNode;
 };
 
+/** Rader som börjar med "## " i en mall är avsnittsrubriker, inte punkter. */
+const antalPunkter = (m: KontrollMall) => m.punkter.filter((p) => !p.startsWith("##")).length;
+
+/** Mall som föreslås först när en ny kontroll skapas. */
+const STANDARDMALL: Partial<Record<KontrollTyp, string>> = { projektering: "Checklista projektering" };
+
 const INGRESS: Record<KontrollTyp, string> = {
   projekt: "Kontroller som gäller just det här projektet. Skapa en kontroll från en mall eller börja tom, och bocka i punkterna när de är kontrollerade.",
-  projektering: "Egenkontroll av projekteringen. Skapa en kontroll från en mall eller börja tom.",
+  projektering: "Egenkontroll av projekteringen. Gå igenom avsnitten, markera varje punkt OK eller Ej aktuell (datum och signatur fylls i) och skriv kommentarer där det behövs. Avsnitt som inte berör projektet, t.ex. Kyla, markeras Ej aktuellt med en knapp.",
   service: "Kontroller vid servicebesök. Skapa en kontroll från en mall (t.ex. Servicebesök Beckhoff) eller börja tom.",
 };
 
@@ -52,13 +58,28 @@ export function KontrollerVy({ projektId, typ, grupp, rubrik, valdId, onVald, up
   const oppnaNy = async () => {
     setNamn(""); setMallId("");
     setNyOppen(true);
-    try { setMallar(await api<KontrollMall[]>(`/api/kontrollmallar?typ=${typ}`)); } catch { setMallar([]); }
+    try {
+      const m = await api<KontrollMall[]>(`/api/kontrollmallar?typ=${typ}`);
+      setMallar(m);
+      const standard = m.find((x) => x.namn === STANDARDMALL[typ]);
+      if (standard) setMallId(standard.id);
+    } catch { setMallar([]); }
   };
 
-  const skapa = async () => {
+  /** Startar en kontroll direkt från standardmallen (eller öppnar dialogen om mallen saknas). */
+  const starta = async () => {
+    try {
+      const m = await api<KontrollMall[]>(`/api/kontrollmallar?typ=${typ}`);
+      const standard = m.find((x) => x.namn === STANDARDMALL[typ]);
+      if (!standard) { void oppnaNy(); return; }
+      await skapa(standard.id, "");
+    } catch (e) { visaMeddelande((e as Error).message); }
+  };
+
+  const skapa = async (mall = mallId, nytt = namn) => {
     try {
       const k = await api<Kontroll>(`/api/projekt/${projektId}/kontroller`, {
-        method: "POST", body: skicka({ typ, namn: namn.trim() || null, mallId: mallId || null }),
+        method: "POST", body: skicka({ typ, namn: nytt.trim() || null, mallId: mall || null }),
       });
       setNyOppen(false);
       onVald(k.id, k);
@@ -117,7 +138,12 @@ export function KontrollerVy({ projektId, typ, grupp, rubrik, valdId, onVald, up
       <p className="ingress">{INGRESS[typ]}</p>
 
       {kontroller === null ? <p className="dampad">Hämtar…</p> : kontroller.length === 0 ? (
-        <p className="tomruta">Inga kontroller än. {skriva && "Klicka på Ny kontroll för att börja."}</p>
+        STANDARDMALL[typ] && skriva ? (
+          <div className="tomruta">
+            <p>Ingen egenkontroll är påbörjad i projektet.</p>
+            <button className="knapp primar" onClick={() => void starta()}>Starta {STANDARDMALL[typ]}</button>
+          </div>
+        ) : <p className="tomruta">Inga kontroller än. {skriva && "Klicka på Ny kontroll för att börja."}</p>
       ) : (
         <div className="kontrollchips" role="tablist" aria-label="Kontroller">
           {kontroller.map((k) => (
@@ -143,7 +169,7 @@ export function KontrollerVy({ projektId, typ, grupp, rubrik, valdId, onVald, up
           <label>Mall
             <select value={mallId} onChange={(e) => setMallId(e.target.value)}>
               <option value="">Tom kontroll (inga punkter)</option>
-              {mallar.map((m) => <option key={m.id} value={m.id}>{m.namn} ({m.punkter.length} punkter)</option>)}
+              {mallar.map((m) => <option key={m.id} value={m.id}>{m.namn} ({antalPunkter(m)} punkter)</option>)}
             </select>
           </label>
           <label>Namn
@@ -153,7 +179,9 @@ export function KontrollerVy({ projektId, typ, grupp, rubrik, valdId, onVald, up
         {valdMall && (
           <>
             {valdMall.beskrivning && <p className="dampad">{valdMall.beskrivning}</p>}
-            <ol className="punktlista">{valdMall.punkter.map((p, i) => <li key={i}>{p}</li>)}</ol>
+            <ol className="punktlista">{valdMall.punkter.map((p, i) => p.startsWith("##")
+              ? <li key={i} className="punktlista-rubrik">{p.replace(/^#+\s*/, "")}</li>
+              : <li key={i}>{p}</li>)}</ol>
           </>
         )}
       </Dialog>

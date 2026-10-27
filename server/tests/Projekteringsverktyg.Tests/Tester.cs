@@ -260,6 +260,36 @@ public class MallTester
     }
 
     [Fact]
+    public void Kontrollmall_med_avsnitt_las_och_sparas()
+    {
+        var mall = new[] { "Utan avsnitt", "## Start och underlag", "Punkt A", "", "##  Ventilation (VE) ", "Punkt B", "Punkt C" };
+        var punkter = Projekteringsverktyg.Server.KontrollApi.KontrollEndpoints.TillPunkter(mall);
+        Assert.Equal(4, punkter.Count);
+        Assert.Equal(("", "Utan avsnitt"), punkter[0]);
+        Assert.Equal(("Start och underlag", "Punkt A"), punkter[1]);
+        Assert.Equal(("Ventilation (VE)", "Punkt C"), punkter[3]);
+
+        // Tillbaka till mallrader: en punkt som lagts till sist i ett tidigare avsnitt hamnar i sitt avsnitt.
+        var tillbaka = Projekteringsverktyg.Server.KontrollApi.KontrollEndpoints.TillMall(punkter.Append(("Start och underlag", "Punkt D")));
+        Assert.Equal(new[] { "Utan avsnitt", "## Start och underlag", "Punkt A", "Punkt D", "## Ventilation (VE)", "Punkt B", "Punkt C" }, tillbaka);
+    }
+
+    [Fact]
+    public void Kontrollpunkt_ok_och_ej_aktuell_utesluter_varandra()
+    {
+        var def = Projekteringsverktyg.Server.ListApi.Listdefinitioner.Hitta("kontroll-" + Guid.NewGuid())!;
+        var data = new Dictionary<string, string>();
+        var dag = new DateOnly(2026, 10, 27);
+        Projekteringsverktyg.Server.ListApi.ListEndpoints.Satt(def.Kolumn("ejAktuell")!, data, "true", "Håkan Engström", dag);
+        Assert.Equal("true", data["ejAktuell"]);
+        Assert.Equal("HE", data["sign"]);
+        Projekteringsverktyg.Server.ListApi.ListEndpoints.Satt(def.Kolumn("kontrollerad")!, data, "true", "Håkan Engström", dag);
+        Assert.Equal("true", data["kontrollerad"]);
+        Assert.Equal("", data["ejAktuell"]);
+        Assert.True(Projekteringsverktyg.Server.KontrollApi.KontrollEndpoints.ArKlar(data));
+    }
+
+    [Fact]
     public void Grundkataloger_finns() =>
         Assert.Contains("Temperaturgivare", Projekteringsverktyg.Server.Data.Grundkataloger.Hamta("KomponentTyp"));
 }

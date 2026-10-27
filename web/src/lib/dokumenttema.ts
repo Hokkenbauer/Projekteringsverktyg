@@ -93,28 +93,44 @@ type Sida = {
   projekt?: Projekt | null;
 };
 
-/** Huvud och fot som HTML/CSS (används av oppnaDokument, och kan bäddas in i egna utskrifter). */
-export function temaDelar(s: Pick<Sida, "titel" | "kategori" | "liggande" | "projekt">) {
+/** Uppgifterna i ritningshuvudet och fotraden. Samma för utskrift/PDF och Word. */
+export function huvudUppgifter(s: Pick<Sida, "titel" | "kategori" | "projekt">) {
   const projekt = s.projekt ?? aktuellt.projekt;
   const status = aktuellt.status.trim();
-  const datum = aktuellt.datum.trim() || new Date().toLocaleDateString("sv-SE");
-  const ansvarig = uppgift("ansvarig") || projekt?.ansvarig || "";
   const fotVanster = [uppgift("foretag"), [uppgift("adress"), uppgift("postadress")].filter(Boolean).join(", "),
     uppgift("telefon"), uppgift("epost"), uppgift("orgnr") ? `orgnr ${uppgift("orgnr")}` : ""].filter(Boolean).join(" · ");
+  return {
+    titel: s.titel,
+    projektnamn: projekt?.namn ?? "",
+    projektrad: [projekt?.nummer, projekt?.kund].filter(Boolean).join(" · "),
+    handling: FORKORTNING[status] ?? status,
+    ansvarig: uppgift("ansvarig") || projekt?.ansvarig || "",
+    datum: aktuellt.datum.trim() || new Date().toLocaleDateString("sv-SE"),
+    revidering: uppgift("revidering"),
+    status: status || s.kategori || "",
+    foretag: uppgift("foretag"),
+    fotVanster,
+    loggaUrl: loggaUrl(),
+  };
+}
+
+/** Huvud och fot som HTML/CSS (används av oppnaDokument, och kan bäddas in i egna utskrifter). */
+export function temaDelar(s: Pick<Sida, "titel" | "kategori" | "liggande" | "projekt">) {
+  const h = huvudUppgifter(s);
   const css = `@page{size:A4 ${s.liggande ? "landscape" : "portrait"};margin:10mm 12mm 14mm;
-  @bottom-left{content:"${fotVanster.replace(/"/g, "'")}";font-family:Calibri,Carlito,Arial,sans-serif;font-size:7pt;color:#000;border-top:.6pt solid #000;vertical-align:top;padding-top:1.2mm}
+  @bottom-left{content:"${h.fotVanster.replace(/"/g, "'")}";font-family:Calibri,Carlito,Arial,sans-serif;font-size:7pt;color:#000;border-top:.6pt solid #000;vertical-align:top;padding-top:1.2mm}
   @bottom-right{content:"${esc(s.titel).replace(/"/g, "'")} · Blad " counter(page) "(" counter(pages) ")";font-family:Calibri,Carlito,Arial,sans-serif;font-size:7pt;color:#000;border-top:.6pt solid #000;vertical-align:top;padding-top:1.2mm}}
 ${TEMA_CSS}`;
   const huvud = `<div class="rh">
-<div class="rh-logga"><img src="${loggaUrl()}" alt="${esc(uppgift("foretag"))}"></div>
+<div class="rh-logga"><img src="${h.loggaUrl}" alt="${esc(h.foretag)}"></div>
 <div class="rh-mitt"><div class="rh-cell"><small>Dokumentnamn:</small><span class="v">${esc(s.titel)}</span></div>
-<div class="rh-cell"><small>Projekt:</small><span class="v">${esc(projekt?.namn ?? "")}</span><small>${esc([projekt?.nummer, projekt?.kund].filter(Boolean).join(" · "))}</small></div></div>
+<div class="rh-cell"><small>Projekt:</small><span class="v">${esc(h.projektnamn)}</span><small>${esc(h.projektrad)}</small></div></div>
 <div class="rh-hoger"><table>
-<tr><td>Handling:</td><td>${esc(FORKORTNING[status] ?? status)}</td></tr>
-<tr><td>Ansvarig:</td><td>${esc(ansvarig)}</td></tr>
-<tr><td>Datum:</td><td>${esc(datum)}</td></tr>
-<tr><td>Senast revidering:</td><td>${esc(uppgift("revidering"))}</td></tr></table>
-<div class="rh-status">${esc(status || s.kategori || "")}</div></div></div>`;
+<tr><td>Handling:</td><td>${esc(h.handling)}</td></tr>
+<tr><td>Ansvarig:</td><td>${esc(h.ansvarig)}</td></tr>
+<tr><td>Datum:</td><td>${esc(h.datum)}</td></tr>
+<tr><td>Senast revidering:</td><td>${esc(h.revidering)}</td></tr></table>
+<div class="rh-status">${esc(h.status)}</div></div></div>`;
   return { css, huvud };
 }
 

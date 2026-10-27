@@ -3,6 +3,8 @@ import { api } from "../../lib/api";
 import type { Anteckningar, ListRad, Projekt } from "../../lib/typer";
 import { oppnaDokument } from "../../lib/dokumenttema";
 import { valtDatum } from "../listor/ListVy";
+import { blockHtml } from "../../lib/dokumentBlock";
+import { gruppera } from "../kontroller/ProjekteringsegenkontrollVy";
 
 type Handling = { handling: string; beskrivning: string; datum: string; signProjektor: string; signProjekteringsledare: string };
 type Anvisning = { dokument: string; typ: string; daterad: string };
@@ -125,12 +127,17 @@ export function ProjekteringsintygVy(p: Props) {
       `<tr class="hog"><td>${esc(h.handling)}</td><td>${esc(h.beskrivning)}</td><td>${esc(valtDatum(h.datum))}</td><td>${esc(h.signProjektor)}</td><td>${esc(h.signProjekteringsledare)}</td></tr>`).join("");
     const anvisningar = fyll(intyg.anvisningar, 6, tomAnvisning).map((a) =>
       `<tr><td>${esc(a.dokument)}</td><td>${esc(a.typ)}</td><td>${esc(valtDatum(a.daterad))}</td></tr>`).join("");
-    const bilaga = egen.filter((k) => k.rader.length).map((k) => `
+    const bilaga = egen.filter((k) => k.rader.length).map((k) => {
+      const rader: (string[] | string)[] = [];
+      for (const a of gruppera(k.rader)) {
+        if (a.namn) rader.push(`${a.nr}. ${a.namn}`);
+        for (const x of a.punkter) rader.push([x.nr, x.text, x.status === "ok" ? "OK" : x.status === "ea" ? "E.A." : "", x.rad.data.ovrigt ?? "", valtDatum(x.rad.data.datum), x.rad.data.sign ?? ""]);
+      }
+      return `
 <h2 class="ny-sida">EGENKONTROLL – ${esc(k.namn.toUpperCase())}</h2>
-<p class="not">Signering intygar att punkten är kontrollerad.</p>
-<table class="ram egen"><thead><tr><th style="width:5%">Nr</th><th>Kontrollpunkt</th><th style="width:7%">Utförd</th><th style="width:12%">Datum</th><th style="width:8%">Sign.</th><th style="width:20%">Övrigt</th></tr></thead><tbody>
-${k.rader.map((r, i) => `<tr><td>${i + 1}</td><td>${esc(r.data.kontrollpunkt ?? "")}</td><td class="mitt">${ruta(r.data.kontrollerad === "true")}</td><td>${esc(valtDatum(r.data.datum))}</td><td>${esc(r.data.sign ?? "")}</td><td>${esc(r.data.ovrigt ?? "")}</td></tr>`).join("")}
-</tbody></table>`).join("");
+<p class="not">OK = utförd, E.A. = ej aktuell. Signering intygar att punkten är kontrollerad.</p>
+${blockHtml([{ typ: "tabell", kolumner: ["Nr", "Kontrollpunkt", "Status", "Kommentar", "Datum", "Sign."], bredder: [6, 47, 7, 22, 11, 7], centrera: [2], rader }])}`;
+    }).join("");
 
     oppnaDokument({
       titel: "Projekteringsintyg och egenkontroll", kategori: "Projekteringsintyg", projekt: p.projekt,

@@ -29,6 +29,7 @@ import { SkapValjare } from "../konstruktion/SkapValjare";
 import { KomponenterVy } from "../komponenter/KomponenterVy";
 import { KomponentInfo } from "../komponenter/KomponentInfo";
 import { KontrollerVy, type Kontroll } from "../kontroller/KontrollerVy";
+import { ProjekteringsegenkontrollVy } from "../kontroller/ProjekteringsegenkontrollVy";
 import { ByggvaruKnappar } from "../projektering/Byggvaror";
 import { ProjekteringsintygVy } from "../projektering/ProjekteringsintygVy";
 import { TekniskBeskrivningVy } from "../projektering/TekniskBeskrivningVy";
@@ -380,7 +381,9 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
     : aktivKontroll ? `kontroll-${aktivKontroll.id}`
     : flik === "kraftberakning" && valtSkap ? `kraft-${valtSkap}` : undefined);
   const textNyckel = vald?.flik.text ?? (vald?.flik.risk ? `risk-${vald.flik.risk}`
-    : flik === "teknisk-beskrivning" || flik === "projekteringsintyg" ? flik : undefined);
+    : flik === "teknisk-beskrivning" || flik === "projekteringsintyg" ? flik
+    // Projekteringsegenkontrollen visar projekteringsledare och projektör från projekteringsintyget.
+    : flik === "projekteringsegenkontroll" ? "projekteringsintyg" : undefined);
 
   // Listor som fliken behöver hämtas första gången de används. Ritningen visar egenkontroll och kabellängd.
   const behovdaListor = listId === "modbus" || listId === "modbusrtu" ? "modbus,modbusrtu"
@@ -444,6 +447,32 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
         ? "Någon annan ändrade raden samtidigt. Raden är uppdaterad, gör om din ändring."
         : `Ändringen kunde inte sparas: ${(e as Error).message}`);
       void hamtaLista(def.id);
+    }
+  };
+
+  /** Ändrar ett fält på en rad i en fri lista med radens egen version, och returnerar den sparade raden. */
+  const andraRad = async (lista: string, rad: ListRad, falt: string, varde: string): Promise<ListRad | null> => {
+    laggListRad(lista, { ...rad, data: { ...rad.data, [falt]: varde } });
+    try {
+      const ny = await api<ListRad>(`/api/projekt/${projektId}/listor/${lista}/${rad.id}`, { method: "PATCH", body: skicka({ falt, varde, version: rad.version }) });
+      laggListRad(lista, ny);
+      return ny;
+    } catch (e) {
+      visaMeddelande(e instanceof ApiFel && e.status === 409
+        ? "Någon annan ändrade raden samtidigt. Raden är uppdaterad, gör om din ändring."
+        : `Ändringen kunde inte sparas: ${(e as Error).message}`);
+      void hamtaLista(lista);
+      return null;
+    }
+  };
+
+  /** Nya rader med ifyllda fält (t.ex. kontrollpunkter i ett avsnitt). */
+  const nyaRader = async (lista: string, nya: Record<string, string>[]) => {
+    try {
+      const svar = await api<ListRad[]>(`/api/projekt/${projektId}/listor/${lista}/flera`, { method: "POST", body: skicka(nya) });
+      for (const r of svar) laggListRad(lista, r);
+    } catch (e) {
+      visaMeddelande(`Raden kunde inte skapas: ${(e as Error).message}`);
     }
   };
 
@@ -573,9 +602,7 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
       utanUtskrift={!!riskVariant}
       kataloger={kataloger}
       forslagExtra={listDef.id === "modbus" ? { slinga: (listor.modbusrtu ?? []).map((g) => (g.data.namn ?? "").trim()).filter(Boolean) } : undefined}
-      extraKnappar={aktivKontroll?.typ === "projektering" ? (
-        <button className="knapp" title="Utskriften Projekteringsintyg och egenkontroll har den här kontrollen som bilaga" onClick={() => onFlik("projekteringsintyg")}>Till projekteringsintyget</button>
-      ) : listDef.id === "modbus" && skrivbar ? (
+      extraKnappar={listDef.id === "modbus" && skrivbar ? (
         <button className="knapp" onClick={() => void hamtaModbusKomponenter()}>Hämta Modbus-komponenter</button>
       ) : listDef.id === "byggvarubedomning" || listDef.id === "sundahus" ? (
         <ByggvaruKnappar
@@ -712,7 +739,21 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
             hanteraMallar={!!ratt.hanteraMallar}
             visaMeddelande={visaMeddelande}
           >
-            {listVy(true)}
+            {kontrollTyp === "projektering" && aktivKontroll && listId ? (
+              <ProjekteringsegenkontrollVy
+                projekt={projekt}
+                kontroll={aktivKontroll}
+                rader={listor[listId]}
+                lasläge={!skrivbar}
+                intyg={texter.projekteringsintyg}
+                onSparaIntyg={(t) => sparaText("projekteringsintyg", t)}
+                onAndra={(rad, falt, varde) => andraRad(listId, rad, falt, varde)}
+                onNyaPunkter={(punkter) => nyaRader(listId, punkter)}
+                onTaBort={(ids) => { if (listDef) void taBortListRader(listDef, ids); }}
+                onFlik={onFlik}
+                visaMeddelande={visaMeddelande}
+              />
+            ) : listVy(true)}
           </KontrollerVy>
         )}
         {riskVariant && vald && (

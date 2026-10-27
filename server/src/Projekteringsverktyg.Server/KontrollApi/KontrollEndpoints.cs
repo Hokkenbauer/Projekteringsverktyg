@@ -74,7 +74,7 @@ public static class KontrollEndpoints
             return kontroller.Select(k =>
             {
                 var egna = rader.Where(r => r.Lista == Listdefinitioner.KontrollPrefix + k.Id).ToList();
-                var klara = egna.Count(r => ListEndpoints.LasData(r.Data).GetValueOrDefault("kontrollerad") == "true");
+                var klara = egna.Count(r => ArKlar(ListEndpoints.LasData(r.Data)));
                 return new KontrollDto(k.Id, k.Typ, k.Namn, k.Beskrivning, k.MallNamn, k.Ordning, egna.Count, klara, k.Andrad, k.AndradAv);
             });
         });
@@ -100,12 +100,14 @@ public static class KontrollEndpoints
             };
             db.Kontroller.Add(kontroll);
             var nr = 0;
-            foreach (var punkt in mall is null ? new List<string>() : Punkter(mall.Punkter))
+            foreach (var (avsnitt, punkt) in mall is null ? new List<(string Avsnitt, string Punkt)>() : TillPunkter(Punkter(mall.Punkter)))
             {
+                var data = new Dictionary<string, string> { ["kontrollpunkt"] = punkt };
+                if (avsnitt != "") data["avsnitt"] = avsnitt;
                 db.ListRader.Add(new ListRad
                 {
                     ProjektId = projektId, Lista = Listdefinitioner.KontrollPrefix + kontroll.Id, Ordning = ++nr, AndradAv = av.Namn,
-                    Data = JsonSerializer.Serialize(new Dictionary<string, string> { ["kontrollpunkt"] = punkt }, Json),
+                    Data = JsonSerializer.Serialize(data, Json),
                 });
             }
             Andringslogg.Logga(db, projektId, av, "Kontroll", kontroll.Id,
@@ -159,14 +161,48 @@ public static class KontrollEndpoints
             var k = await db.Kontroller.FirstOrDefaultAsync(x => x.Id == id && x.ProjektId == projektId);
             if (k is null) return Results.NotFound();
             var lista = Listdefinitioner.KontrollPrefix + k.Id;
-            var punkter = (await db.ListRader.Where(r => r.ProjektId == projektId && r.Lista == lista).OrderBy(r => r.Ordning).ToListAsync())
-                .Select(r => ListEndpoints.LasData(r.Data).GetValueOrDefault("kontrollpunkt", "").Trim())
-                .Where(p => p != "").ToList();
+            var punkter = TillMall((await db.ListRader.Where(r => r.ProjektId == projektId && r.Lista == lista).OrderBy(r => r.Ordning).ToListAsync())
+                .Select(r => ListEndpoints.LasData(r.Data))
+                .Select(d => (d.GetValueOrDefault("avsnitt", ""), d.GetValueOrDefault("kontrollpunkt", ""))));
             var fel = await SparaMall(db, Anvandare.Fran(user), k.Typ, som.Namn, k.Beskrivning, punkter, som.SkrivOver);
-            return fel ?? Results.Ok(new { antal = punkter.Count });
+            return fel ?? Results.Ok(new { antal = punkter.Count(p => !p.StartsWith(Rubrik, StringComparison.Ordinal)) });
         });
 
         return app;
+    }
+
+    /// <summary>I en mall inleder en rad som börjar med "## " ett nytt avsnitt (t.ex. "## Ventilation (VE)").</summary>
+    public const string Rubrik = "## ";
+
+    /// <summary>Punkt som är avklarad: kontrollerad eller ej aktuell.</summary>
+    public static bool ArKlar(Dictionary<string, string> data) =>
+        data.GetValueOrDefault("kontrollerad") == "true" || data.GetValueOrDefault("ejAktuell") == "true";
+
+    /// <summary>Mallens rader som (avsnitt, kontrollpunkt). Rubrikrader blir avsnitt för punkterna som följer.</summary>
+    public static List<(string Avsnitt, string Punkt)> TillPunkter(IEnumerable<string> rader)
+    {
+        var ut = new List<(string, string)>();
+        var avsnitt = "";
+        foreach (var r in rader.Select(r => (r ?? "").Trim()).Where(r => r != ""))
+        {
+            if (r.StartsWith("##", StringComparison.Ordinal)) { avsnitt = r.TrimStart('#').Trim(); continue; }
+            ut.Add((avsnitt, r));
+        }
+        return ut;
+    }
+
+    /// <summary>Punkter med avsnitt som mallrader: en "## "-rad före varje avsnitt. Punkterna samlas per avsnitt
+    /// i den ordning avsnitten först förekommer (samma ordning som i appen).</summary>
+    public static List<string> TillMall(IEnumerable<(string Avsnitt, string Punkt)> punkter)
+    {
+        var ut = new List<string>();
+        foreach (var grupp in punkter.Select(x => (Avsnitt: (x.Avsnitt ?? "").Trim(), Punkt: (x.Punkt ?? "").Trim()))
+                     .Where(x => x.Punkt != "").GroupBy(x => x.Avsnitt))
+        {
+            if (grupp.Key != "") ut.Add(Rubrik + grupp.Key);
+            ut.AddRange(grupp.Select(x => x.Punkt));
+        }
+        return ut;
     }
 
     private static async Task<IResult?> SparaMall(PvDbContext db, Anvandare av, string typ, string namn, string beskrivning, List<string> punkter, bool skrivOver)

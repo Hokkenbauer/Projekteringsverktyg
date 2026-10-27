@@ -758,3 +758,94 @@ table.grid.statusgrid.kort td.smal { order: -1; }
 .grid td.lopnr { padding: 7px 10px 7px 4px; font-family: var(--font-mono); font-size: 12px; color: var(--dampad); font-variant-numeric: tabular-nums; }
 table.grid.kort td.lopnr { order: -2; display: flex; width: auto !important; min-width: 0 !important; padding: 4px 2px 4px 6px; }
 table.grid.kort td.lopnr::before { content: "#"; padding: 0; font-family: var(--font-mono); font-size: 12px; text-transform: none; letter-spacing: 0; }
+
+/* ==========================================================================
+   Projekteringsegenkontroll: checklista i avsnitt (ProjekteringsegenkontrollVy)
+   ========================================================================== */
+.punktlista-rubrik { list-style: none; margin: 10px 0 2px -22px; font-weight: 600; }
+.pek { display: flex; flex-direction: column; gap: 12px; }
+.pek-huvud { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px 16px; background: var(--yta); border: 1px solid var(--linje); border-radius: var(--r); padding: 12px 14px; }
+.pek-uppg { display: flex; flex-direction: column; gap: 4px; min-width: 0; font-size: 12px; color: var(--dampad); }
+.pek-uppg b { font-size: 14px; font-weight: 500; color: var(--text); padding: 6px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pek-uppg input, .pek-kommentar input, .pek-text textarea { width: 100%; background: var(--yta-2); border: 1px solid var(--linje); border-radius: var(--r); padding: 6px 9px; color: var(--text); font: inherit; font-size: 13.5px; }
+.pek-uppg input:focus, .pek-kommentar input:focus, .pek-text textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-mjuk); }
+.pek-not { grid-column: 1 / -1; margin: 0; font-size: 12px; color: var(--dampad); }
+
+.pek-verktyg { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; position: sticky; top: 0; z-index: 3; background: var(--bg); padding: 6px 0; }
+.pek-verktyg .knappar { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+.pek-framsteg { display: flex; flex-direction: column; gap: 5px; min-width: 240px; flex: 1 1 260px; font-size: 13px; color: var(--dampad); }
+.pek-framsteg b { color: var(--text); font-weight: 600; }
+.pek-stapel { display: flex; height: 8px; border-radius: 99px; background: var(--yta-2); overflow: hidden; }
+.pek-stapel i { display: block; height: 100%; transition: width .25s ease; }
+.pek-stapel i.ok { background: var(--ok); }
+.pek-stapel i.ea { background: var(--dampad); opacity: .45; }
+.pek-filter { display: inline-flex; border: 1px solid var(--linje); border-radius: var(--r); overflow: hidden; }
+.pek-filter button { background: var(--yta); border: 0; border-left: 1px solid var(--linje); padding: 6px 11px; font-size: 13px; color: var(--text); }
+.pek-filter button:first-child { border-left: 0; }
+.pek-filter button.aktiv { background: var(--accent-mjuk); color: var(--text); font-weight: 600; }
+
+.pek-avsnitt { background: var(--yta); border: 1px solid var(--linje); border-radius: var(--r); overflow: hidden; }
+.pek-avsnitt > header { display: flex; align-items: center; gap: 10px; padding: 0 10px 0 0; }
+.pek-fall { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; background: none; border: 0; padding: 11px 12px; color: var(--text); text-align: left; }
+.pek-fall .pil { width: 12px; color: var(--dampad); font-size: 12px; }
+.pek-fall h2 { margin: 0; font-size: 15px; font-weight: 600; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pek-rakna { font-family: var(--font-mono); font-size: 12px; color: var(--dampad); white-space: nowrap; }
+.pek-ministapel { width: 70px; height: 5px; border-radius: 99px; background: var(--yta-2); overflow: hidden; flex: 0 0 auto; }
+.pek-ministapel i { display: block; height: 100%; background: var(--ok); }
+.pek-avsnitt.klart .pek-rakna { color: var(--ok); }
+.pek-avsnitt.ej-aktuellt .pek-fall h2 { color: var(--dampad); }
+.pek-avsnitt.ej-aktuellt .pek-ministapel i { background: var(--dampad); opacity: .5; }
+.pek-avsnittknappar { display: flex; gap: 6px; flex: 0 0 auto; }
+
+.pek-punkter { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--linje); }
+.pek-punkt { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto minmax(150px, 260px) 74px; align-items: center; gap: 6px 12px; padding: 7px 12px 7px 0; border-top: 1px solid var(--linje); border-left: 3px solid transparent; }
+.pek-punkt:first-child { border-top: 0; }
+.pek-punkt.s-ok { border-left-color: var(--ok); }
+.pek-punkt.s-ea { border-left-color: var(--linje); }
+.pek-punkt.s-ea .pek-text > span { color: var(--dampad); }
+.pek-nr { font-family: var(--font-mono); font-size: 12px; color: var(--dampad); text-align: right; font-variant-numeric: tabular-nums; }
+.pek-text { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; font-size: 13.5px; line-height: 1.4; min-width: 0; }
+.pek-text textarea { resize: vertical; min-height: 40px; }
+.pek-genvag { background: none; border: 0; padding: 0; font-size: 12px; color: var(--accent); }
+.pek-genvag:hover { text-decoration: underline; }
+.pek-status { display: inline-flex; border: 1px solid var(--linje); border-radius: var(--r); overflow: hidden; }
+.pek-status button { background: var(--yta); border: 0; padding: 6px 10px; font-size: 12.5px; color: var(--dampad); white-space: nowrap; }
+.pek-status button + button { border-left: 1px solid var(--linje); }
+.pek-status button:not(:disabled):hover { color: var(--text); background: var(--yta-2); }
+.pek-status button.ok.vald { background: var(--ok); color: #fff; font-weight: 600; }
+.pek-status button.ea.vald { background: var(--yta-2); color: var(--text); font-weight: 600; }
+.pek-status button:disabled { cursor: default; }
+.pek-kommentar { min-width: 0; }
+.pek-kommentar input { padding: 5px 8px; font-size: 13px; }
+.pek-kommentar input:read-only { background: transparent; border-color: transparent; }
+.pek-sign { display: flex; flex-direction: column; align-items: flex-end; font-family: var(--font-mono); font-size: 12px; line-height: 1.25; }
+.pek-sign small { color: var(--dampad); font-size: 11px; }
+.pek-punkt .pek-tabort { grid-column: 3 / -1; justify-self: end; }
+.pek-nyttavsnitt { display: flex; justify-content: center; padding: 6px 0 16px; }
+
+@media (max-width: 1000px) {
+  .pek-huvud { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pek-punkt { grid-template-columns: 40px minmax(0, 1fr) auto 64px; }
+  .pek-sign { grid-row: 1; grid-column: 4; }
+  .pek-kommentar { grid-row: 2; grid-column: 2 / -1; }
+}
+@media (max-width: 760px) {
+  .pek-huvud { grid-template-columns: 1fr; }
+  .pek-verktyg { position: static; }
+  .pek-verktyg .knappar { margin-left: 0; }
+  .pek-filter { width: 100%; }
+  .pek-filter button { flex: 1; padding: 8px 6px; }
+  .pek-fall { padding: 12px 10px; }
+  .pek-ministapel { display: none; }
+  .pek-avsnitt > header { flex-wrap: wrap; padding: 0 10px 0 0; }
+  .pek-avsnitt > header .pek-fall { flex-basis: 100%; }
+  .pek-avsnittknappar { margin: 0 0 10px 32px; }
+  .pek-punkt { grid-template-columns: 34px minmax(0, 1fr) auto; padding: 10px 10px 10px 0; }
+  .pek-nr { grid-row: 1; align-self: start; padding-top: 2px; }
+  .pek-text { grid-row: 1; grid-column: 2 / -1; }
+  .pek-status { grid-row: 2; grid-column: 2; justify-self: start; }
+  .pek-status button { padding: 9px 14px; font-size: 14px; }
+  .pek-sign { grid-row: 2; grid-column: 3; flex-direction: column; align-items: flex-end; }
+  .pek-kommentar { grid-row: 3; grid-column: 2 / -1; }
+  .pek-uppg input, .pek-kommentar input, .pek-text textarea { font-size: 16px; }
+}
