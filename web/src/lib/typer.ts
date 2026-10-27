@@ -77,6 +77,8 @@ export type Komponent = {
   andradAv: string;
   /** I/O-punkterna. Signaltyp är en sammanfattning av dem. */
   signaler: Signal[];
+  /** Inställningar som JSON-objekt (t.ex. gatewayens typ, IP och portar). Tom = inga. */
+  installningar: string;
 };
 
 export type KomponentHandelse = {
@@ -129,7 +131,8 @@ export type ListKolumn = {
   rubrik: string;
   typ: "text" | "val" | "kryss" | "datum" | "komponent" | "lopnr" | "produkt" | "antal" | "differens" | "koppling" | "fran" | "nummer";
   val: string[] | null;
-  komponentFalt: keyof Komponent | null;
+  /** Komponentfält, eller ett härlett fält som börjar med _ (t.ex. _gateway, se lib/gateway.ts). */
+  komponentFalt: (keyof Komponent & string) | `_${string}` | null;
   standard: string | null;
   mono: boolean;
   bredd: number | null;

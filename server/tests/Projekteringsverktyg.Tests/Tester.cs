@@ -14,8 +14,8 @@ public class KomponentFaltTester
     public void Alla_tillatna_falt_kan_skrivas_och_lasas()
     {
         var k = new Komponent();
-        // I/O-punkterna (signaler) är en JSON-lista och har egna tester (SignalTester).
-        foreach (var falt in KomponentFalt.Tillatna.Where(f => f != "signaler"))
+        // I/O-punkterna (signaler) och inställningarna är JSON och har egna tester (SignalTester, GatewayTester).
+        foreach (var falt in KomponentFalt.Tillatna.Where(f => f is not "signaler" and not "installningar"))
         {
             KomponentFalt.Satt(k, falt, $"värde-{falt}");
             Assert.Equal($"värde-{falt}", KomponentFalt.Hamta(k, falt));

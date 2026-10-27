@@ -1,8 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "../../lib/api";
 import type { Komponent, ListDef, ListRad, Logg } from "../../lib/typer";
 import { NAVIGERING } from "../../shell/navigering";
 import { omfattar } from "../listor/ListVy";
+import { Anslutningar, arGateway, lasGateway, portNamn } from "../../lib/gateway";
+import { GatewayRedigerare } from "../konstruktion/GatewayVy";
 
 type Plats = { byggnad: string; plan: string; rum: string; placerad: boolean };
 
@@ -16,6 +18,13 @@ type Props = {
   onVisaPaRitning: (komponentId: string) => void;
   /** Räknas upp när något i projektet ändrats, så att panelen hämtar om. */
   uppdaterad: number;
+  /** Alla komponenter (för anslutningskedjan: RC, gateway, skåp). */
+  komponenter: Komponent[];
+  /** Visa en annan komponent i panelen. */
+  onVisaKomponent: (id: string) => void;
+  /** Ändra ett fält (gatewayens inställningar). */
+  onAndra: (k: Komponent, falt: keyof Komponent & string, varde: string) => void;
+  lasläge: boolean;
 };
 
 const tid = (iso: string) => new Date(iso).toLocaleString("sv-SE", { dateStyle: "short", timeStyle: "short" });
@@ -62,7 +71,8 @@ function status(lista: string, data: Record<string, string> | undefined): string
  * Komponentinformation: var komponenten finns i projektet, med länkar dit.
  * Allt läses från samma komponent (samma Id), inget är kopierat.
  */
-export function KomponentInfo({ projektId, komponent, listdefinitioner, onStang, onGaTill, onVisaPaRitning, uppdaterad }: Props) {
+export function KomponentInfo({ projektId, komponent, listdefinitioner, onStang, onGaTill, onVisaPaRitning, uppdaterad, komponenter, onVisaKomponent, onAndra, lasläge }: Props) {
+  const anslutningar = useMemo(() => new Anslutningar(komponenter), [komponenter]);
   const [rader, setRader] = useState<Record<string, ListRad | null>>({});
   const [platser, setPlatser] = useState<Plats[] | null>(null);
   const [logg, setLogg] = useState<Logg[]>([]);
@@ -105,8 +115,18 @@ export function KomponentInfo({ projektId, komponent, listdefinitioner, onStang,
   const uppgifter: [string, string][] = [
     ["System", k.system], ["Komponenttyp", k.komponenttyp], ["Signaltyp", k.signaltyp], ["Placering", k.placering],
     ["Beskrivning", k.beskrivning], ["Ansluts till", k.anslutsTill], ["Kabeltyp", k.kabeltyp],
-    ["Produkttyp", k.produkttyp], ["Fabrikat", k.produkt], ["Monteringsanvisning", k.monteringsanvisning], ["Övrigt", k.ovrigt],
+    // Produkt = fabrikat och modell. Det gamla Fabrikat-fältet visas bara om det säger något mer.
+    ["Produkt", k.produkttyp || k.produkt],
+    ...(k.produkt && k.produkttyp && !k.produkttyp.toLowerCase().includes(k.produkt.toLowerCase()) ? [["Fabrikat (äldre fält)", k.produkt] as [string, string]] : []),
+    ["Monteringsanvisning", k.monteringsanvisning], ["Övrigt", k.ovrigt],
   ];
+  const gateway = arGateway(k);
+  const kedja = anslutningar.kedja(k);
+  // Anslutna hit: till komponenten själv, och för en gateway till var och en av portarna.
+  const anslutna = gateway
+    ? lasGateway(k).portar.map((p) => [portNamn(k, p), [...anslutningar.anslutna(portNamn(k, p)), ...(p === lasGateway(k).portar[0] ? anslutningar.anslutna(k.beteckning) : [])]] as const)
+    : [[k.beteckning, k.beteckning.trim() ? anslutningar.anslutna(k.beteckning) : []] as const];
+  const kompLank = (x: Komponent) => <button key={x.id} className="lank mono" onClick={() => onVisaKomponent(x.id)}>{x.beteckning || "(utan beteckning)"}</button>;
 
   return (
     <aside className="infopanel" aria-label={`Komponentinformation för ${k.beteckning}`}>
@@ -145,6 +165,31 @@ export function KomponentInfo({ projektId, komponent, listdefinitioner, onStang,
           </li>
         </ul>
       </section>
+
+      {(k.anslutsTill.trim() || anslutna.some(([, l]) => l.length) || gateway) && (
+        <section>
+          <h3>Anslutning</h3>
+          {k.anslutsTill.trim() && (
+            <p className="kedja">
+              <span className="mono">{k.beteckning || "Komponenten"}</span>
+              {kedja.steg.map((x) => <span key={x.id}> → {kompLank(x)}</span>)}
+              {kedja.port
+                ? <span> → <button className="lank mono" onClick={() => onVisaKomponent(kedja.port!.gateway.id)}>{kedja.port.namn}</button>{kedja.port.gateway.anslutsTill && <span className="mono"> → {kedja.port.gateway.anslutsTill}</span>}</span>
+                : kedja.slut && <span className="mono"> → {kedja.slut}</span>}
+            </p>
+          )}
+          {anslutna.map(([namn, lista]) => lista.length > 0 && (
+            <p key={namn} className="anslutna">
+              <span className="dampad">{gateway ? <span className="mono">{namn}</span> : "Anslutna hit"} ({lista.length}):</span>{" "}
+              {lista.slice(0, 40).map((x, i) => <span key={x.id}>{i > 0 && ", "}{kompLank(x)}</span>)}
+              {lista.length > 40 && <span className="dampad"> och {lista.length - 40} till</span>}
+            </p>
+          ))}
+          {gateway && (
+            <GatewayRedigerare gateway={k} anslutningar={anslutningar} modbus={undefined} lasläge={lasläge} onAndra={onAndra} />
+          )}
+        </section>
+      )}
 
       <section>
         <h3>Uppgifter</h3>

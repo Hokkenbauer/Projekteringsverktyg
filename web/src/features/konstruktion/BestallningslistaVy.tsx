@@ -3,6 +3,7 @@ import { DataGrid, type Kolumn } from "../../grid/DataGrid";
 import { skrivExcel } from "../../lib/excelFil";
 import type { Komponent, ListRad, Projekt, Skap } from "../../lib/typer";
 import { skrivUt } from "../../lib/utskrift";
+import { arGateway, lasGateway } from "../../lib/gateway";
 
 /** Komponenttyper i Apparatskåp som ska beställas när de är ibockade (samma som dagens program). */
 const SKAP_BESTALLS = ["Dupline", "DIN-PC", "M-busgateway", "SIOX-Axccess", "Panel-PC / HMI i front"];
@@ -38,8 +39,11 @@ export function BestallningslistaVy(p: Props) {
         .forEach((x, i) => ut.push({ id: `${kalla}-${i}`, kalla, beskrivning: x.beskrivning, fabrikat: x.fabrikat, antal: String(x.antal) }));
     };
 
-    const medTyp = p.komponenter.filter((k) => k.produkttyp.trim());
-    rakna("Komponenter", medTyp.map((k) => [k.produkttyp.trim(), k.produkt.trim()]));
+    // Produkt (fabrikat och modell) per komponenttyp. Äldre komponenter med bara Fabrikat räknas på det.
+    const produkt = (k: Komponent) => (k.produkttyp || k.produkt).trim();
+    const medTyp = p.komponenter.filter((k) => produkt(k) && !arGateway(k));
+    rakna("Komponenter", medTyp.map((k) => [k.komponenttyp.trim() || "Övrigt", produkt(k)]));
+    rakna("Gateways", p.komponenter.filter(arGateway).map((k) => [`Gateway ${lasGateway(k).typ} (${lasGateway(k).portar.length} portar)`, produkt(k)]));
 
     const kort: [string, string][] = [];
     const skapKomp: [string, string][] = [];
@@ -54,22 +58,22 @@ export function BestallningslistaVy(p: Props) {
       } catch { /* trasigt formulär hoppas över */ }
     }
     rakna("Modulbeläggning", kort);
-    rakna("Modbus RTU", (p.gateways ?? []).filter((g) => (g.data.namn ?? g.data.fabrikat ?? "").trim())
+    rakna("Modbus RTU (äldre slingor)", (p.gateways ?? []).filter((g) => (g.data.namn ?? g.data.fabrikat ?? "").trim())
       .map((g) => [(g.data.fabrikat || "Modbus RTU-gateway").trim(), ""]));
     rakna("Apparatskåp", skapKomp);
-    return { rader: ut, utanProdukttyp: p.komponenter.length - medTyp.length };
+    return { rader: ut, utanProdukttyp: p.komponenter.filter((k) => !arGateway(k)).length - medTyp.length };
   }, [p.komponenter, p.skap, p.gateways]);
 
   const kolumner: Kolumn<Rad>[] = [
     { nyckel: "kalla", rubrik: "Källa", typ: "ro", bredd: 150 },
     { nyckel: "beskrivning", rubrik: "Beskrivning", typ: "ro", fyll: true },
-    { nyckel: "fabrikat", rubrik: "Fabrikat / information", typ: "ro", bredd: 260 },
+    { nyckel: "fabrikat", rubrik: "Produkt / information", typ: "ro", bredd: 260 },
     { nyckel: "antal", rubrik: "Antal", typ: "ro", mono: true, bredd: 80 },
   ];
 
   const excel = () => void skrivExcel(`Beställningslista ${p.projekt?.nummer ?? ""}`.trim(), [{
     namn: "Beställningslista", bredder: [18, 50, 36, 8],
-    rader: [["Nr", "Källa", "Beskrivning", "Fabrikat / information", "Antal"], ...rader.map((r, i) => [i + 1, r.kalla, r.beskrivning, r.fabrikat, Number(r.antal)])],
+    rader: [["Nr", "Källa", "Beskrivning", "Produkt / information", "Antal"], ...rader.map((r, i) => [i + 1, r.kalla, r.beskrivning, r.fabrikat, Number(r.antal)])],
   }]).catch((e) => p.visaMeddelande((e as Error).message));
 
   return (
@@ -79,13 +83,13 @@ export function BestallningslistaVy(p: Props) {
         <h1>{p.rubrik}</h1>
         <div className="knappar">
           <button className="knapp" onClick={excel}>Exportera till Excel</button>
-          <button className="knapp" onClick={() => skrivUt(p.rubrik, p.projekt, { typ: "tabell", kolumner: ["Nr", "Källa", "Beskrivning", "Fabrikat / information", "Antal"], rader: rader.map((r, i) => [String(i + 1), r.kalla, r.beskrivning, r.fabrikat, r.antal]) })}>Skriv ut / PDF</button>
+          <button className="knapp" onClick={() => skrivUt(p.rubrik, p.projekt, { typ: "tabell", kolumner: ["Nr", "Källa", "Beskrivning", "Produkt / information", "Antal"], rader: rader.map((r, i) => [String(i + 1), r.kalla, r.beskrivning, r.fabrikat, r.antal]) })}>Skriv ut / PDF</button>
         </div>
       </div>
       <p className="ingress">
-        Räknas fram ur Komponenter (per produkttyp och fabrikat), I/O-korten i Modulbeläggning, gateways i Modbus RTU och
+        Räknas fram ur Komponenter (per komponenttyp och produkt), gatewaykomponenterna, I/O-korten i Modulbeläggning och
         ibockade {SKAP_BESTALLS.join(", ")} i Apparatskåp. Ändra i de flikarna, så uppdateras listan.
-        {utanProdukttyp > 0 && ` ${utanProdukttyp} komponenter saknar produkttyp och är inte med.`}
+        {utanProdukttyp > 0 && ` ${utanProdukttyp} komponenter saknar produkt och är inte med.`}
       </p>
       {p.skap === null ? <p className="dampad">Hämtar…</p> : (
         <DataGrid rader={rader} kolumner={kolumner} sokPlatshallare="Sök i beställningslistan" onAndra={() => undefined} lasläge tomText="Inget att beställa än." />

@@ -417,6 +417,7 @@ body.ljust .comp text, body.ljust #overlay text{font-weight:700}
 <datalist id="pvcat-kabeltyp"></datalist>
 <datalist id="pvcat-produkttyp"></datalist>
 <datalist id="pvcat-produkt"></datalist>
+<datalist id="pvcat-ansluts"></datalist>
 <div id="app">
   <div class="topbar">
     <span id="brandName" hidden></span>
@@ -759,7 +760,7 @@ function ritaKomponentTabell(pdf,PW,PH,M,y,sorted,numbering,placeringCol){
   if(medNummer())def.push({t:'Nr',v:1.1,get:c=>String(numbering.get(c.id))});
   def.push({t:'Beteckning',v:4,get:c=>c.tag,mono:true});
   def.push({t:'Komponenttyp',v:3.2,get:c=>c.pvKomponenttyp||'—'});
-  def.push({t:'Produkttyp',v:2.6,get:c=>c.pvProdukttyp||'—'});
+  def.push({t:'Produkt',v:2.6,get:c=>c.pvProdukttyp||c.pvProdukt||'—'});
   if(placeringCol)def.push({t:placeringCol.header,v:3.2,get:c=>placeringCol.get(c)||'—'});
   def.push({t:'Monteringsanvisning',v:3.4,get:c=>c.pvMonteringsanvisning||'—'});
   const bredd=PW-2*M, summa=def.reduce((a,c)=>a+c.v,0);
@@ -2482,11 +2483,10 @@ function renderInspector(){
       <div class="field"><label>Komponenttyp</label><input type="text" id="iKomponenttyp" list="pvcat-komponenttyp" value="${esc(c.pvKomponenttyp||'')}"></div>
       <div class="field"><label>System</label><input type="text" id="iSystem" list="pvcat-system" value="${esc(c.pvSystem||'')}"></div>
       ${c.pvId&&pvVard()?ioHtml(c):`<div class="field"><label>Signaltyp</label><input type="text" id="iSignaltyp" list="pvcat-signaltyp" value="${esc(c.pvSignaltyp||'')}"></div>`}
-      <div class="field"><label>Ansluts till</label><input type="text" id="iAnslutsTill" value="${esc(c.pvAnslutsTill||'')}"></div>
+      <div class="field"><label>Ansluts till</label><input type="text" id="iAnslutsTill" list="pvcat-ansluts" value="${esc(c.pvAnslutsTill||'')}">
+        <div class="muted" style="font-size:11px;margin-top:4px">Skåp, gatewayport (t.ex. GW-MB-RTU1-Port1) eller RC. Ställdon och givare på en RC ansluts till RC:n.</div></div>
       <div class="field"><label>Kabeltyp</label><input type="text" id="iKabeltyp" list="pvcat-kabeltyp" value="${esc(c.pvKabeltyp||'')}"></div>
-      <div class="field"><label>Produkttyp</label><input type="text" id="iProdukttyp" list="pvcat-produkttyp" value="${esc(c.pvProdukttyp||'')}"></div>
-      <div class="field"><label>Fabrikat</label><input type="text" id="iProdukt" list="pvcat-produkt" value="${esc(c.pvProdukt||'')}">
-        <div class="muted" style="font-size:11px;margin-top:4px">Namnet måste matcha en post i produktkatalogen (Inställningar → Produktkatalog) för att räknas med i strömförbrukningen.</div></div>
+      <div class="field"><label>Produkt</label><input type="text" id="iProdukttyp" list="pvcat-produkttyp" placeholder="Fabrikat och modell, t.ex. Siemens QAE2120" value="${esc(c.pvProdukttyp||c.pvProdukt||'')}"></div>
       <div class="field"><label>Kabellängd (m)</label><input type="text" id="iKabelLangdMeter" value="${esc(c.pvKabelLangdMeter||'')}"></div>
       <div class="field"><label>Monteringsanvisning</label><input type="text" id="iMonteringsanvisning" value="${esc(c.pvMonteringsanvisning||'')}">
         <div class="muted" style="font-size:11px;margin-top:4px">Visas i tabellen vid export av rumsvy.</div></div>
@@ -2511,7 +2511,7 @@ function renderInspector(){
     $('#iAnslutsTill').onchange=e=>{c.pvAnslutsTill=e.target.value;pvNotify(c.pvId,{anslutsTill:c.pvAnslutsTill});};
     $('#iKabeltyp').onchange=e=>{c.pvKabeltyp=e.target.value;pvNotify(c.pvId,{kabeltyp:c.pvKabeltyp});};
     $('#iProdukttyp').onchange=e=>{c.pvProdukttyp=e.target.value;pvNotify(c.pvId,{produkttyp:c.pvProdukttyp});};
-    $('#iProdukt').onchange=e=>{c.pvProdukt=e.target.value;pvNotify(c.pvId,{produkt:c.pvProdukt});};
+    // Fabrikat är sammanslaget med Produkt (Produkttyp-fältet); den gamla rutan finns inte längre.
     $('#iKabelLangdMeter').onchange=e=>{c.pvKabelLangdMeter=e.target.value;pvNotify(c.pvId,{kabelLangdMeter:c.pvKabelLangdMeter});};
     $('#iMonteringsanvisning').onchange=e=>{c.pvMonteringsanvisning=e.target.value;pvNotify(c.pvId,{monteringsanvisning:c.pvMonteringsanvisning});};
     $('#iBeskrivning').onchange=e=>{c.pvBeskrivning=e.target.value;pvNotify(c.pvId,{beskrivning:c.pvBeskrivning});};
@@ -4289,6 +4289,7 @@ function pvSyncCatalogs(catalogsJson){
   satt('pvcat-kabeltyp', cat.kabeltyp);
   satt('pvcat-produkttyp', cat.produkttyp);
   satt('pvcat-produkt', cat.produkt);
+  satt('pvcat-ansluts', cat.anslutsTill);
 }
 window.pvSyncCatalogs = pvSyncCatalogs;
 
@@ -4787,7 +4788,7 @@ function visaKortFor(id){
   const k=document.createElement('div');k.id='visaKort';
   k.innerHTML=`<h3><span class="grow">${esc(c.tag||'')}</span>${c.done?'<span style="color:var(--done)">✓ Klar</span>':''}<button class="ghost" data-stang title="Stäng">✕</button></h3>`+
     rad('Typ',c.pvKomponenttyp||t.name)+rad('Beskrivning',c.pvBeskrivning)+rad('Plats',[r.bld.name,f.name,rum?rum.name:''].filter(Boolean).join(' › '))+
-    rad('Signaltyp',c.pvSignaltyp)+rad('Ansluts till',c.pvAnslutsTill)+rad('Produkt',[c.pvProdukt,c.pvProdukttyp].filter(Boolean).join(' '))+
+    rad('Signaltyp',c.pvSignaltyp)+rad('Ansluts till',c.pvAnslutsTill)+rad('Produkt',c.pvProdukttyp||c.pvProdukt||'')+
     (c.pvId&&pvVard()?`<div class="knappar"><button data-info>Komponentinformation</button></div>`:'');
   k.addEventListener('pointerdown',e=>e.stopPropagation());
   k.querySelector('[data-stang]').onclick=()=>{visaKortStang();select(null);};
