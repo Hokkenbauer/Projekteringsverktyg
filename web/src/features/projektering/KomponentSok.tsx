@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { api, skicka } from "../../lib/api";
-import { KOMPONENTTYP_FOR_KOD, kandaSystem, komponentkoder, komponenterIDriftkort, type Kandidat } from "../../lib/funktionstext";
+import { KOMPONENTTYP_FOR_KOD, kandaSystem, komponentkoder, komponenterIDriftkort, rumskomponenter, type Kandidat } from "../../lib/funktionstext";
 import type { Komponent } from "../../lib/typer";
 
 /** En text att söka i: namn, ren text och systemet för beteckningar utan systemnamn. */
@@ -36,10 +36,11 @@ export function KomponentSok({ projektId, kallor, komponenter, lasläge, onSattS
   const rader = useMemo(() => {
     const kanda = kandaSystem(komponenter, kallor.map(systemFor));
     const koder = komponentkoder(komponenter);
+    const rum = rumskomponenter(komponenter);
     const befintliga = new Set(komponenter.map((k) => norm(k.beteckning)));
     const m = new Map<string, Rad>();
     for (const k of kallor) {
-      for (const c of komponenterIDriftkort(k.text, systemFor(k), kanda, koder)) {
+      for (const c of komponenterIDriftkort(k.text, systemFor(k), kanda, koder, rum)) {
         const r = m.get(c.beteckning) ?? { ...c, kallor: [], finns: befintliga.has(c.beteckning) };
         if (!r.kallor.includes(k.namn)) r.kallor.push(k.namn);
         // Säker någonstans = säker.
@@ -138,7 +139,7 @@ export function KomponentSok({ projektId, kallor, komponenter, lasläge, onSattS
               {nya.map((r) => (
                 <tr key={r.beteckning} className={markerad(r) ? "" : "ej-vald"}>
                   <td><input type="checkbox" checked={markerad(r)} disabled={lasläge} onChange={() => vaxla(r)} aria-label={`Lägg till ${r.beteckning}`} /></td>
-                  <td className="mono">{r.beteckning}{r.osaker && <span className="ksok-osaker" title="Samma kod står också med ett annat system i texten, t.ex. GM41 och LA01-GM41. Troligen menas den andra."> osäker</span>}</td>
+                  <td className="mono">{r.beteckning}{r.osaker && <span className="ksok-osaker" title="Kontrollera innan du lägger till: samma kod står med ett annat system i texten (t.ex. GM41 och LA01-GM41), avsnittet har flera system, eller texten beskriver rumskomponenter (typrum)."> osäker</span>}</td>
                   <td className="mono dampad ksok-itexten">{r.iTexten}{r.tolkad && " + system"}</td>
                   <td>{typFor(r.beteckning)}</td>
                   {!enKalla && <td className="dampad liten">{r.kallor.join(", ")}</td>}

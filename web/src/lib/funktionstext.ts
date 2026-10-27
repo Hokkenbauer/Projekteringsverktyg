@@ -161,38 +161,115 @@ export type Kandidat = {
 };
 
 /**
- * Komponenter i ett driftkort. Driftkort skriver ofta komponenterna utan system (GT11, SV21, FF01-FAULT);
- * då läggs textens system till (LA01-GT11). Hela beteckningar (KB01-GT41, VP01-ME41) behålls.
- * Signalsuffix (-FAULT, -AUTO, -SP, -I …) och intervall (ST401-402) tas bort.
- * kandaSystem = system som finns i projektet eller i texterna (de räknas aldrig som komponenter).
+ * Komponenter i ett driftkort. Texten läses i ordning:
+ *  - En rad "System <tab> VS01, VP01" (tabellen Allmänt) startar ett nytt avsnitt. Delade driftkort (VS01-VV01) har
+ *    ett avsnitt per system.
+ *  - Hela beteckningar (VS01-P01, KB01-ME41-GT41) behålls.
+ *  - Korta beteckningar (P01, SV11, GT11) får systemet från närmast föregående hela beteckning med samma namn i
+ *    avsnittet (VVC01-P01 … "P01 går att styra"), annars avsnittets första system, annars textens system.
+ *  - Snedstreck expanderas: VS01-P01/P02, VVC01-GT41/42, LA01-GT43/GM41.
+ *  - Signalsuffix (-FAULT, -SP, -I), intervall (ST401-402) och matning (24VAC) tas bort.
+ * kandaSystem = system i projektet och texterna (de räknas aldrig som komponenter).
  */
-export function komponenterIDriftkort(text: string, system: string, kandaSystem: Set<string>, koder: Set<string>): Kandidat[] {
-  const sys = norm(system);
+export function komponenterIDriftkort(text: string, system: string, kandaSystem: Set<string>, koder: Set<string>,
+  /** Korta namn som redan finns som rumskomponenter (131_GT501): de hoppas över i typrumskort. */
+  rumsnamn: Set<string> = new Set()): Kandidat[] {
+  // Textens system: första riktiga systemnamnet ("VS01, VP01" → VS01; "R101-FLV01" är en komponent, inget system).
+  const textSystem = systemerI(system)[0] ?? "";
   const ut = new Map<string, Kandidat>();
-  const tokens = text.toUpperCase().match(/(?<![A-ZÅÄÖ0-9_-])[A-ZÅÄÖ]{1,5}\d{1,4}[A-ZÅÄÖ]?(?:[-_][A-ZÅÄÖ0-9:]+)*(?![A-ZÅÄÖ0-9])/g) ?? [];
-  for (const t of tokens) {
-    const alla = norm(t).split("-");
-    // Komponentens delar: så länge delen har både bokstäver och siffror (FAULT, AUTO, 402 och I är signaler/intervall).
-    const delar: string[] = [];
-    // Delen ska börja med bokstav (24VAC och 230VAC är matning, inte komponenter).
-    for (const d of alla) { if (/^[A-ZÅÄÖ]/.test(d) && /\d/.test(d)) delar.push(d.replace(/:.*$/, "")); else break; }
-    if (!delar.length) continue;
-    const forsta = delar[0]!;
-    // Hel beteckning: första delen är ett system (känt, eller följt av en komponentkod som i KV01-GT41).
-    const arSystem = SYSTEMNAMN.test(forsta) && delar.length > 1 && (kandaSystem.has(forsta) || koder.has(kod(delar[1]!)));
-    let beteckning: string, sy: string, tolkad = false;
-    if (arSystem) { beteckning = delar.slice(0, 2).join("-"); sy = forsta; }
-    else {
-      // Kort beteckning: bara om det är en komponentkod och textens system är känt. System och kända system hoppas över.
-      if (!sys || kandaSystem.has(forsta) || forsta === sys || !koder.has(kod(forsta))) continue;
-      beteckning = `${sys}-${forsta}`; sy = sys; tolkad = true;
+  let sektion: string[] = textSystem ? [textSystem] : [];
+  /** Kort namn (P01, ME41-GT41) → system från senaste hela beteckning i avsnittet. */
+  let senast = new Map<string, string>();
+  /** Texten beskriver rumskomponenter (typrum): övriga korta beteckningar är då osäkra. */
+  let rumstext = false;
+  const arKandSystem = (d: string) => kandaSystem.has(d) || sektion.includes(d) || d === textSystem;
+  const harKod = (d: string) => koder.has(kod(d));
+  const lagg = (beteckning: string, sy: string, iTexten: string, tolkad: boolean, osaker = false) => {
+    const f = ut.get(beteckning);
+    if (!f) ut.set(beteckning, { beteckning, system: sy, iTexten, tolkad, osaker });
+    else if (!osaker) f.osaker = false;
+  };
+
+  for (const rad of text.toUpperCase().split("\n")) {
+    // Nytt avsnitt: "System <tab> VS01, VP01".
+    const sysRad = /^\s*SYSTEM\s*[\t:|]\s*(.+)$/.exec(rad);
+    if (sysRad) {
+      const lista = systemerI(sysRad[1]!);
+      if (lista.length) { sektion = lista; senast = new Map(); for (const x of sektion) kandaSystem.add(x); continue; }
     }
-    if (!ut.has(beteckning)) ut.set(beteckning, { beteckning, system: sy, iTexten: t, tolkad });
+    const tokens = rad.match(/(?<![A-ZÅÄÖ0-9_-])[A-ZÅÄÖ]{1,5}\d{1,4}[A-ZÅÄÖ]?(?:[-_/][A-ZÅÄÖ0-9:]+)*(?![A-ZÅÄÖ0-9])/g) ?? [];
+    for (const token0 of tokens) {
+      // Uppräkningar skrivna med bindestreck blir snedstreck: ME42-ME43 och ST401-402 är två komponenter.
+      const token = token0.replace(/([A-ZÅÄÖ]+)(\d+)-\1(\d+)(?![0-9])/g, "$1$2/$1$3").replace(/([A-ZÅÄÖ]+\d+)-(\d+)(?![0-9A-ZÅÄÖ])/g, "$1/$2");
+      // Snedstreck: VS01-P01/P02-AUT → VS01-P01 och VS01-P02. VVC01-GT41/42 → GT41 och GT42.
+      const bitar = token.split("/");
+      let forra: string[] = [];
+      for (let i = 0; i < bitar.length; i++) {
+        let delar = norm(bitar[i]!).split("-").filter(Boolean);
+        if (i > 0 && forra.length) {
+          const sista = forra.at(-1)!;
+          const forsta = delar[0] ?? "";
+          if (/^\d+$/.test(forsta)) delar = [...forra.slice(0, -1), sista.replace(/\d+[A-ZÅÄÖ]?$/, forsta), ...delar.slice(1)];
+          else if (harKod(forsta) && !arKandSystem(forsta)) delar = [...forra.slice(0, -1), ...delar];
+        }
+        // Komponentens delar: första delen ska ha bokstäver och siffror; följande delar bara om de är komponentkoder
+        // (KB01-ME41-GT41), annars är det signaler, intervall eller matning.
+        const komp: string[] = [];
+        for (const d of delar) {
+          const ren = d.replace(/:.*$/, "");
+          // P0X och GT4X är platshållare, inga komponenter.
+          const ok = /^[A-ZÅÄÖ]+\d/.test(ren) && !/\dX$/.test(ren) && (komp.length === 0 || harKod(ren) || (komp.length === 1 && arKandSystem(komp[0]!)));
+          if (!ok) break;
+          komp.push(ren);
+        }
+        forra = komp;
+        if (!komp.length) continue;
+        const forsta = komp[0]!;
+        // System: känt system, eller ett namn som inte är en komponentkod följt av en komponent (KV01-GT41).
+        if (SYSTEMNAMN.test(forsta) && komp.length > 1 && (arKandSystem(forsta) || (!harKod(forsta) && harKod(komp[1]!)))) {
+          // Hel beteckning.
+          lagg(komp.join("-"), forsta, bitar[i]!, false);
+          for (let n = 1; n < komp.length; n++) senast.set(komp.slice(1, n + 1).join("-"), forsta);
+          continue;
+        }
+        // Kort beteckning: system och okända koder hoppas över.
+        if (arKandSystem(forsta) || !harKod(forsta)) continue;
+        const kort = komp.filter((d, n) => n === 0 || harKod(d)).join("-");
+        // Finns redan som rumskomponent (131_GT501): typrumskortets GT501 är rummens givare, inte systemets.
+        if (rumsnamn.has(kort)) { rumstext = true; continue; }
+        const sy = senast.get(kort) ?? sektion[0] ?? "";
+        if (!sy) continue;
+        lagg(`${sy}-${kort}`, sy, bitar[i]!, true, !senast.has(kort) && sektion.length > 1);
+      }
+    }
   }
   // Kort beteckning som också står med ett annat system i texten (GM41 och LA01-GM41) är osäker.
-  const medAnnatSystem = new Set([...ut.values()].filter((k) => !k.tolkad && k.system !== sys).map((k) => k.beteckning.split("-")[1]));
-  for (const k of ut.values()) if (k.tolkad && medAnnatSystem.has(k.beteckning.split("-")[1])) k.osaker = true;
+  const hela = [...ut.values()].filter((k) => !k.tolkad);
+  for (const k of ut.values()) {
+    if (!k.tolkad) continue;
+    if (rumstext) { k.osaker = true; continue; }
+    const kort = k.beteckning.slice(k.system.length + 1);
+    if (hela.some((h) => h.system !== k.system && h.beteckning.slice(h.system.length + 1) === kort)) k.osaker = true;
+  }
   return [...ut.values()].sort((a, b) => a.beteckning.localeCompare(b.beteckning, "sv", { numeric: true }));
+}
+
+/** Systemnamn i en text: VS01 och VP01 i "VS01, VP01", men inte FLV01 i "R101-FLV01" (det är en komponent). */
+export function systemerI(text: string): string[] {
+  return [...new Set((norm(text).match(/(?<![A-ZÅÄÖ0-9_-])[A-ZÅÄÖ]{2,4}\d{2,3}(?![0-9_-])/g) ?? []))];
+}
+
+/**
+ * Korta namn på komponenter som sitter i rum (prefixet är inget system, t.ex. 131_GT501 eller TYPRUM6_PL3_R1_GT501):
+ * GT501, ST401 … Typrumskort beskriver dem generellt och ska inte skapa systemkomponenter av dem.
+ */
+export function rumskomponenter(komponenter: { beteckning: string }[]): Set<string> {
+  const s = new Set<string>();
+  for (const k of komponenter) {
+    const delar = norm(k.beteckning).split("-");
+    if (delar.length > 1 && !SYSTEMNAMN.test(delar[0]!)) s.add(delar.at(-1)!);
+  }
+  return s;
 }
 
 /** System som projektet känner till: komponenternas system och första delen av beteckningar som LA01-GT11. */
