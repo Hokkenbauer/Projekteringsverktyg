@@ -58,6 +58,8 @@ public class Komponent
     public string Monteringsanvisning { get; set; } = "";
     /// <summary>I/O-punkterna som JSON (se KomponentApi.Signaler). Tom = tolkas ur Signaltyp.</summary>
     public string Signaler { get; set; } = "";
+    /// <summary>Inställningar som JSON-objekt, t.ex. gatewayens typ, IP och portar. Tom = inga.</summary>
+    public string Installningar { get; set; } = "";
 
     /// <summary>Räknas upp vid varje ändring. Skyddar mot att två personer skriver över varandra.</summary>
     public int Version { get; set; } = 1;

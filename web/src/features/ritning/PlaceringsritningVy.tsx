@@ -47,6 +47,8 @@ type Props = {
   egenkontroll: ListRad[] | undefined;
   installationslista: ListRad[] | undefined;
   kataloger: Kataloger;
+  /** Snabbval i Ansluts till: gatewayportar, skåp och RC:er. */
+  anslutForslag: string[];
   /** Räknas upp när någon annan har sparat ritningen. */
   uppdaterad: number;
   lasläge: boolean;
@@ -148,7 +150,7 @@ export function PlaceringsritningVy(p: Props) {
       version.current = r.version;
       v.pvTema?.(tema());
       await v.pvLaddaRitning(r.data, props.current.projekt?.namn ?? "Projekt", behallVy);
-      v.pvSyncCatalogs?.(JSON.stringify(props.current.kataloger));
+      v.pvSyncCatalogs?.(JSON.stringify({ ...props.current.kataloger, anslutsTill: props.current.anslutForslag }));
       synkaKomponenter();
       visaFokus();
       visaKommentar();
@@ -336,8 +338,8 @@ export function PlaceringsritningVy(p: Props) {
   }, [p.komponenter, p.egenkontroll, p.installationslista]);
 
   useEffect(() => {
-    if (redo.current) verktyg()?.pvSyncCatalogs?.(JSON.stringify(p.kataloger));
-  }, [p.kataloger]);
+    if (redo.current) verktyg()?.pvSyncCatalogs?.(JSON.stringify({ ...p.kataloger, anslutsTill: p.anslutForslag }));
+  }, [p.kataloger, p.anslutForslag.join("|")]);
 
   useEffect(() => { if (p.fokusKomponent) visaFokus(); }, [p.fokusKomponent]);
   useEffect(() => { if (p.fokusKommentar) visaKommentar(); }, [p.fokusKommentar]);

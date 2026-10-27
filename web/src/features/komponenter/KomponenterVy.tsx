@@ -21,6 +21,8 @@ type Props = {
   lasläge?: boolean;
   onInfo: (k: Komponent) => void;
   fokusId?: string | null;
+  /** Snabbval i Ansluts till: gatewayportar, skåp och RC:er. */
+  anslutForslag?: string[];
 };
 
 /** Förslag = katalogen från servern plus det som redan finns i projektet, utan dubbletter. */
@@ -38,7 +40,9 @@ const MALLFALT = ["beteckning", "system", "komponenttyp", "signaltyp", "placerin
 
 export function KomponenterVy({
   projektId, kanHanteraMallar, onUppdatera, visaMeddelande, komponenter, kataloger, blinkar, onAndra, onNy, onTaBort, lasläge, onInfo, fokusId,
+  anslutForslag = [],
 }: Props) {
+  const anslutNyckel = anslutForslag.join("|");
   const [mallOppen, setMallOppen] = useState(false);
   const [ioId, setIoId] = useState<string | null>(null);
   const ioKomponent = ioId ? komponenter.find((k) => k.id === ioId) ?? null : null;
@@ -103,15 +107,15 @@ export function KomponenterVy({
       },
       { nyckel: "placering", rubrik: "Placering", typ: "text", forslag: f("placering"), bredd: 160 },
       { nyckel: "beskrivning", rubrik: "Beskrivning", typ: "text", bredd: 220 },
-      { nyckel: "anslutsTill", rubrik: "Ansluts till", typ: "text", mono: true },
+      { nyckel: "anslutsTill", rubrik: "Ansluts till", typ: "text", mono: true, forslag: anslutForslag },
       { nyckel: "kabeltyp", rubrik: "Kabeltyp", typ: "text", forslag: f("kabeltyp"), bredd: 130 },
-      { nyckel: "produkttyp", rubrik: "Produkttyp", typ: "text", forslag: f("produkttyp"), bredd: 130 },
-      { nyckel: "produkt", rubrik: "Fabrikat", typ: "text", forslag: f("produkt"), bredd: 160 },
+      // Produkt = fabrikat och modell (t.ex. Siemens QAE2120). Det gamla fältet Fabrikat visas inte längre.
+      { nyckel: "produkttyp", rubrik: "Produkt", typ: "text", forslag: f("produkttyp"), bredd: 180 },
       { nyckel: "monteringsanvisning", rubrik: "Monteringsanvisning", typ: "text", bredd: 180 },
       { nyckel: "ovrigt", rubrik: "Övrigt", typ: "text" },
     ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [kataloger, antal]);
+  }, [kataloger, antal, anslutNyckel]);
 
   return (
     <>

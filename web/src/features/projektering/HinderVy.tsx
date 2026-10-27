@@ -298,7 +298,20 @@ export function HinderVy(p: Props) {
                     {text("bestallareEpost", "Beställarens kontaktuppgifter (e-post)")}
                     {text("bestallareAdress", "Beställarens kontaktuppgifter (postadress)")}
                     {text("entreprenor", "Entreprenör")}
-                    {text("entreprenadform", "Entreprenadform/tillämpligt standardavtal", { lista: "hinder-avtal" })}
+                    <label className="hinder-falt">
+                      <span>Entreprenadform/tillämpligt standardavtal</span>
+                      <select value={d.entreprenadform ?? ""} disabled={p.lasläge} aria-label="Entreprenadform"
+                        onChange={(e) => {
+                          if (e.target.value !== "__annat") { andra("entreprenadform")(e.target.value); return; }
+                          const v = window.prompt("Entreprenadform eller standardavtal:", d.entreprenadform ?? "");
+                          if (v?.trim()) andra("entreprenadform")(v.trim());
+                        }}>
+                        <option value="">Välj…</option>
+                        {AVTAL.map((a) => <option key={a} value={a}>{a}</option>)}
+                        {d.entreprenadform && !AVTAL.includes(d.entreprenadform) && <option value={d.entreprenadform}>{d.entreprenadform}</option>}
+                        <option value="__annat">Annat…</option>
+                      </select>
+                    </label>
                     {text("platschef", "Entreprenörens platschef")}
                     {text("ort", "Ort")}
                     {datum("datum", "Datum")}
@@ -321,7 +334,6 @@ export function HinderVy(p: Props) {
                     {text("svarText", "Kommentar till svaret", { flerrad: true, rader: 2, bred: true })}
                     {datum("svarDatum", "Datum för svar")}
                   </fieldset>
-                  <datalist id="hinder-avtal">{AVTAL.map((a) => <option key={a} value={a} />)}</datalist>
                 </>
               )}
             </section>

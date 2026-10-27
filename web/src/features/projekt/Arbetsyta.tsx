@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { SignallistaVy } from "../listor/SignallistaVy";
 import { sammanfatta, type Signal } from "../../lib/signaler";
 import type { Blink } from "../../grid/DataGrid";
@@ -23,7 +23,8 @@ import { RitbordVy } from "../ritning/RitbordVy";
 import { ApparatskapVy } from "../konstruktion/ApparatskapVy";
 import { KraftSumma } from "../konstruktion/KraftSumma";
 import { BestallningslistaVy } from "../konstruktion/BestallningslistaVy";
-import { ModbusSumma } from "../konstruktion/ModbusSumma";
+import { GatewayVy } from "../konstruktion/GatewayVy";
+import { anslutForslag } from "../../lib/gateway";
 import { ModulbelaggningVy } from "../konstruktion/ModulbelaggningVy";
 import { SkapValjare } from "../konstruktion/SkapValjare";
 import { KomponenterVy } from "../komponenter/KomponenterVy";
@@ -372,9 +373,12 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
   };
   const hamtaSkapRef = useRef(hamtaSkap);
   hamtaSkapRef.current = hamtaSkap;
-  const behoverSkap = arSkapFlik || flik === "bestallningslista";
+  // Skåpen behövs också som snabbval i Ansluts till (Komponenter och placeringsritningen).
+  const behoverSkap = arSkapFlik || flik === "bestallningslista" || flik === "komponenter" || flik === "placeringsritningar";
   useEffect(() => { if (behoverSkap && skapLista === null) void hamtaSkap(); }, [behoverSkap]);
   const aktivtSkap = skapLista?.find((x) => x.id === valtSkap) ?? null;
+  const anslutsTillForslag = useMemo(() => anslutForslag(komponenter,
+    (skapLista ?? []).map((s) => (s.beteckning || s.namn || "").trim()).filter(Boolean)), [komponenter, skapLista]);
   const uppdateraSkap = (s: Skap) => setSkapLista((l) => l?.map((x) => (x.id === s.id ? s : x)) ?? l);
 
   const riskVariant = vald?.flik.risk;
@@ -414,7 +418,7 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
     api<ListRad[]>(`/api/projekt/${projektId}/listor/${listId}/hamta-komponenter`, { method: "POST" })
       .then((nya) => {
         for (const r of nya) laggListRad(listId, r);
-        if (nya.length) visaMeddelande(`${nya.length} ${hamtarFran === "kraft" ? "laster" : "mätare"} hämtades från Komponenter.`);
+        if (nya.length) visaMeddelande(`${nya.length} ${hamtarFran === "kraft" ? "laster" : hamtarFran === "modbus" ? "Modbus-enheter" : "mätare"} hämtades från Komponenter.`);
       })
       .catch(() => { /* listan fungerar ändå */ });
   }, [listId, hamtarFran, listanLaddad, projektId]);
@@ -548,6 +552,16 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
     } catch (e) {
       visaMeddelande(`Raden kunde inte skapas: ${(e as Error).message}`);
     }
+  };
+
+  /** Skapar komponenter med ifyllda fält (t.ex. gateways). */
+  const skapaKomponenter = async (lista: Partial<Record<keyof Komponent, string>>[]) => {
+    let fel = 0;
+    for (const data of lista) {
+      try { lagg(await api<Komponent>(`/api/projekt/${projektId}/komponenter`, { method: "POST", body: skicka(data) })); }
+      catch { fel++; }
+    }
+    visaMeddelande(fel ? `${fel} komponenter kunde inte skapas.` : lista.length === 1 ? `${lista[0]!.beteckning ?? "Komponenten"} är skapad.` : `${lista.length} komponenter skapade.`);
   };
 
   const taBort = async (ids: string[]) => {
@@ -697,7 +711,8 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
           <KomponenterVy
             projektId={projektId} kanHanteraMallar={!!ratt.hanteraMallar} onUppdatera={() => void hamtaAllt()} visaMeddelande={visaMeddelande}
             onInfo={(k) => setInfoId(k.id)} fokusId={fokusHar}
-            komponenter={komponenter} kataloger={kataloger} blinkar={blinkar} onAndra={andra} onNy={ny} onTaBort={taBort} lasläge={!ratt.skriva} />
+            komponenter={komponenter} kataloger={kataloger} blinkar={blinkar} onAndra={andra} onNy={ny} onTaBort={taBort} lasläge={!ratt.skriva}
+            anslutForslag={anslutsTillForslag} />
         )}
         {flik === "oversikt" && projekt && (
           <Oversikt
@@ -712,7 +727,7 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
         {flik === "medlemmar" && <MedlemmarVy projektId={projektId} rattigheter={ratt} visaMeddelande={visaMeddelande} />}
         {flik === "anteckningar" && anteckningar && <AnteckningarVy key={projektId} anteckningar={anteckningar} onSpara={sparaAnteckningar} lasläge={!ratt.skriva} onPopUt={() => oppnaPopUt("anteckningar")} />}
         {flik === "placeringskommentarer" && <KommentarerVy projektId={projektId} projekt={projekt} uppdaterad={ritningSparad} onVisa={visaKommentar} onPopUt={() => oppnaPopUt("kommentarer")} lasläge={!skrivbar} visaMeddelande={visaMeddelande} />}
-        {vald?.flik.lista && flik !== "signallista" && listVy(false)}
+        {vald?.flik.lista && flik !== "signallista" && flik !== "modbus-rtu" && listVy(false)}
         {flik === "signallista" && (
           <SignallistaVy
             komponenter={komponenter} projekt={projekt} blinkar={blinkar} lasläge={!skrivbar} onAndra={andra}
@@ -720,8 +735,19 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
             onInfo={setInfoId} fokusId={fokusHar}
           />
         )}
-        {flik === "modbus-rtu" && (
-          <ModbusSumma gateways={listor.modbusrtu} enheter={listor.modbus} komponenter={komponenter} onFlik={onFlik} />
+        {flik === "modbus-rtu" && vald && (
+          <GatewayVy
+            grupp={vald.grupp.namn} rubrik={vald.flik.namn} komponenter={komponenter} kataloger={kataloger}
+            modbus={listor.modbus} lasläge={!skrivbar} onAndra={(k, f, v) => void andra(k, f, v)}
+            onSkapa={skapaKomponenter} onInfo={setInfoId} onFlik={onFlik}
+            aldre={listor.modbusrtu?.length ? (
+              <section className="gw-aldre">
+                <h2>Äldre slingor (fritext)</h2>
+                <p className="dampad">Slingor som skrevs in innan gateways blev komponenter. De används bara där en enhet inte når någon gateway via Ansluts till. Skapa gateways (knappen ovan eller Ny gateway) och ta sedan bort raderna här.</p>
+                {listVy(true)}
+              </section>
+            ) : undefined}
+          />
         )}
         {flik === "bestallningslista" && vald && (
           <BestallningslistaVy
@@ -805,6 +831,7 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
             egenkontroll={listor.egenkontroll}
             installationslista={listor.installationslista}
             kataloger={kataloger}
+            anslutForslag={anslutsTillForslag}
             uppdaterad={ritningVersion}
             fokusKomponent={ritningFokus}
             onFokusVisad={() => setRitningFokus(null)}
@@ -949,6 +976,10 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
           onGaTill={(f, id) => { gaTill(f, id); if (window.innerWidth < 1300) setInfoId(null); }}
           onVisaPaRitning={(id) => { gaTill("placeringsritningar", id); setInfoId(null); }}
           uppdaterad={loggVersion}
+          komponenter={komponenter}
+          onVisaKomponent={setInfoId}
+          onAndra={(k, f, v) => void andra(k, f, v)}
+          lasläge={!skrivbar}
         />
       )}
     </div>

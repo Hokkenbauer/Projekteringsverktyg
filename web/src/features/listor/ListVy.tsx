@@ -3,6 +3,7 @@ import { DataGrid, type Blink, type Kolumn } from "../../grid/DataGrid";
 import type { Kataloger, Komponent, ListDef, ListRad, Projekt } from "../../lib/typer";
 import { skrivUt } from "../../lib/utskrift";
 import { ataStyckvis } from "./AtaUtskrift";
+import { Anslutningar } from "../../lib/gateway";
 
 /** En rad som tabellen visar: id + ett textvärde per kolumn. */
 export type VisadRad = Record<string, string> & { id: string };
@@ -34,11 +35,13 @@ export const vn = (n: string) => (n === "id" ? "id_" : n);
 /** Bygger tabellens rader. Kopplade listor får en rad per komponent; komponentens fält läses direkt från komponenten. */
 export function byggRader(def: ListDef, rader: ListRad[], komponenter: Komponent[]): VisadRad[] {
   const perId = new Map(komponenter.map((k) => [k.id, k]));
+  // Härledda fält (_gateway, _via …) räknas ur anslutningskedjan. Byggs bara när listan behöver dem.
+  const kedjor = def.kolumner.some((k) => k.komponentFalt?.startsWith("_")) ? new Anslutningar(komponenter) : null;
   const fyll = (data: Record<string, string>, k: Komponent | null, nr: number) => {
     const ut: Record<string, string> = {};
     for (const kol of def.kolumner) {
       if (kol.typ === "komponent" && kol.komponentFalt) {
-        const v = k ? String(k[kol.komponentFalt] ?? "") : "";
+        const v = k ? String(k[kol.komponentFalt as keyof Komponent] ?? "") : "";
         ut[vn(kol.nyckel)] = def.bindestreck ? v.replace(/_/g, "-") : v;
       }
       else if (kol.typ === "lopnr") ut[vn(kol.nyckel)] = String(nr);
@@ -51,7 +54,7 @@ export function byggRader(def: ListDef, rader: ListRad[], komponenter: Komponent
       else if (kol.typ === "antal" && kol.komponentFalt && kol.faktorer?.[0]) {
         const v = (data[kol.faktorer[0]] ?? "").trim().toLowerCase();
         const falt = kol.komponentFalt;
-        ut[vn(kol.nyckel)] = v ? String(komponenter.filter((x) => String(x[falt] ?? "").trim().toLowerCase() === v).length) : "";
+        ut[vn(kol.nyckel)] = v ? String(komponenter.filter((x) => String(x[falt as keyof Komponent] ?? "").trim().toLowerCase() === v).length) : "";
       }
       else if (kol.typ === "koppling") {
         const v = data[kol.nyckel] ?? "";
@@ -59,7 +62,13 @@ export function byggRader(def: ListDef, rader: ListRad[], komponenter: Komponent
       }
       else if (kol.typ === "fran" && kol.komponentFalt && kol.faktorer?.[0]) {
         const kp = perId.get(data[kol.faktorer[0]] ?? "");
-        ut[vn(kol.nyckel)] = kp ? String(kp[kol.komponentFalt] ?? "") : "";
+        const falt = kol.komponentFalt;
+        if (falt.startsWith("_")) {
+          // Gateway/port: fritext från äldre listor (kolumnen slinga) visas om kedjan inte når en gateway.
+          const h = kp && kedjor ? kedjor.harledd(kp, falt) : "";
+          ut[vn(kol.nyckel)] = h || (falt === "_gateway" ? data.slinga ?? "" : "");
+        }
+        else ut[vn(kol.nyckel)] = kp ? String(kp[falt as keyof Komponent] ?? "") : "";
       }
       else if (kol.typ === "differens" && kol.faktorer?.length === 2) {
         const hamta = (n: string) => ut[vn(n)] ?? data[n] ?? "";
@@ -175,7 +184,9 @@ export function ListVy({ def, grupp, rader, komponenter, projekt, blinkar, lasl�
     const perSlinga = new Map<string, number>();
     const idPerSlinga = new Map<string, number>();
     for (const r of visade) {
-      const s = r.slinga?.trim().toLowerCase();
+      // Bara RTU-enheter delar slinga; TCP-enheter har egen IP.
+      if (r.protokoll === "TCP") continue;
+      const s = r.gateway?.trim().toLowerCase();
       if (!s) continue;
       perSlinga.set(s, (perSlinga.get(s) ?? 0) + 1);
       const id = r.id_?.trim();
@@ -271,10 +282,11 @@ export function ListVy({ def, grupp, rader, komponenter, projekt, blinkar, lasl�
           }}
           cellVarning={dubblettIp ? (r, nyckel) => (nyckel === "ip" && r.ip?.trim() && (dubblettIp.get(r.ip.trim()) ?? 0) > 1 ? "IP-adressen finns på flera rader" : undefined)
             : modbusKontroll ? (r, nyckel) => {
-              const s = r.slinga?.trim().toLowerCase();
-              if (!s) return undefined;
-              if (nyckel === "id_" && r.id_?.trim() && (modbusKontroll.idPerSlinga.get(`${s}|${r.id_.trim()}`) ?? 0) > 1) return "Samma ID finns två gånger på slingan";
-              if (nyckel === "slinga" && (modbusKontroll.perSlinga.get(s) ?? 0) > 32) return "Fler än 32 enheter på slingan";
+              const s = r.gateway?.trim().toLowerCase();
+              if (!s) return nyckel === "gateway" && r.protokoll !== "TCP" ? "Ingen gateway: ange komponentens Ansluts till (gatewayport eller RC)" : undefined;
+              if (r.protokoll === "TCP") return undefined;
+              if (nyckel === "id_" && r.id_?.trim() && (modbusKontroll.idPerSlinga.get(`${s}|${r.id_.trim()}`) ?? 0) > 1) return "Samma ID finns två gånger på porten";
+              if (nyckel === "gateway" && (modbusKontroll.perSlinga.get(s) ?? 0) > 32) return "Fler än 32 enheter på porten";
               return undefined;
             } : undefined}
         />

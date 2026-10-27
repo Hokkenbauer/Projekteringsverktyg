@@ -894,7 +894,7 @@ table.grid.kort td.lopnr::before { content: "#"; padding: 0; font-family: var(--
 .hinder-grupp legend small { font-weight: 400; color: var(--dampad); }
 .hinder-grupp .bred { grid-column: 1 / -1; }
 .hinder-falt { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--dampad); min-width: 0; }
-.hinder-falt input, .hinder-falt textarea { width: 100%; background: var(--yta-2); border: 1px solid var(--linje); border-radius: var(--r); padding: 7px 9px; color: var(--text); font: inherit; font-size: 13.5px; }
+.hinder-falt input, .hinder-falt textarea, .hinder-falt select { width: 100%; background: var(--yta-2); border: 1px solid var(--linje); border-radius: var(--r); padding: 7px 9px; color: var(--text); font: inherit; font-size: 13.5px; }
 .hinder-falt textarea { resize: vertical; line-height: 1.45; }
 .hinder-falt input:focus, .hinder-falt textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-mjuk); }
 .hinder-falt input:read-only:not([type="date"]) { background: transparent; }
@@ -911,5 +911,50 @@ table.grid.kort td.lopnr::before { content: "#"; padding: 0; font-family: var(--
   .hinder-flikar { display: flex; }
   .hinder-flikar button { flex: 1; padding: 9px 6px; }
   .hinder-grupp { grid-template-columns: 1fr; padding: 10px; }
-  .hinder-falt input, .hinder-falt textarea { font-size: 16px; }
+  .hinder-falt input, .hinder-falt textarea, .hinder-falt select { font-size: 16px; }
 }
+
+/* ==========================================================================
+   Gateways (Modbus RTU) och anslutningskedjan i Komponentinformation
+   ========================================================================== */
+.gw-kort { margin-bottom: 14px; }
+.gw-huvud { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; margin-bottom: 10px; }
+.gw-huvud h2 { margin: 0; font-size: 17px; }
+.gw-redigerare { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.gw-falt { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px 14px; }
+.gw-falt label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--dampad); }
+.gw-falt select, .gw-falt input, .gw-portar select { background: var(--yta-2); border: 1px solid var(--linje); border-radius: var(--r); padding: 6px 8px; color: var(--text); font: inherit; font-size: 13px; }
+.gw-portar { width: 100%; }
+.gw-portar th { font-size: 12px; text-align: left; color: var(--dampad); font-weight: 500; padding: 4px 6px; }
+.gw-portar td { padding: 3px 6px; vertical-align: middle; }
+.gw-portar td input { min-width: 70px; }
+.gw-portar td select { width: 100%; min-width: 72px; }
+.gw-portar td small { font-size: 12px; }
+.gw-fel, .gw-fel .mono { color: var(--fara); font-weight: 600; }
+.gw-enheter { border-top: 1px solid var(--linje); padding-top: 6px; }
+.gw-enheter summary { cursor: pointer; font-size: 13px; padding: 3px 0; }
+.gw-enheter ul { list-style: none; margin: 4px 0 6px; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 2px 18px; }
+.gw-enheter li { display: grid; grid-template-columns: minmax(130px, auto) 1fr auto auto; gap: 8px; font-size: 12.5px; align-items: baseline; }
+.gw-tips { background: var(--accent-mjuk); border: 1px solid var(--linje); border-radius: var(--r); padding: 10px 14px; margin-bottom: 14px; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+.gw-tips p { margin: 0; flex: 1 1 400px; font-size: 13.5px; }
+.gw-aldre { margin-top: 24px; }
+.gw-aldre h2 { font-size: 16px; margin: 0 0 4px; }
+.infopanel .kedja { font-size: 13px; line-height: 1.6; margin: 0 0 6px; overflow-wrap: anywhere; }
+.infopanel .anslutna { font-size: 12.5px; margin: 0 0 6px; overflow-wrap: anywhere; }
+.infopanel .gw-portar { font-size: 12px; }
+.infopanel .gw-portar th:nth-child(5), .infopanel .gw-portar td:nth-child(5) { display: none; }
+
+@media (max-width: 760px) {
+  .gw-portar thead { display: none; }
+  .gw-portar, .gw-portar tbody, .gw-portar tr { display: block; }
+  .gw-portar tr { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; border: 1px solid var(--linje); border-radius: var(--r); padding: 8px; margin-bottom: 8px; }
+  .gw-portar td { padding: 0; }
+  .gw-portar td:nth-child(7) { grid-column: 1 / -1; }
+  .gw-portar td input, .gw-portar td select, .gw-falt input, .gw-falt select { font-size: 16px; width: 100%; }
+  .gw-enheter li { grid-template-columns: 1fr auto; }
+}
+
+/* Teknisk beskrivning: frågor som är urbockade */
+.fragetabell .tb-med { width: 44px; text-align: center; }
+.fragetabell tr.tb-ej td:not(.tb-med) { opacity: .45; text-decoration: line-through; text-decoration-color: var(--dampad); }
+.fragetabell tr.tb-ej textarea { text-decoration: none; }

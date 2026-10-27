@@ -120,6 +120,7 @@ public static partial class ProjektImport
                     Signaltyp = Str(e, "signaltyp"), Beskrivning = Str(e, "beskrivning"), AnslutsTill = Str(e, "anslutsTill"),
                     Kabeltyp = Str(e, "kabeltyp"), Placering = Str(e, "placering"), Ovrigt = Str(e, "ovrigt"),
                     Produkttyp = Str(e, "produkttyp"), Produkt = Str(e, "produkt"), Monteringsanvisning = Str(e, "monteringsanvisning"),
+                    Installningar = Str(e, "installningar"),
                 };
                 if (e.TryGetProperty("signaler", out var sig) && sig.ValueKind == JsonValueKind.Array && sig.GetArrayLength() > 0)
                     Signaler.Satt(k, Signaler.LasJson(sig.GetRawText()));

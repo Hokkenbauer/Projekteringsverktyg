@@ -9,7 +9,8 @@ type FrageKatalog = { kategorier: Kategori[] };
 const TOM: FrageKatalog = { kategorier: [] };
 
 /** Projektets svar. Svaren knyts till frågans text, så att de finns kvar om katalogen sorteras om. */
-type Svar = { kategorier: Record<string, { med?: boolean; svar?: Record<string, string> }> };
+/** ejMed = frågor (texten) som är urbockade och inte ska med i exporten. */
+type Svar = { kategorier: Record<string, { med?: boolean; svar?: Record<string, string>; ejMed?: string[] }> };
 
 function las(text: string | undefined): Svar {
   try { if (text) return { kategorier: {}, ...JSON.parse(text) }; } catch { /* börja om */ }
@@ -48,6 +49,9 @@ export function TekniskBeskrivningVy(p: Props) {
   const vald = kategorier.find((k) => k.id === valdId) ?? kategorier[0];
   const med = (id: string) => svar.kategorier[id]?.med !== false;
   const svarPa = (id: string, fraga: string) => svar.kategorier[id]?.svar?.[fraga] ?? "";
+  const fragaMed = (id: string, fraga: string) => !(svar.kategorier[id]?.ejMed ?? []).includes(fraga);
+  /** Frågorna som ska med i exporten för en kategori. */
+  const medFragor = (k: Kategori) => k.fragor.filter((f) => fragaMed(k.id, f));
 
   const spara = (ny: Svar) => {
     setSvar(ny);
@@ -59,32 +63,38 @@ export function TekniskBeskrivningVy(p: Props) {
       catch (e) { setStatus("osparat"); p.visaMeddelande(`Kunde inte spara: ${(e as Error).message}`); }
     }, 1000);
   };
-  const satt = (id: string, andring: { med?: boolean; fraga?: string; varde?: string }) => {
+  const satt = (id: string, andring: { med?: boolean; fraga?: string; varde?: string; fragaMed?: { fraga: string; med: boolean } }) => {
     const k = { ...(svar.kategorier[id] ?? {}) };
     if (andring.med !== undefined) k.med = andring.med;
+    if (andring.fragaMed) {
+      const ej = new Set(k.ejMed ?? []);
+      if (andring.fragaMed.med) ej.delete(andring.fragaMed.fraga); else ej.add(andring.fragaMed.fraga);
+      k.ejMed = [...ej];
+    }
     if (andring.fraga !== undefined) k.svar = { ...(k.svar ?? {}), [andring.fraga]: andring.varde ?? "" };
     spara({ ...svar, kategorier: { ...svar.kategorier, [id]: k } });
   };
 
   const besvarade = useMemo(() => {
     const m = new Map<string, number>();
-    for (const k of kategorier) m.set(k.id, k.fragor.filter((f) => svarPa(k.id, f).trim()).length);
+    for (const k of kategorier) m.set(k.id, medFragor(k).filter((f) => svarPa(k.id, f).trim()).length);
     return m;
   }, [kategorier, svar]);
 
-  const ivagMed = kategorier.filter((k) => med(k.id));
+  // Kategorier som är ibockade och har minst en ibockad fråga.
+  const ivagMed = kategorier.filter((k) => med(k.id) && medFragor(k).length > 0);
 
   const excel = () => void skrivExcel(`Teknisk beskrivning ${p.projekt?.nummer ?? ""}`.trim(), [{
     namn: "Teknisk beskrivning",
     bredder: [36, 70, 70],
-    rader: [["Kategori", "Fråga", "Svar"], ...ivagMed.flatMap((k) => k.fragor.map((f) => [k.namn, f, svarPa(k.id, f)]))],
+    rader: [["Kategori", "Fråga", "Svar"], ...ivagMed.flatMap((k) => medFragor(k).map((f) => [k.namn, f, svarPa(k.id, f)]))],
   }]).catch((e) => p.visaMeddelande((e as Error).message));
 
   const skrivUt = () => {
     oppnaDokument({
       titel: "Teknisk beskrivning", kategori: "Teknisk beskrivning", projekt: p.projekt,
       css: "td{white-space:pre-wrap}table.data td:first-child{width:45%}",
-      kropp: ivagMed.map((k) => `<h2>${esc(k.namn)}</h2>${tabellHtml(["Fråga", "Svar"], k.fragor.map((fr) => [fr, svarPa(k.id, fr)]))}`).join(""),
+      kropp: ivagMed.map((k) => `<h2>${esc(k.namn)}</h2>${tabellHtml(["Fråga", "Svar"], medFragor(k).map((fr) => [fr, svarPa(k.id, fr)]))}`).join(""),
     });
   };
 
@@ -125,7 +135,8 @@ export function TekniskBeskrivningVy(p: Props) {
         </div>
       </div>
       <p className="ingress">
-        Svara på frågorna per kategori. Bocka ur kategorier som inte ska med i exporten. Allt sparas automatiskt
+        Svara på frågorna per kategori. Bocka ur hela kategorier eller enstaka frågor som inte är relevanta – de kommer inte med i
+        utskrift och Excel. Allt sparas automatiskt
         {status === "sparar" ? " (sparar…)" : status === "osparat" ? " (osparade ändringar)" : ""}.
       </p>
 
@@ -137,7 +148,7 @@ export function TekniskBeskrivningVy(p: Props) {
             <div key={k.id} className={`kategorirad ${vald?.id === k.id ? "aktiv" : ""}`}>
               <input type="checkbox" checked={med(k.id)} disabled={p.lasläge} aria-label={`Ta med ${k.namn} i exporten`} onChange={(e) => satt(k.id, { med: e.target.checked })} />
               <button className="katalograd" onClick={() => { setValdId(k.id); setRedigera(null); }}>
-                {k.namn} <span className="dampad">{besvarade.get(k.id) ?? 0}/{k.fragor.length}</span>
+                {k.namn} <span className="dampad">{besvarade.get(k.id) ?? 0}/{medFragor(k).length}{medFragor(k).length < k.fragor.length ? ` (${k.fragor.length - medFragor(k).length} urbockade)` : ""}</span>
               </button>
             </div>
           ))}
@@ -160,14 +171,27 @@ export function TekniskBeskrivningVy(p: Props) {
             <>
               <div className="textytahuvud">
                 <h2>{vald.namn}</h2>
+                {!med(vald.id) && <span className="dampad liten">Kategorin är urbockad och kommer inte med i exporten.</span>}
                 <span className="grow" />
+                {!p.lasläge && vald.fragor.length > 0 && (
+                  <button className="knapp" onClick={() => {
+                    const allaMed = vald.fragor.every((f) => fragaMed(vald.id, f));
+                    const k = { ...(svar.kategorier[vald.id] ?? {}), ejMed: allaMed ? [...vald.fragor] : [] };
+                    spara({ ...svar, kategorier: { ...svar.kategorier, [vald.id]: k } });
+                  }}>{vald.fragor.every((f) => fragaMed(vald.id, f)) ? "Bocka ur alla frågor" : "Bocka i alla frågor"}</button>
+                )}
                 {p.kanRedigeraKatalog && <button className="knapp" onClick={borjaRedigera}>Redigera frågorna</button>}
               </div>
               <table className="fragetabell">
-                <thead><tr><th>Fråga</th><th>Svar</th></tr></thead>
+                <thead><tr><th className="tb-med" title="Med i utskrift och Excel">Med</th><th>Fråga</th><th>Svar</th></tr></thead>
                 <tbody>
                   {vald.fragor.map((f) => (
-                    <tr key={f}>
+                    <tr key={f} className={fragaMed(vald.id, f) ? "" : "tb-ej"}>
+                      <td className="tb-med">
+                        <input type="checkbox" checked={fragaMed(vald.id, f)} disabled={p.lasläge}
+                          aria-label={`Ta med frågan i exporten: ${f}`} title={fragaMed(vald.id, f) ? "Bocka ur om frågan inte är relevant" : "Ej med i utskrift och Excel"}
+                          onChange={(e) => satt(vald.id, { fragaMed: { fraga: f, med: e.target.checked } })} />
+                      </td>
                       <td>{f}</td>
                       <td>
                         <textarea

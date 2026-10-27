@@ -183,7 +183,7 @@ public static class ProjektExport
             Komponenter = komponenter.Select(k => new
             {
                 k.Id, k.System, k.Beteckning, k.Komponenttyp, k.Signaltyp, k.Beskrivning, k.AnslutsTill, k.Kabeltyp, k.Placering, k.Ovrigt,
-                k.Produkttyp, k.Produkt, k.Monteringsanvisning, Signaler = Signaler.Las(k), k.Andrad, k.AndradAv,
+                k.Produkttyp, k.Produkt, k.Monteringsanvisning, Signaler = Signaler.Las(k), k.Installningar, k.Andrad, k.AndradAv,
             }),
             Listor = listrader.GroupBy(r => r.Lista).ToDictionary(g => g.Key, g => g.Select(r => new { r.Id, r.KomponentId, Data = ListEndpoints.LasData(r.Data), r.Ordning, r.Andrad, r.AndradAv })),
             Kontroller = kontroller.Select(k => new { k.Id, k.Typ, k.Namn, k.Beskrivning, k.MallNamn, k.Ordning }),

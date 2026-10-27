@@ -58,7 +58,12 @@ public sealed record KolumnDef(
             else if (k.Typ == "fran" && k.KomponentFalt is not null && k.Faktorer is [var kopplad, ..])
             {
                 var kp = HittaKoppling(data.GetValueOrDefault(kopplad, ""), komponenter);
-                data[k.Nyckel] = kp is null ? "" : KomponentApi.KomponentFalt.Hamta(kp, k.KomponentFalt);
+                // Fält som börjar med _ räknas fram ur anslutningskedjan (gateway, port, inställning, via).
+                data[k.Nyckel] = kp is null ? (k.KomponentFalt == "_gateway" ? data.GetValueOrDefault("slinga", "") : "")
+                    : k.KomponentFalt.StartsWith('_')
+                        ? KomponentApi.Gateways.Harledd(kp, k.KomponentFalt, komponenter!) is { Length: > 0 } h ? h
+                            : k.KomponentFalt == "_gateway" ? data.GetValueOrDefault("slinga", "") : ""
+                        : KomponentApi.KomponentFalt.Hamta(kp, k.KomponentFalt);
             }
             else if (k.Typ == "differens" && k.Faktorer is [var a, var b])
             {
@@ -285,27 +290,27 @@ public static class Listdefinitioner
 
         // ---------------- Konstruktion ----------------
         new("modbus", "Modbus", "Konstruktion",
-            "Modbus-enheter och kommunikationsinställningar. Välj komponenten i Beteckning (förslagen är komponenter med signaltyp Modbus) eller skriv fritt. Välj gateway/slinga från Modbus RTU. Samma ID två gånger på samma slinga och fler än 32 enheter per slinga markeras.",
+            "Alla komponenter med en Modbus-punkt läggs in automatiskt. Gateway och port räknas fram ur komponentens Ansluts till (direkt eller via t.ex. en RC), och kommunikationsinställningen ärvs från gatewayporten. Fyll i ID (och IP för Modbus TCP). Samma ID två gånger på samma port och fler än 32 enheter per port markeras.",
             Kopplad: false,
+            Hamtar: "modbus",
             Kolumner:
             [
                 new("beteckning", "Beteckning", "koppling", Mono: true, Bredd: 160, KopplingSignaltyp: "modbus"),
                 new("komponenttyp", "Komponenttyp", "fran", KomponentFalt: "komponenttyp", Faktorer: ["beteckning"]),
+                new("protokoll", "Protokoll", "fran", KomponentFalt: "_protokoll", Faktorer: ["beteckning"], Bredd: 80),
+                new("via", "Via", "fran", KomponentFalt: "_via", Faktorer: ["beteckning"], Mono: true, Bredd: 120),
+                new("gateway", "Gateway / port", "fran", KomponentFalt: "_gateway", Faktorer: ["beteckning"], Mono: true, Bredd: 170),
+                new("installning", "Inställning", "fran", KomponentFalt: "_installning", Faktorer: ["beteckning"], Mono: true, Bredd: 90),
                 new("id", "ID", Mono: true, Bredd: 70),
-                new("slinga", "Gateway / slinga", Bredd: 160),
-                new("port", "Port", "val", Kat("ModbusPort")),
-                new("ip", "IP-adress", Mono: true),
-                new("baudrate", "Baudrate", "val", Kat("ModbusBaudrate"), Standard: "9600"),
-                new("paritet", "Paritet", "val", Kat("ModbusParitet"), Standard: "Even"),
-                new("stopbit", "Stopbit", "val", Kat("ModbusStopbit"), Standard: "1"),
+                new("ip", "IP-adress (TCP)", Mono: true),
                 new("ovrigt", "Övrigt"),
                 new("kontrollerad", "Kontrollerad", "kryss", SatterDatum: "datum", SatterSign: "sign"),
                 new("datum", "Datum", "datum"),
                 new("sign", "Sign.", Mono: true, Bredd: 52),
             ]),
 
-        new("modbusrtu", "Modbus RTU", "Konstruktion",
-            "Gateways och slingor för Modbus RTU. Enheterna kopplas till en slinga i fliken Modbus (kolumnen Gateway / slinga). Max 32 enheter per slinga.",
+        new("modbusrtu", "Modbus RTU (äldre slingor)", "Konstruktion",
+            "Slingor som skrivits in som fri text innan gateways blev komponenter. Nya gateways läggs upp som komponenter (Ny gateway).",
             Kopplad: false,
             Kolumner:
             [
