@@ -1050,3 +1050,57 @@ public class AtaTester
         Assert.Equal("", data["ejBestalld"]);
     }
 }
+
+public class GatewayTester
+{
+    private static Komponent K(string beteckning, string anslutsTill, string typ = "", string signaltyp = "", string inst = "")
+    {
+        var k = new Komponent { Beteckning = beteckning, AnslutsTill = anslutsTill, Komponenttyp = typ, Installningar = inst };
+        if (signaltyp != "") KomponentFalt.Satt(k, "signaltyp", signaltyp);
+        return k;
+    }
+
+    private const string Moxa = """{"typ":"GW-MB-RTU","ip":"10.0.0.5","portar":[{"namn":"Port1","tcpPort":"1501","baudrate":"9600","paritet":"Even","databitar":"8","stopbit":"1"},{"namn":"Port2","tcpPort":"1502","baudrate":"19200","paritet":"None","databitar":"","stopbit":"2"}]}""";
+
+    [Fact]
+    public void Kedjan_gar_via_rc_till_gatewayporten()
+    {
+        var gw = K("GW-MB-RTU1", "AS01", Gateways.Komponenttyp, "Modbus TCP", Moxa);
+        var rc = K("A1203-RC01", "GW-MB-RTU1-Port2", "Rumsregulator", "Modbus RTU");
+        var st = K("A1203-RC01-ST41:1", "A1203-RC01", "Spjällställdon", "Modbus RTU");
+        var gn = K("A1203-RC01-GN51", "a1203-rc01", "Närvarogivare", "DI");
+        var alla = new List<Komponent> { gw, rc, st, gn };
+
+        Assert.Equal("GW-MB-RTU1-Port2", Gateways.Harledd(rc, "_gateway", alla));
+        Assert.Equal("", Gateways.Harledd(rc, "_via", alla));
+        Assert.Equal("GW-MB-RTU1-Port2", Gateways.Harledd(st, "_gateway", alla));
+        Assert.Equal("A1203-RC01", Gateways.Harledd(st, "_via", alla));
+        Assert.Equal("19200 8N2", Gateways.Harledd(gn, "_installning", alla));
+        Assert.True(Gateways.ArModbusEnhet(st));
+        Assert.False(Gateways.ArModbusEnhet(gw));
+        Assert.False(Gateways.ArModbusEnhet(gn));
+    }
+
+    [Fact]
+    public void Okand_anslutning_och_cirklar_ger_ingen_gateway()
+    {
+        var a = K("A", "B");
+        var b = K("B", "A");
+        var c = K("C", "AS01");
+        var alla = new List<Komponent> { a, b, c };
+        Assert.Null(Gateways.Kedja(a, alla));
+        Assert.Null(Gateways.Kedja(c, alla));
+    }
+
+    [Fact]
+    public void Inställningar_maste_vara_ett_objekt()
+    {
+        var k = new Komponent();
+        Assert.Throws<ArgumentException>(() => KomponentFalt.Satt(k, "installningar", "[1,2]"));
+        Assert.Throws<ArgumentException>(() => KomponentFalt.Satt(k, "installningar", "{inte json"));
+        KomponentFalt.Satt(k, "installningar", Moxa);
+        Assert.Equal(2, Gateways.Las(k).Portar.Count);
+        Assert.Equal("9600 8E1", Gateways.Installning(Gateways.Las(k).Portar[0]));
+    }
+}
+

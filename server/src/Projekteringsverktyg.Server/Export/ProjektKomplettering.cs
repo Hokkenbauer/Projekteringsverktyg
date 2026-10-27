@@ -239,6 +239,7 @@ public static class ProjektKomplettering
                 Falt("produkttyp", Str(e, "produkttyp"), () => k.Produkttyp, x => k.Produkttyp = x);
                 Falt("produkt", Str(e, "produkt"), () => k.Produkt, x => k.Produkt = x);
                 Falt("monteringsanvisning", Str(e, "monteringsanvisning"), () => k.Monteringsanvisning, x => k.Monteringsanvisning = x);
+                Falt("installningar", Str(e, "installningar"), () => k.Installningar, x => k.Installningar = x);
                 if (e.TryGetProperty("signaler", out var sig) && sig.ValueKind == JsonValueKind.Array && sig.GetArrayLength() > 0)
                 {
                     var fore = k.Signaltyp;

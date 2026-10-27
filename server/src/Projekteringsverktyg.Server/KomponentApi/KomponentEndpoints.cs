@@ -12,20 +12,20 @@ public sealed record KomponentDto(
     Guid Id, Guid ProjektId, string System, string Beteckning, string Komponenttyp, string Signaltyp,
     string Beskrivning, string AnslutsTill, string Kabeltyp, string Placering, string Ovrigt,
     string Produkttyp, string Produkt, string Monteringsanvisning,
-    int Version, DateTimeOffset Andrad, string AndradAv, List<Signal> Signaler)
+    int Version, DateTimeOffset Andrad, string AndradAv, List<Signal> Signaler, string Installningar)
 {
     public static KomponentDto Fran(Komponent k) => new(
         k.Id, k.ProjektId, k.System, k.Beteckning, k.Komponenttyp, k.Signaltyp,
         k.Beskrivning, k.AnslutsTill, k.Kabeltyp, k.Placering, k.Ovrigt,
         k.Produkttyp, k.Produkt, k.Monteringsanvisning,
-        k.Version, k.Andrad, k.AndradAv, KomponentApi.Signaler.Las(k));
+        k.Version, k.Andrad, k.AndradAv, KomponentApi.Signaler.Las(k), k.Installningar);
 }
 
 /// <summary>Ny komponent. Alla fält är frivilliga; tomma fält fylls i efterhand i tabellen.</summary>
 public sealed record NyKomponent(
     string? System, string? Beteckning, string? Komponenttyp, string? Signaltyp,
     string? Beskrivning, string? AnslutsTill, string? Kabeltyp, string? Placering, string? Ovrigt,
-    string? Produkttyp = null, string? Produkt = null, string? Monteringsanvisning = null);
+    string? Produkttyp = null, string? Produkt = null, string? Monteringsanvisning = null, string? Installningar = null);
 
 /// <summary>Ändring av ett fält. Version = den version klienten utgick från.</summary>
 public sealed record FaltAndring(string Falt, string? Varde, int Version);
@@ -64,6 +64,8 @@ public static class KomponentEndpoints
             Fyll(k, "produkttyp", ny.Produkttyp);
             Fyll(k, "produkt", ny.Produkt);
             Fyll(k, "monteringsanvisning", ny.Monteringsanvisning);
+            try { Fyll(k, "installningar", ny.Installningar); }
+            catch (ArgumentException e) { return Results.ValidationProblem(new Dictionary<string, string[]> { ["installningar"] = [e.Message] }); }
 
             db.Komponenter.Add(k);
             Andringslogg.Logga(db, projektId, av, "Komponent", k.Id,
@@ -100,7 +102,7 @@ public static class KomponentEndpoints
             k.Andrad = DateTimeOffset.UtcNow;
             k.AndradAv = av.Namn;
             var namn = string.IsNullOrEmpty(k.Beteckning) ? "en komponent" : k.Beteckning;
-            var vad = andring.Falt == "signaler" ? "I/O" : andring.Falt;
+            var vad = andring.Falt == "signaler" ? "I/O" : andring.Falt == "installningar" ? "inställningar" : andring.Falt;
             Andringslogg.Logga(db, projektId, av, "Komponent", k.Id, $"ändrade {vad} på {namn}", andring.Falt, foreLogg, KomponentFalt.LoggVarde(k, andring.Falt));
 
             try

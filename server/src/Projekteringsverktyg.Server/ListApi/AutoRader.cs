@@ -105,6 +105,11 @@ public static partial class AutoRader
             kandidater = komponenter.Where(ArMatare).ToList();
             kolumn = "matare";
         }
+        else if (def.Hamtar == "modbus")
+        {
+            kandidater = komponenter.Where(KomponentApi.Gateways.ArModbusEnhet).ToList();
+            kolumn = "beteckning";
+        }
         else return [];
         if (kandidater.Count == 0) return [];
 
@@ -130,7 +135,7 @@ public static partial class AutoRader
         }
         if (nya.Count > 0)
             Andringslogg.Logga(db, projektId, av, "Lista", null,
-                $"hämtade {nya.Count} {(def.Hamtar == "kraft" ? "laster" : "mätare")} från Komponenter till {def.Namn}");
+                $"hämtade {nya.Count} {(def.Hamtar switch { "kraft" => "laster", "modbus" => "Modbus-enheter", _ => "mätare" })} från Komponenter till {def.Namn}");
         return nya;
     }
 

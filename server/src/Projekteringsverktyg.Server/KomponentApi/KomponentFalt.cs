@@ -14,8 +14,10 @@ public static class KomponentFalt
     [
         "system", "beteckning", "komponenttyp", "signaltyp", "beskrivning",
         "anslutsTill", "kabeltyp", "placering", "ovrigt",
-        "produkttyp", "produkt", "monteringsanvisning", "signaler",
+        "produkttyp", "produkt", "monteringsanvisning", "signaler", "installningar",
     ];
+
+    public const int MaxLangdInstallningar = 20000;
 
     public static bool ArTillatet(string falt) => Tillatna.Contains(falt);
 
@@ -33,6 +35,7 @@ public static class KomponentFalt
         "produkttyp" => k.Produkttyp,
         "produkt" => k.Produkt,
         "monteringsanvisning" => k.Monteringsanvisning,
+        "installningar" => k.Installningar,
         "signaler" => System.Text.Json.JsonSerializer.Serialize(Signaler.Las(k), new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web)),
         _ => throw new ArgumentException($"Okänt fält: {falt}", nameof(falt)),
     };
@@ -47,6 +50,22 @@ public static class KomponentFalt
         if (falt == "signaler")
         {
             Signaler.Satt(k, varde.StartsWith('[') ? Signaler.LasJson(varde) : Signaler.Tolka(varde));
+            return;
+        }
+        // Inställningarna ska vara ett JSON-objekt (t.ex. gatewayens portar).
+        if (falt == "installningar")
+        {
+            if (varde.Length > MaxLangdInstallningar) throw new ArgumentException("Inställningarna är för stora.");
+            if (varde != "")
+            {
+                try
+                {
+                    using var doc = System.Text.Json.JsonDocument.Parse(varde);
+                    if (doc.RootElement.ValueKind != System.Text.Json.JsonValueKind.Object) throw new ArgumentException("Inställningarna måste vara ett objekt.");
+                }
+                catch (System.Text.Json.JsonException) { throw new ArgumentException("Inställningarna kunde inte läsas."); }
+            }
+            k.Installningar = varde;
             return;
         }
         if (varde.Length > MaxLangd) varde = varde[..MaxLangd];
