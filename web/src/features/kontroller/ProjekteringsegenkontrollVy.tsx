@@ -1,3 +1,4 @@
+import type React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Anteckningar, ListRad, Projekt } from "../../lib/typer";
 import { laddaNerWord, skrivUtBlock, type Block, type BlockDokument } from "../../lib/dokumentBlock";
@@ -94,6 +95,49 @@ type Props = {
   visaMeddelande: (t: string) => void;
 };
 
+/** Kolumnbredder (px) som går att dra. Sparas per webbläsare. */
+type Bredder = { text: number; kommentar: number };
+const STANDARDBREDD: Bredder = { text: 560, kommentar: 320 };
+const BREDD_NYCKEL = "pek-kolumnbredder";
+const GRANS: Record<keyof Bredder, [number, number]> = { text: [220, 1600], kommentar: [140, 1200] };
+
+function lasBredder(): Bredder {
+  try {
+    const v = JSON.parse(localStorage.getItem(BREDD_NYCKEL) ?? "{}") as Partial<Bredder>;
+    return { text: Number(v.text) || STANDARDBREDD.text, kommentar: Number(v.kommentar) || STANDARDBREDD.kommentar };
+  } catch { return { ...STANDARDBREDD }; }
+}
+
+/** Handtag i rubrikraden: dra för att ändra kolumnens bredd, dubbelklicka för standardbredd. */
+function Handtag({ kolumn, bredder, setBredder }: { kolumn: keyof Bredder; bredder: Bredder; setBredder: (b: Bredder) => void }) {
+  const start = (e: React.PointerEvent<HTMLSpanElement>) => {
+    e.preventDefault();
+    const x0 = e.clientX, b0 = bredder[kolumn];
+    let senast = bredder;
+    const [min, max] = GRANS[kolumn];
+    const flytta = (ev: PointerEvent) => {
+      senast = { ...bredder, [kolumn]: Math.round(Math.min(max, Math.max(min, b0 + ev.clientX - x0))) };
+      setBredder(senast);
+    };
+    const slapp = () => {
+      window.removeEventListener("pointermove", flytta);
+      window.removeEventListener("pointerup", slapp);
+      document.body.classList.remove("pek-drar");
+      try { localStorage.setItem(BREDD_NYCKEL, JSON.stringify(senast)); } catch { /* bara bekvämlighet */ }
+    };
+    document.body.classList.add("pek-drar");
+    window.addEventListener("pointermove", flytta);
+    window.addEventListener("pointerup", slapp);
+  };
+  const aterstall = () => {
+    const ny = { ...bredder, [kolumn]: STANDARDBREDD[kolumn] };
+    setBredder(ny);
+    try { localStorage.setItem(BREDD_NYCKEL, JSON.stringify(ny)); } catch { /* bara bekvämlighet */ }
+  };
+  return <span className="pek-handtag" role="separator" aria-orientation="vertical" title="Dra för att ändra bredd. Dubbelklicka för standardbredd."
+    onPointerDown={start} onDoubleClick={aterstall} />;
+}
+
 type IntygUppgifter = { projekteringsledare: string; projektor: string };
 
 function lasIntyg(t: string | undefined): Record<string, unknown> {
@@ -129,6 +173,7 @@ export function ProjekteringsegenkontrollVy(p: Props) {
   const klarProcent = alla.length ? Math.round(((antalOk + antalEa) / alla.length) * 100) : 0;
 
   const [filter, setFilter] = useState<Filter>("alla");
+  const [bredder, setBredder] = useState<Bredder>(lasBredder);
   const [redigera, setRedigera] = useState(false);
   const [arbetar, setArbetar] = useState(false);
 
@@ -251,7 +296,7 @@ export function ProjekteringsegenkontrollVy(p: Props) {
   if (!p.rader) return <p className="dampad">Hämtar…</p>;
 
   return (
-    <div className="pek">
+    <div className="pek" style={{ "--pek-text": `${bredder.text}px`, "--pek-kommentar": `${bredder.kommentar}px` } as React.CSSProperties}>
       <section className="pek-huvud">
         <div className="pek-uppg"><span>Objekt</span><b>{p.projekt?.namn || "–"}</b></div>
         <div className="pek-uppg"><span>Kund</span><b>{p.projekt?.kund || "–"}</b></div>
@@ -287,6 +332,13 @@ export function ProjekteringsegenkontrollVy(p: Props) {
           <button className="knapp" onClick={skrivUt} title="Utskrift i HECO:s dokumentmall. Välj Spara som PDF i utskriftsrutan för en PDF.">Skriv ut / PDF</button>
           <button className="knapp" disabled={arbetar} onClick={() => void word()} title="Word-fil i HECO:s dokumentmall">Word</button>
           <button className="knapp" onClick={() => p.onFlik("projekteringsintyg")} title="Egenkontrollen skrivs ut som bilaga till projekteringsintyget">Till projekteringsintyget</button>
+        </div>
+        <div className="pek-kolumner" aria-hidden="true">
+          <span className="pek-nr">Nr</span>
+          <span>Kontrollpunkt<Handtag kolumn="text" bredder={bredder} setBredder={setBredder} /></span>
+          <span>Status</span>
+          <span>Kommentar<Handtag kolumn="kommentar" bredder={bredder} setBredder={setBredder} /></span>
+          <span className="pek-sign">Sign.</span>
         </div>
       </div>
 
