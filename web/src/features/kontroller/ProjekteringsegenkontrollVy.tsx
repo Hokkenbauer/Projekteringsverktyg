@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { Anteckningar, ListRad, Projekt } from "../../lib/typer";
 import { laddaNerWord, skrivUtBlock, type Block, type BlockDokument } from "../../lib/dokumentBlock";
 import { valtDatum } from "../listor/ListVy";
+import { SparaFalt } from "../../shell/SparaFalt";
 import type { Kontroll } from "./KontrollerVy";
 
 /**
@@ -144,25 +145,6 @@ function lasIntyg(t: string | undefined): Record<string, unknown> {
   try { return t ? JSON.parse(t) as Record<string, unknown> : {}; } catch { return {}; }
 }
 
-/** Textfält som sparar när man lämnar det (eller trycker Enter), så att varje tangent inte blir en ändring. */
-function SparaFalt({ varde, onSpara, placeholder, lasläge, flerrad, etikett }: {
-  varde: string; onSpara: (v: string) => void; placeholder?: string; lasläge: boolean; flerrad?: boolean; etikett: string;
-}) {
-  const [text, setText] = useState(varde);
-  const fokus = useRef(false);
-  useEffect(() => { if (!fokus.current) setText(varde); }, [varde]);
-  const spara = () => { fokus.current = false; if (text.trim() !== varde.trim()) onSpara(text.trim()); };
-  const gemensamt = {
-    value: text, placeholder, readOnly: lasläge, "aria-label": etikett,
-    onFocus: () => { fokus.current = true; },
-    onBlur: spara,
-  };
-  return flerrad
-    ? <textarea {...gemensamt} rows={2} onChange={(e) => setText(e.target.value)} />
-    : <input type="text" {...gemensamt} onChange={(e) => setText(e.target.value)}
-        onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") { setText(varde); fokus.current = false; } }} />;
-}
-
 export function ProjekteringsegenkontrollVy(p: Props) {
   const avsnitt = useMemo(() => gruppera(p.rader ?? []), [p.rader]);
   const alla = avsnitt.flatMap((a) => a.punkter);
@@ -174,6 +156,9 @@ export function ProjekteringsegenkontrollVy(p: Props) {
 
   const [filter, setFilter] = useState<Filter>("alla");
   const [bredder, setBredder] = useState<Bredder>(lasBredder);
+  /** Ta med punkter som är Ej aktuell i utskrift och Word (sparas per webbläsare). */
+  const [medEa, setMedEa] = useState<boolean>(() => { try { return localStorage.getItem("pek-med-ej-aktuella") === "1"; } catch { return false; } });
+  const vaxlaMedEa = (v: boolean) => { setMedEa(v); try { localStorage.setItem("pek-med-ej-aktuella", v ? "1" : "0"); } catch { /* bara bekvämlighet */ } };
   const [redigera, setRedigera] = useState(false);
   const [arbetar, setArbetar] = useState(false);
 
@@ -254,20 +239,22 @@ export function ProjekteringsegenkontrollVy(p: Props) {
 
   // ---- Utskrift och Word ----
   const dokument = (): BlockDokument => {
-    // Punkter som är Ej aktuell tas inte med; avsnitt och punkter numreras om i utskriften.
-    const ruta = (s: Punkt["status"]) => (s === "ok" ? "OK" : s === "kompl" ? "Kompl." : "");
+    // Punkter som är Ej aktuell tas inte med om man inte valt det; avsnitt och punkter numreras om i utskriften.
+    const ruta = (s: Punkt["status"]) => (s === "ok" ? "OK" : s === "kompl" ? "Kompl." : s === "ea" ? "E.A." : "");
     const rader: (string[] | string)[] = [];
-    let avsnittNr = 0, med = 0, ok = 0, kompl = 0;
+    let avsnittNr = 0, med = 0, ok = 0, kompl = 0, ea = 0;
     for (const a of avsnitt) {
-      const punkter = a.punkter.filter((x) => x.status !== "ea");
+      const punkter = medEa ? a.punkter : a.punkter.filter((x) => x.status !== "ea");
       if (!punkter.length) continue;
       avsnittNr++;
       const klara = punkter.filter((x) => x.status === "ok").length;
-      if (a.namn) rader.push(`${avsnittNr}. ${a.namn} (${klara} av ${punkter.length} utförda)`);
+      const helaEa = punkter.every((x) => x.status === "ea");
+      if (a.namn) rader.push(`${avsnittNr}. ${a.namn}${helaEa ? " – ej aktuellt" : ` (${klara} av ${punkter.length - punkter.filter((x) => x.status === "ea").length} utförda)`}`);
       punkter.forEach((x, i) => {
         med++;
         if (x.status === "ok") ok++;
         if (x.status === "kompl") kompl++;
+        if (x.status === "ea") ea++;
         rader.push([`${avsnittNr}.${i + 1}`, x.text, ruta(x.status), x.rad.data.ovrigt ?? "", valtDatum(x.rad.data.datum), x.rad.data.sign ?? ""]);
       });
     }
@@ -277,7 +264,9 @@ export function ProjekteringsegenkontrollVy(p: Props) {
         ["Projekteringsledare", uppg.projekteringsledare], ["Projektör", uppg.projektor],
       ] },
       { typ: "rubrik", text: p.kontroll.namn },
-      { typ: "text", text: `${ok} av ${med} punkter utförda · ${kompl} kräver komplettering · ${med - ok - kompl} öppna. OK = utförd, Kompl. = komplettering krävs. Punkter som inte är aktuella för projektet är inte med. Signering intygar att punkten är kontrollerad.`, kursiv: true },
+      { typ: "text", text: medEa
+        ? `${ok} av ${med - ea} punkter utförda · ${kompl} kräver komplettering · ${ea} ej aktuella · ${med - ok - kompl - ea} öppna. OK = utförd, Kompl. = komplettering krävs, E.A. = ej aktuell. Signering intygar att punkten är kontrollerad.`
+        : `${ok} av ${med} punkter utförda · ${kompl} kräver komplettering · ${med - ok - kompl} öppna. OK = utförd, Kompl. = komplettering krävs. Punkter som inte är aktuella för projektet är inte med. Signering intygar att punkten är kontrollerad.`, kursiv: true },
       { typ: "tabell", kolumner: ["Nr", "Kontrollpunkt", "Status", "Kommentar", "Datum", "Sign."], bredder: [6, 47, 7, 22, 11, 7], centrera: [2], rader },
     ];
     return { titel: "Projekteringsegenkontroll", kategori: "Egenkontroll", projekt: p.projekt, block };
@@ -329,6 +318,9 @@ export function ProjekteringsegenkontrollVy(p: Props) {
           </button>
           {!p.lasläge && <button className={`knapp ${redigera ? "primar" : ""}`} onClick={() => setRedigera((r) => !r)}
             title="Ändra texter, lägg till och ta bort punkter och avsnitt">{redigera ? "Klar med redigering" : "✎ Redigera punkter"}</button>}
+          <label className="kryssrad pek-medea" title="Ta med punkter som är markerade Ej aktuell i utskrift och Word">
+            <input type="checkbox" checked={medEa} onChange={(e) => vaxlaMedEa(e.target.checked)} /> Med ej aktuella
+          </label>
           <button className="knapp" onClick={skrivUt} title="Utskrift i HECO:s dokumentmall. Välj Spara som PDF i utskriftsrutan för en PDF.">Skriv ut / PDF</button>
           <button className="knapp" disabled={arbetar} onClick={() => void word()} title="Word-fil i HECO:s dokumentmall">Word</button>
           <button className="knapp" onClick={() => p.onFlik("projekteringsintyg")} title="Egenkontrollen skrivs ut som bilaga till projekteringsintyget">Till projekteringsintyget</button>

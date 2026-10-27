@@ -129,18 +129,20 @@ export function ProjekteringsintygVy(p: Props) {
       `<tr><td>${esc(a.dokument)}</td><td>${esc(a.typ)}</td><td>${esc(valtDatum(a.daterad))}</td></tr>`).join("");
     const bilaga = egen.filter((k) => k.rader.length).map((k) => {
       const rader: (string[] | string)[] = [];
-      // Punkter som är Ej aktuell tas inte med; avsnitt och punkter numreras om.
+      // Punkter som är Ej aktuell tas bara med om man valt det i Projekteringsegenkontrollen; avsnitt och punkter numreras om.
+      let medEa = false;
+      try { medEa = localStorage.getItem("pek-med-ej-aktuella") === "1"; } catch { /* standard: utan */ }
       let nr = 0;
       for (const a of gruppera(k.rader)) {
-        const punkter = a.punkter.filter((x) => x.status !== "ea");
+        const punkter = medEa ? a.punkter : a.punkter.filter((x) => x.status !== "ea");
         if (!punkter.length) continue;
         nr++;
         if (a.namn) rader.push(`${nr}. ${a.namn}`);
-        punkter.forEach((x, i) => rader.push([`${nr}.${i + 1}`, x.text, x.status === "ok" ? "OK" : x.status === "kompl" ? "Kompl." : "", x.rad.data.ovrigt ?? "", valtDatum(x.rad.data.datum), x.rad.data.sign ?? ""]));
+        punkter.forEach((x, i) => rader.push([`${nr}.${i + 1}`, x.text, x.status === "ok" ? "OK" : x.status === "kompl" ? "Kompl." : x.status === "ea" ? "E.A." : "", x.rad.data.ovrigt ?? "", valtDatum(x.rad.data.datum), x.rad.data.sign ?? ""]));
       }
       return `
 <h2 class="ny-sida">EGENKONTROLL – ${esc(k.namn.toUpperCase())}</h2>
-<p class="not">OK = utförd, Kompl. = komplettering krävs. Punkter som inte är aktuella är inte med. Signering intygar att punkten är kontrollerad.</p>
+<p class="not">OK = utförd, Kompl. = komplettering krävs${medEa ? ", E.A. = ej aktuell" : ". Punkter som inte är aktuella är inte med"}. Signering intygar att punkten är kontrollerad.</p>
 ${blockHtml([{ typ: "tabell", kolumner: ["Nr", "Kontrollpunkt", "Status", "Kommentar", "Datum", "Sign."], bredder: [6, 47, 7, 22, 11, 7], centrera: [2], rader }])}`;
     }).join("");
 

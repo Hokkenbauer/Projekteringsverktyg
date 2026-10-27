@@ -30,6 +30,7 @@ import { KomponenterVy } from "../komponenter/KomponenterVy";
 import { KomponentInfo } from "../komponenter/KomponentInfo";
 import { KontrollerVy, type Kontroll } from "../kontroller/KontrollerVy";
 import { ProjekteringsegenkontrollVy } from "../kontroller/ProjekteringsegenkontrollVy";
+import { HinderVy } from "../projektering/HinderVy";
 import { ByggvaruKnappar } from "../projektering/Byggvaror";
 import { ProjekteringsintygVy } from "../projektering/ProjekteringsintygVy";
 import { TekniskBeskrivningVy } from "../projektering/TekniskBeskrivningVy";
@@ -389,6 +390,7 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
   const behovdaListor = listId === "modbus" || listId === "modbusrtu" ? "modbus,modbusrtu"
     : listId ? listId
     : flik === "placeringsritningar" ? "egenkontroll,installationslista"
+    : flik === "hinder" ? "forhinder,hinder"
     : flik === "bestallningslista" ? "modbusrtu" : "";
   useEffect(() => {
     for (const id of behovdaListor.split(",").filter(Boolean)) {
@@ -467,12 +469,14 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
   };
 
   /** Nya rader med ifyllda fält (t.ex. kontrollpunkter i ett avsnitt). */
-  const nyaRader = async (lista: string, nya: Record<string, string>[]) => {
+  const nyaRader = async (lista: string, nya: Record<string, string>[]): Promise<ListRad[]> => {
     try {
       const svar = await api<ListRad[]>(`/api/projekt/${projektId}/listor/${lista}/flera`, { method: "POST", body: skicka(nya) });
       for (const r of svar) laggListRad(lista, r);
+      return svar;
     } catch (e) {
       visaMeddelande(`Raden kunde inte skapas: ${(e as Error).message}`);
+      return [];
     }
   };
 
@@ -748,7 +752,7 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
                 intyg={texter.projekteringsintyg}
                 onSparaIntyg={(t) => sparaText("projekteringsintyg", t)}
                 onAndra={(rad, falt, varde) => andraRad(listId, rad, falt, varde)}
-                onNyaPunkter={(punkter) => nyaRader(listId, punkter)}
+                onNyaPunkter={async (punkter) => { await nyaRader(listId, punkter); }}
                 onTaBort={(ids) => { if (listDef) void taBortListRader(listDef, ids); }}
                 onFlik={onFlik}
                 visaMeddelande={visaMeddelande}
@@ -882,6 +886,16 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
             lasläge={!skrivbar} visaMeddelande={visaMeddelande}
           />
         ) : <p className="dampad">Hämtar…</p>)}
+        {flik === "hinder" && vald && (
+          <HinderVy
+            grupp={vald.grupp.namn} rubrik={vald.flik.namn} projekt={projekt}
+            forhinder={listor.forhinder} hinder={listor.hinder} minNamn={mig.namn} lasläge={!skrivbar}
+            onAndra={(lista, rad, falt, varde) => andraRad(lista, rad, falt, varde)}
+            onNy={async (lista, data) => (await nyaRader(lista, [data]))[0] ?? null}
+            onTaBort={(lista, ids) => { const def = listdefinitioner.find((d) => d.id === lista); if (def) void taBortListRader(def, ids); }}
+            visaMeddelande={visaMeddelande}
+          />
+        )}
         {flik === "servicerapport" && vald && (
           <ServicerapportVy
             projektId={projektId} projekt={projekt} minNamn={mig.namn} grupp={vald.grupp.namn} rubrik={vald.flik.namn}

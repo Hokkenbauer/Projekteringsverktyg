@@ -91,23 +91,37 @@ type Sida = {
   /** Sidans innehåll (HTML). */
   kropp: string;
   projekt?: Projekt | null;
+  /**
+   * Dokument som inte är en projekteringshandling (t.ex. hinder): ingen handlingsstatus.
+   * Huvudet visar då dokumentets egna uppgifter (t.ex. Nr och Datum) och kategorin i statusrutan.
+   */
+  egetHuvud?: { rader: [string, string][]; status: string };
 };
 
 /** Uppgifterna i ritningshuvudet och fotraden. Samma för utskrift/PDF och Word. */
-export function huvudUppgifter(s: Pick<Sida, "titel" | "kategori" | "projekt">) {
+export function huvudUppgifter(s: Pick<Sida, "titel" | "kategori" | "projekt" | "egetHuvud">) {
   const projekt = s.projekt ?? aktuellt.projekt;
   const status = aktuellt.status.trim();
   const fotVanster = [uppgift("foretag"), [uppgift("adress"), uppgift("postadress")].filter(Boolean).join(", "),
     uppgift("telefon"), uppgift("epost"), uppgift("orgnr") ? `orgnr ${uppgift("orgnr")}` : ""].filter(Boolean).join(" · ");
+  const handling = FORKORTNING[status] ?? status;
+  const ansvarig = uppgift("ansvarig") || projekt?.ansvarig || "";
+  const datum = aktuellt.datum.trim() || new Date().toLocaleDateString("sv-SE");
+  const revidering = uppgift("revidering");
+  /** De fyra raderna i uppgiftsrutan till höger. */
+  const rader: [string, string][] = s.egetHuvud
+    ? [...s.egetHuvud.rader, ["", ""], ["", ""], ["", ""], ["", ""]].slice(0, 4) as [string, string][]
+    : [["Handling:", handling], ["Ansvarig:", ansvarig], ["Datum:", datum], ["Senast revidering:", revidering]];
   return {
     titel: s.titel,
+    rader,
     projektnamn: projekt?.namn ?? "",
     projektrad: [projekt?.nummer, projekt?.kund].filter(Boolean).join(" · "),
     handling: FORKORTNING[status] ?? status,
     ansvarig: uppgift("ansvarig") || projekt?.ansvarig || "",
     datum: aktuellt.datum.trim() || new Date().toLocaleDateString("sv-SE"),
     revidering: uppgift("revidering"),
-    status: status || s.kategori || "",
+    status: s.egetHuvud ? s.egetHuvud.status : status || s.kategori || "",
     foretag: uppgift("foretag"),
     fotVanster,
     loggaUrl: loggaUrl(),
@@ -115,7 +129,7 @@ export function huvudUppgifter(s: Pick<Sida, "titel" | "kategori" | "projekt">) 
 }
 
 /** Huvud och fot som HTML/CSS (används av oppnaDokument, och kan bäddas in i egna utskrifter). */
-export function temaDelar(s: Pick<Sida, "titel" | "kategori" | "liggande" | "projekt">) {
+export function temaDelar(s: Pick<Sida, "titel" | "kategori" | "liggande" | "projekt" | "egetHuvud">) {
   const h = huvudUppgifter(s);
   const css = `@page{size:A4 ${s.liggande ? "landscape" : "portrait"};margin:10mm 12mm 14mm;
   @bottom-left{content:"${h.fotVanster.replace(/"/g, "'")}";font-family:Calibri,Carlito,Arial,sans-serif;font-size:7pt;color:#000;border-top:.6pt solid #000;vertical-align:top;padding-top:1.2mm}
@@ -126,10 +140,7 @@ ${TEMA_CSS}`;
 <div class="rh-mitt"><div class="rh-cell"><small>Dokumentnamn:</small><span class="v">${esc(s.titel)}</span></div>
 <div class="rh-cell"><small>Projekt:</small><span class="v">${esc(h.projektnamn)}</span><small>${esc(h.projektrad)}</small></div></div>
 <div class="rh-hoger"><table>
-<tr><td>Handling:</td><td>${esc(h.handling)}</td></tr>
-<tr><td>Ansvarig:</td><td>${esc(h.ansvarig)}</td></tr>
-<tr><td>Datum:</td><td>${esc(h.datum)}</td></tr>
-<tr><td>Senast revidering:</td><td>${esc(h.revidering)}</td></tr></table>
+${h.rader.map(([e, v]) => `<tr><td>${esc(e) || "&nbsp;"}</td><td>${esc(v)}</td></tr>`).join("\n")}</table>
 <div class="rh-status">${esc(h.status)}</div></div></div>`;
   return { css, huvud };
 }

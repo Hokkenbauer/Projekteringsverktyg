@@ -865,3 +865,51 @@ table.grid.kort td.lopnr::before { content: "#"; padding: 0; font-family: var(--
   .pek-kommentar { grid-row: 3; grid-column: 2 / -1; }
   .pek-uppg input, .pek-kommentar input, .pek-text textarea { font-size: 16px; }
 }
+.kryssrad.pek-medea { display: inline-flex; align-items: center; gap: 5px; margin: 0; font-size: 13px; padding: 0 4px; white-space: nowrap; }
+
+/* ==========================================================================
+   Hinder (Projektering → Stöd/Övrigt): Förhindersanmälan och Underrättelse om hinder
+   ========================================================================== */
+.hinder-flikar { display: inline-flex; border: 1px solid var(--linje); border-radius: var(--r); overflow: hidden; margin-bottom: 14px; }
+.hinder-flikar button { background: var(--yta); border: 0; border-left: 1px solid var(--linje); padding: 8px 14px; font-size: 13.5px; color: var(--text); }
+.hinder-flikar button:first-child { border-left: 0; }
+.hinder-flikar button.aktiv { background: var(--accent-mjuk); font-weight: 600; }
+.hinder-flikar small { margin-left: 4px; font-family: var(--font-mono); color: var(--dampad); }
+.hinder-yta { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 16px; align-items: start; }
+.hinder-yta.utan-lista { grid-template-columns: 34px minmax(0, 1fr); }
+.hinder-lista { display: flex; flex-direction: column; gap: 6px; position: sticky; top: 0; }
+.hinder-listknapp { align-self: flex-start; background: none; border: 0; padding: 2px 4px; font-size: 12px; color: var(--dampad); }
+.hinder-post { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; background: var(--yta); border: 1px solid var(--linje); border-radius: var(--r); padding: 8px 11px; color: var(--text); }
+.hinder-post:hover { border-color: var(--accent); }
+.hinder-post.aktiv { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.hinder-post .mono { font-size: 12px; color: var(--dampad); }
+.hinder-post b { font-size: 13.5px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.hinder-post small { font-size: 12px; color: var(--dampad); }
+.hinder-form { display: flex; flex-direction: column; gap: 14px; max-width: 1100px; }
+.hinder-verktyg { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; justify-content: space-between; }
+.hinder-verktyg h2 { margin: 0; font-size: 17px; }
+.hinder-verktyg .knappar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.hinder-grupp { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 16px; margin: 0; background: var(--yta); border: 1px solid var(--linje); border-radius: var(--r); padding: 12px 14px 14px; }
+.hinder-grupp legend { padding: 0 6px; font-weight: 600; font-size: 13.5px; }
+.hinder-grupp legend small { font-weight: 400; color: var(--dampad); }
+.hinder-grupp .bred { grid-column: 1 / -1; }
+.hinder-falt { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--dampad); min-width: 0; }
+.hinder-falt input, .hinder-falt textarea { width: 100%; background: var(--yta-2); border: 1px solid var(--linje); border-radius: var(--r); padding: 7px 9px; color: var(--text); font: inherit; font-size: 13.5px; }
+.hinder-falt textarea { resize: vertical; line-height: 1.45; }
+.hinder-falt input:focus, .hinder-falt textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-mjuk); }
+.hinder-falt input:read-only:not([type="date"]) { background: transparent; }
+.kryssrad.hinder-kryss { margin: 0; align-items: center; gap: 6px; }
+.hinder-svar { display: flex; flex-wrap: wrap; gap: 8px 20px; }
+
+@media (max-width: 1000px) {
+  .hinder-yta, .hinder-yta.utan-lista { grid-template-columns: minmax(0, 1fr); }
+  .hinder-lista { position: static; flex-direction: row; overflow-x: auto; padding-bottom: 4px; }
+  .hinder-listknapp { display: none; }
+  .hinder-post { min-width: 200px; max-width: 240px; }
+}
+@media (max-width: 760px) {
+  .hinder-flikar { display: flex; }
+  .hinder-flikar button { flex: 1; padding: 9px 6px; }
+  .hinder-grupp { grid-template-columns: 1fr; padding: 10px; }
+  .hinder-falt input, .hinder-falt textarea { font-size: 16px; }
+}

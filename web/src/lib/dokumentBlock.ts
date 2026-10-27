@@ -14,7 +14,16 @@ export type Block =
   | { typ: "form"; rader: [string, string][] }
   /** Datatabell. En rad som är en sträng blir en avsnittsrad över hela bredden. */
   | { typ: "tabell"; kolumner: string[]; bredder: number[]; rader: (string[] | string)[]; centrera?: number[] }
-  | { typ: "sidbrytning" };
+  | { typ: "sidbrytning" }
+  /**
+   * Rutor som i blanketter: varje rad har en eller flera rutor med fet etikett över värdet.
+   * Bredd i procent (rutorna på en rad delar annars lika). Minsta höjd i mm (t.ex. för signatur).
+   */
+  | { typ: "rutor"; rader: Ruta[][] }
+  /** Luft mellan grupper av rutor. */
+  | { typ: "luft"; mm?: number };
+
+export type Ruta = { etikett?: string; varde?: string; bredd?: number; hojd?: number; dampad?: boolean };
 
 export type BlockDokument = {
   titel: string;
@@ -23,6 +32,8 @@ export type BlockDokument = {
   liggande?: boolean;
   projekt?: Projekt | null;
   block: Block[];
+  /** Eget huvud utan handlingsstatus (se dokumenttema). */
+  egetHuvud?: { rader: [string, string][]; status: string };
 };
 
 // ---------------------------------------------------------------- Utskrift / PDF
@@ -34,6 +45,17 @@ export function blockHtml(block: Block[]): string {
       case "text": return `<p${b.kursiv ? ' style="font-style:italic"' : ""}>${esc(b.text).replace(/\n/g, "<br>")}</p>`;
       case "form": return `<table class="data form"><tbody>${b.rader.map(([a, v]) => `<tr><th>${esc(a)}</th><td>${esc(v)}</td></tr>`).join("")}</tbody></table>`;
       case "sidbrytning": return `<div style="break-after:page;page-break-after:always"></div>`;
+      case "luft": return `<div style="height:${b.mm ?? 4}mm"></div>`;
+      case "rutor": {
+        const ett = (r: Ruta, bredd: number) => `<td style="width:${bredd}%${r.hojd ? `;height:${r.hojd}mm` : ""}">${r.etikett ? `<b>${esc(r.etikett)}</b>` : ""}${r.varde
+          ? `<div${r.dampad ? ' style="color:#777"' : ""}>${esc(r.varde).replace(/\n/g, "<br>")}</div>` : ""}</td>`;
+        // En tabell per rad, så att rutorna kan ha olika antal och bredd på olika rader.
+        return b.rader.map((rad) => {
+          const fri = 100 - rad.reduce((s2, x) => s2 + (x.bredd ?? 0), 0);
+          const utan = rad.filter((x) => !x.bredd).length;
+          return `<table class="rutor"><tr>${rad.map((x) => ett(x, x.bredd ?? fri / Math.max(1, utan))).join("")}</tr></table>`;
+        }).join("");
+      }
       case "tabell": {
         const mitt = new Set(b.centrera ?? []);
         return `<table class="data"><thead><tr>${b.kolumner.map((k, i) => `<th style="width:${b.bredder[i] ?? 10}%${mitt.has(i) ? ";text-align:center" : ""}">${esc(k)}</th>`).join("")}</tr></thead>
@@ -48,7 +70,14 @@ export function blockHtml(block: Block[]): string {
 /** Skriver ut dokumentet (i utskriftsrutan kan man välja Spara som PDF). */
 export function skrivUtBlock(d: BlockDokument, fonster?: Window | null) {
   return oppnaDokument({ titel: d.titel, kategori: d.kategori, liggande: d.liggande, projekt: d.projekt,
-    css: "h2+table.data,h2+table.form{margin-top:0}table.data+h2,table.data+p{margin-top:5mm}p+table.data{margin-top:1.5mm}", kropp: blockHtml(d.block) }, fonster);
+    egetHuvud: d.egetHuvud,
+    css: `h2+table.data,h2+table.form{margin-top:0}table.data+h2,table.data+p{margin-top:5mm}p+table.data{margin-top:1.5mm}
+table.rutor{border-collapse:collapse;width:100%;table-layout:fixed}
+table.rutor+table.rutor{margin-top:-1px}
+table.rutor td{border:1px solid #000;padding:1.2mm 1.6mm;vertical-align:top;break-inside:avoid}
+table.rutor b{display:block;font-size:9pt}
+table.rutor div{white-space:pre-wrap}
+table.rutor tr{break-inside:avoid;page-break-inside:avoid}`, kropp: blockHtml(d.block) }, fonster);
 }
 
 // ---------------------------------------------------------------- Word
@@ -101,6 +130,20 @@ function blockXml(b: Block, bredd: number): string {
     case "rubrik": return para(run(b.text, { fet: true, storlek: 20, versaler: true }), { fore: Math.round(5 * MM), efter: Math.round(1.5 * MM), hallIhop: true });
     case "text": return para(run(b.text, { kursiv: b.kursiv }), { efter: Math.round(1.5 * MM) });
     case "sidbrytning": return `<w:p><w:r><w:br w:type="page"/></w:r></w:p>`;
+    case "luft": return `<w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="${Math.round((b.mm ?? 4) * MM)}" w:lineRule="exact"/></w:pPr></w:p>`;
+    case "rutor": {
+      // Varje rad är en egen tabell, så att rutorna kan ha olika bredd på olika rader.
+      return b.rader.map((rad) => {
+        const fri = 100 - rad.reduce((s2, x) => s2 + (x.bredd ?? 0), 0);
+        const utan = rad.filter((x) => !x.bredd).length;
+        const br = fordela(bredd, rad.map((x) => x.bredd ?? fri / Math.max(1, utan)));
+        const hojd = Math.max(0, ...rad.map((x) => x.hojd ?? 0));
+        const celler = rad.map((x, i) => cell(br[i]!,
+          (x.etikett ? para(run(x.etikett, { fet: true, storlek: 18 })) : "")
+          + (x.varde ? x.varde.split("\n").map((t) => para(run(t, x.dampad ? { kursiv: true } : {}))).join("") : (x.etikett ? "" : para(""))))).join("");
+        return tabell(br, `<w:tr><w:trPr><w:cantSplit/>${hojd ? `<w:trHeight w:val="${Math.round(hojd * MM)}"/>` : ""}</w:trPr>${celler}</w:tr>`);
+      }).join(`<w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="20" w:lineRule="exact"/></w:pPr></w:p>`);
+    }
     case "form": {
       const [a, v] = fordela(bredd, [42, 58]);
       return tabell([a!, v!], b.rader.map(([e, t]) =>
@@ -148,10 +191,10 @@ function huvudXml(h: WordHuvud, bredd: number, logga: WordLogga | null) {
   const uppg = (e: string, v: string) => cell(bh1, para(info(e))) + cell(bh2, para(info(v)));
   const status = (forsta: boolean) => cell(bh1 + bh2, forsta ? para(run(h.status, { fet: true, storlek: 24, versaler: true }), { jc: "center" }) : "", { span: 2, vMerge: forsta ? "restart" : "continue", vAlign: "center" });
   const rader = [
-    rad(loggaCell(true), dok(true), uppg("Handling:", h.handling)),
-    rad(loggaCell(false), dok(false), uppg("Ansvarig:", h.ansvarig)),
-    rad(loggaCell(false), dok(false), uppg("Datum:", h.datum)),
-    rad(loggaCell(false), proj(true), uppg("Senast revidering:", h.revidering)),
+    rad(loggaCell(true), dok(true), uppg(...h.rader[0]!)),
+    rad(loggaCell(false), dok(false), uppg(...h.rader[1]!)),
+    rad(loggaCell(false), dok(false), uppg(...h.rader[2]!)),
+    rad(loggaCell(false), proj(true), uppg(...h.rader[3]!)),
     rad(loggaCell(false), proj(false), status(true), 300),
     rad(loggaCell(false), proj(false), status(false), 300),
   ].join("");
