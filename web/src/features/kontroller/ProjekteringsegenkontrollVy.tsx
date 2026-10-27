@@ -11,9 +11,9 @@ import type { Kontroll } from "./KontrollerVy";
  * Raderna är vanliga listrader (lista "kontroll-{id}"), så livesynk och ändringslogg fungerar som i andra listor.
  */
 
-type Punkt = { rad: ListRad; avsnitt: string; text: string; nr: string; status: "ok" | "ea" | "" };
+type Punkt = { rad: ListRad; avsnitt: string; text: string; nr: string; status: "ok" | "kompl" | "ea" | "" };
 type Avsnitt = { namn: string; nr: number; punkter: Punkt[] };
-type Filter = "alla" | "oppna" | "kommentar";
+type Filter = "alla" | "oppna" | "kompl" | "kommentar";
 
 /** Gamla mallar skrev avsnittet först i texten ("Underlag: Senaste handlingar …"). */
 const PREFIX = /^([A-ZÅÄÖ][A-Za-zÅÄÖåäö/ -]{1,28}):\s+(.+)$/s;
@@ -28,7 +28,14 @@ function avsnittOchText(r: ListRad): [string, string] {
 }
 
 const statusFor = (r: ListRad): Punkt["status"] =>
-  r.data.kontrollerad === "true" ? "ok" : r.data.ejAktuell === "true" ? "ea" : "";
+  r.data.kontrollerad === "true" ? "ok" : r.data.komplettering === "true" ? "kompl"
+    : r.data.ejAktuell === "true" ? "ea" : "";
+
+/** Avklarad punkt: utförd eller ej aktuell. "Komplettering krävs" är inte avklarad. */
+export const arKlar = (x: Punkt) => x.status === "ok" || x.status === "ea";
+
+/** Fältet som håller respektive status. */
+const FALT: Record<Exclude<Punkt["status"], "">, string> = { ok: "kontrollerad", kompl: "komplettering", ea: "ejAktuell" };
 
 /** Punkter i avsnitt, i den ordning avsnitten först förekommer. */
 export function gruppera(rader: ListRad[]): Avsnitt[] {
@@ -117,7 +124,8 @@ export function ProjekteringsegenkontrollVy(p: Props) {
   const alla = avsnitt.flatMap((a) => a.punkter);
   const antalOk = alla.filter((x) => x.status === "ok").length;
   const antalEa = alla.filter((x) => x.status === "ea").length;
-  const antalOppna = alla.length - antalOk - antalEa;
+  const antalKompl = alla.filter((x) => x.status === "kompl").length;
+  const antalOppna = alla.length - antalOk - antalEa - antalKompl;
   const klarProcent = alla.length ? Math.round(((antalOk + antalEa) / alla.length) * 100) : 0;
 
   const [filter, setFilter] = useState<Filter>("alla");
@@ -131,7 +139,7 @@ export function ProjekteringsegenkontrollVy(p: Props) {
     if (!p.rader || forbered.current === p.kontroll.id) return;
     forbered.current = p.kontroll.id;
     setRedigera(false);
-    setStangda(new Set(avsnitt.filter((a) => a.punkter.length && a.punkter.every((x) => x.status)).map((a) => a.namn)));
+    setStangda(new Set(avsnitt.filter((a) => a.punkter.length && a.punkter.every(arKlar)).map((a) => a.namn)));
   }, [p.rader, p.kontroll.id]);
   const arStangd = (namn: string) => filter === "alla" && !!stangda?.has(namn);
   const vaxla = (namn: string) => setStangda((s) => {
@@ -154,8 +162,8 @@ export function ProjekteringsegenkontrollVy(p: Props) {
   // ---- Status ----
   const sattStatus = (x: Punkt, ny: Punkt["status"]) => {
     if (p.lasläge) return;
-    if (ny === x.status || ny === "") void p.onAndra(x.rad, x.status === "ea" ? "ejAktuell" : "kontrollerad", "false");
-    else void p.onAndra(x.rad, ny === "ok" ? "kontrollerad" : "ejAktuell", "true");
+    if (ny === x.status || ny === "") { if (x.status) void p.onAndra(x.rad, FALT[x.status], "false"); }
+    else void p.onAndra(x.rad, FALT[ny], "true");
   };
 
   const avsnittEjAktuellt = async (a: Avsnitt) => {
@@ -201,12 +209,22 @@ export function ProjekteringsegenkontrollVy(p: Props) {
 
   // ---- Utskrift och Word ----
   const dokument = (): BlockDokument => {
-    const ruta = (s: Punkt["status"]) => (s === "ok" ? "OK" : s === "ea" ? "E.A." : "");
+    // Punkter som är Ej aktuell tas inte med; avsnitt och punkter numreras om i utskriften.
+    const ruta = (s: Punkt["status"]) => (s === "ok" ? "OK" : s === "kompl" ? "Kompl." : "");
     const rader: (string[] | string)[] = [];
+    let avsnittNr = 0, med = 0, ok = 0, kompl = 0;
     for (const a of avsnitt) {
-      const klara = a.punkter.filter((x) => x.status).length;
-      if (a.namn) rader.push(`${a.nr}. ${a.namn}${a.punkter.every((x) => x.status === "ea") ? " – ej aktuellt" : ` (${klara} av ${a.punkter.length})`}`);
-      for (const x of a.punkter) rader.push([x.nr, x.text, ruta(x.status), x.rad.data.ovrigt ?? "", valtDatum(x.rad.data.datum), x.rad.data.sign ?? ""]);
+      const punkter = a.punkter.filter((x) => x.status !== "ea");
+      if (!punkter.length) continue;
+      avsnittNr++;
+      const klara = punkter.filter((x) => x.status === "ok").length;
+      if (a.namn) rader.push(`${avsnittNr}. ${a.namn} (${klara} av ${punkter.length} utförda)`);
+      punkter.forEach((x, i) => {
+        med++;
+        if (x.status === "ok") ok++;
+        if (x.status === "kompl") kompl++;
+        rader.push([`${avsnittNr}.${i + 1}`, x.text, ruta(x.status), x.rad.data.ovrigt ?? "", valtDatum(x.rad.data.datum), x.rad.data.sign ?? ""]);
+      });
     }
     const block: Block[] = [
       { typ: "form", rader: [
@@ -214,7 +232,7 @@ export function ProjekteringsegenkontrollVy(p: Props) {
         ["Projekteringsledare", uppg.projekteringsledare], ["Projektör", uppg.projektor],
       ] },
       { typ: "rubrik", text: p.kontroll.namn },
-      { typ: "text", text: `${antalOk} av ${alla.length} punkter utförda · ${antalEa} ej aktuella · ${antalOppna} öppna. OK = utförd, E.A. = ej aktuell. Signering intygar att punkten är kontrollerad.`, kursiv: true },
+      { typ: "text", text: `${ok} av ${med} punkter utförda · ${kompl} kräver komplettering · ${med - ok - kompl} öppna. OK = utförd, Kompl. = komplettering krävs. Punkter som inte är aktuella för projektet är inte med. Signering intygar att punkten är kontrollerad.`, kursiv: true },
       { typ: "tabell", kolumner: ["Nr", "Kontrollpunkt", "Status", "Kommentar", "Datum", "Sign."], bredder: [6, 47, 7, 22, 11, 7], centrera: [2], rader },
     ];
     return { titel: "Projekteringsegenkontroll", kategori: "Egenkontroll", projekt: p.projekt, block };
@@ -227,7 +245,8 @@ export function ProjekteringsegenkontrollVy(p: Props) {
     finally { setArbetar(false); }
   };
 
-  const synligPunkt = (x: Punkt) => filter === "alla" || (filter === "oppna" ? !x.status : !!(x.rad.data.ovrigt ?? "").trim());
+  const synligPunkt = (x: Punkt) => filter === "alla"
+    || (filter === "oppna" ? !arKlar(x) : filter === "kompl" ? x.status === "kompl" : !!(x.rad.data.ovrigt ?? "").trim());
 
   if (!p.rader) return <p className="dampad">Hämtar…</p>;
 
@@ -249,12 +268,13 @@ export function ProjekteringsegenkontrollVy(p: Props) {
         <div className="pek-framsteg" title={`${klarProcent} % avklarat`}>
           <div className="pek-stapel" role="progressbar" aria-valuenow={klarProcent} aria-valuemin={0} aria-valuemax={100}>
             <i className="ok" style={{ width: `${alla.length ? (antalOk / alla.length) * 100 : 0}%` }} />
+            <i className="kompl" style={{ width: `${alla.length ? (antalKompl / alla.length) * 100 : 0}%` }} />
             <i className="ea" style={{ width: `${alla.length ? (antalEa / alla.length) * 100 : 0}%` }} />
           </div>
-          <span><b>{antalOk}</b> utförda · <b>{antalEa}</b> ej aktuella · <b>{antalOppna}</b> öppna</span>
+          <span><b>{antalOk}</b> utförda · <b className="kompl">{antalKompl}</b> komplettering krävs · <b>{antalEa}</b> ej aktuella · <b>{antalOppna}</b> öppna</span>
         </div>
         <div className="pek-filter" role="group" aria-label="Visa">
-          {([["alla", "Alla"], ["oppna", `Öppna (${antalOppna})`], ["kommentar", "Med kommentar"]] as const).map(([v, t]) => (
+          {([["alla", "Alla"], ["oppna", `Ej klara (${antalOppna + antalKompl})`], ["kompl", `Komplettering (${antalKompl})`], ["kommentar", "Med kommentar"]] as const).map(([v, t]) => (
             <button key={v} className={filter === v ? "aktiv" : ""} aria-pressed={filter === v} onClick={() => setFilter(v)}>{t}</button>
           ))}
         </div>
@@ -275,7 +295,8 @@ export function ProjekteringsegenkontrollVy(p: Props) {
       {avsnitt.map((a) => {
         const synliga = a.punkter.filter(synligPunkt);
         if (!synliga.length && !redigera) return null;
-        const klara = a.punkter.filter((x) => x.status).length;
+        const klara = a.punkter.filter(arKlar).length;
+        const avsnittKompl = a.punkter.filter((x) => x.status === "kompl").length;
         const allaEa = a.punkter.length > 0 && a.punkter.every((x) => x.status === "ea");
         const stangd = arStangd(a.namn) && !redigera;
         return (
@@ -285,6 +306,7 @@ export function ProjekteringsegenkontrollVy(p: Props) {
                 <span className="pil" aria-hidden="true">{stangd ? "▸" : "▾"}</span>
                 <h2>{a.namn ? `${a.nr}. ${a.namn}` : "Kontrollpunkter"}</h2>
                 <span className="pek-rakna">{allaEa ? "Ej aktuellt" : `${klara} / ${a.punkter.length}`}</span>
+                {avsnittKompl > 0 && <span className="pek-komplmarke" title="Punkter där komplettering krävs">{avsnittKompl} kompl.</span>}
                 <span className="pek-ministapel" aria-hidden="true"><i style={{ width: `${a.punkter.length ? (klara / a.punkter.length) * 100 : 0}%` }} /></span>
               </button>
               {!p.lasläge && (
@@ -305,7 +327,7 @@ export function ProjekteringsegenkontrollVy(p: Props) {
                 {(redigera ? a.punkter : synliga).map((x) => {
                   const genvag = GENVAGAR.find(([re]) => re.test(x.text));
                   return (
-                    <li key={x.rad.id} className={`pek-punkt ${x.status === "ok" ? "s-ok" : x.status === "ea" ? "s-ea" : ""}`}>
+                    <li key={x.rad.id} className={`pek-punkt ${x.status === "ok" ? "s-ok" : x.status === "kompl" ? "s-kompl" : x.status === "ea" ? "s-ea" : ""}`}>
                       <span className="pek-nr">{x.nr}</span>
                       <div className="pek-text">
                         {redigera
@@ -320,6 +342,8 @@ export function ProjekteringsegenkontrollVy(p: Props) {
                           <div className="pek-status" role="group" aria-label={`Status för punkt ${x.nr}`}>
                             <button className={`ok${x.status === "ok" ? " vald" : ""}`} aria-pressed={x.status === "ok"} disabled={p.lasläge}
                               onClick={() => sattStatus(x, "ok")} title="Utförd – datum och signatur fylls i">✓ OK</button>
+                            <button className={`kompl${x.status === "kompl" ? " vald" : ""}`} aria-pressed={x.status === "kompl"} disabled={p.lasläge}
+                              onClick={() => sattStatus(x, "kompl")} title="Punkten behöver kompletteras – skriv vad i kommentaren">Komplettering krävs</button>
                             <button className={`ea${x.status === "ea" ? " vald" : ""}`} aria-pressed={x.status === "ea"} disabled={p.lasläge}
                               onClick={() => sattStatus(x, "ea")} title="Gäller inte det här projektet">Ej aktuell</button>
                           </div>

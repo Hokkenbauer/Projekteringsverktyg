@@ -275,7 +275,7 @@ public class MallTester
     }
 
     [Fact]
-    public void Kontrollpunkt_ok_och_ej_aktuell_utesluter_varandra()
+    public void Kontrollpunkt_ok_komplettering_och_ej_aktuell_utesluter_varandra()
     {
         var def = Projekteringsverktyg.Server.ListApi.Listdefinitioner.Hitta("kontroll-" + Guid.NewGuid())!;
         var data = new Dictionary<string, string>();
@@ -287,6 +287,10 @@ public class MallTester
         Assert.Equal("true", data["kontrollerad"]);
         Assert.Equal("", data["ejAktuell"]);
         Assert.True(Projekteringsverktyg.Server.KontrollApi.KontrollEndpoints.ArKlar(data));
+        Projekteringsverktyg.Server.ListApi.ListEndpoints.Satt(def.Kolumn("komplettering")!, data, "true", "Håkan Engström", dag);
+        Assert.Equal("true", data["komplettering"]);
+        Assert.Equal("", data["kontrollerad"]);
+        Assert.False(Projekteringsverktyg.Server.KontrollApi.KontrollEndpoints.ArKlar(data));
     }
 
     [Fact]

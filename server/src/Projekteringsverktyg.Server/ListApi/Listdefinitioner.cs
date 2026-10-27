@@ -446,8 +446,9 @@ public static class Listdefinitioner
         [
             new("avsnitt", "Avsnitt", Bredd: 140),
             new("kontrollpunkt", "Kontrollpunkt", Bredd: 420, Fyll: true),
-            new("kontrollerad", "Kontrollerad", "kryss", SatterDatum: "datum", SatterSign: "sign", Utesluter: ["ejAktuell"]),
-            new("ejAktuell", "Ej aktuell", "kryss", SatterDatum: "datum", SatterSign: "sign", Utesluter: ["kontrollerad"]),
+            new("kontrollerad", "Kontrollerad", "kryss", SatterDatum: "datum", SatterSign: "sign", Utesluter: ["komplettering", "ejAktuell"]),
+            new("komplettering", "Komplettering krävs", "kryss", SatterDatum: "datum", SatterSign: "sign", Utesluter: ["kontrollerad", "ejAktuell"]),
+            new("ejAktuell", "Ej aktuell", "kryss", SatterDatum: "datum", SatterSign: "sign", Utesluter: ["kontrollerad", "komplettering"]),
             new("datum", "Datum", "datum"),
             new("sign", "Sign.", Mono: true, Bredd: 52),
             new("ovrigt", "Övrigt", Bredd: 220),

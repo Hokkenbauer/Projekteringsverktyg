@@ -129,13 +129,18 @@ export function ProjekteringsintygVy(p: Props) {
       `<tr><td>${esc(a.dokument)}</td><td>${esc(a.typ)}</td><td>${esc(valtDatum(a.daterad))}</td></tr>`).join("");
     const bilaga = egen.filter((k) => k.rader.length).map((k) => {
       const rader: (string[] | string)[] = [];
+      // Punkter som är Ej aktuell tas inte med; avsnitt och punkter numreras om.
+      let nr = 0;
       for (const a of gruppera(k.rader)) {
-        if (a.namn) rader.push(`${a.nr}. ${a.namn}`);
-        for (const x of a.punkter) rader.push([x.nr, x.text, x.status === "ok" ? "OK" : x.status === "ea" ? "E.A." : "", x.rad.data.ovrigt ?? "", valtDatum(x.rad.data.datum), x.rad.data.sign ?? ""]);
+        const punkter = a.punkter.filter((x) => x.status !== "ea");
+        if (!punkter.length) continue;
+        nr++;
+        if (a.namn) rader.push(`${nr}. ${a.namn}`);
+        punkter.forEach((x, i) => rader.push([`${nr}.${i + 1}`, x.text, x.status === "ok" ? "OK" : x.status === "kompl" ? "Kompl." : "", x.rad.data.ovrigt ?? "", valtDatum(x.rad.data.datum), x.rad.data.sign ?? ""]));
       }
       return `
 <h2 class="ny-sida">EGENKONTROLL – ${esc(k.namn.toUpperCase())}</h2>
-<p class="not">OK = utförd, E.A. = ej aktuell. Signering intygar att punkten är kontrollerad.</p>
+<p class="not">OK = utförd, Kompl. = komplettering krävs. Punkter som inte är aktuella är inte med. Signering intygar att punkten är kontrollerad.</p>
 ${blockHtml([{ typ: "tabell", kolumner: ["Nr", "Kontrollpunkt", "Status", "Kommentar", "Datum", "Sign."], bredder: [6, 47, 7, 22, 11, 7], centrera: [2], rader }])}`;
     }).join("");
 
