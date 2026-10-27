@@ -120,6 +120,7 @@ public static partial class AutoRader
             if (Guid.TryParse(ListEndpoints.LasData(r.Data).GetValueOrDefault(kolumn, ""), out var id)) finns.Add(id);
 
         var max = befintliga.Count == 0 ? 0 : befintliga.Max(r => r.Ordning);
+        List<Produkt> produkter = def.Hamtar == "kraft" ? await Produkter.HamtaAsync(db) : new();
         var nya = new List<ListRad>();
         foreach (var k in kandidater
                      .Where(k => !finns.Contains(k.Id))
@@ -129,6 +130,9 @@ public static partial class AutoRader
             data[kolumn] = k.Id.ToString();
             if (def.Hamtar == "matare")
                 foreach (var (f, v) in MatareForslag(k)) data[f] = v;
+            // Kraftberäkning: strömmen från produktregistret när produkten finns där.
+            if (def.Hamtar == "kraft" && Produkter.Hitta(produkter, k.Produkttyp) is { } produkt)
+                foreach (var (f, v) in Produkter.Strom(produkt)) data[f] = v;
             var rad = new ListRad { ProjektId = projektId, Lista = lista, KomponentId = k.Id, Ordning = ++max, Data = JsonSerializer.Serialize(data, Json), AndradAv = av.Namn };
             db.ListRader.Add(rad);
             nya.Add(rad);

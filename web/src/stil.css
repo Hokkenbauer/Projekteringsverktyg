@@ -958,3 +958,10 @@ table.grid.kort td.lopnr::before { content: "#"; padding: 0; font-family: var(--
 .fragetabell .tb-med { width: 44px; text-align: center; }
 .fragetabell tr.tb-ej td:not(.tb-med) { opacity: .45; text-decoration: line-through; text-decoration-color: var(--dampad); }
 .fragetabell tr.tb-ej textarea { text-decoration: none; }
+
+/* Produktregistret */
+.gw-tips.produkt-saknas { display: block; }
+.produkt-saknas summary { cursor: pointer; }
+.produkt-saknas ul { list-style: none; padding: 0; margin: 8px 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 4px 16px; }
+.produkt-saknas li { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 13px; }
+.infopanel .produktinfo { margin-top: 6px; }

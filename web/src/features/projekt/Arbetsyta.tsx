@@ -25,6 +25,8 @@ import { KraftSumma } from "../konstruktion/KraftSumma";
 import { BestallningslistaVy } from "../konstruktion/BestallningslistaVy";
 import { GatewayVy } from "../konstruktion/GatewayVy";
 import { anslutForslag } from "../../lib/gateway";
+import { produktNamn, useProduktregister } from "../../lib/produkter";
+import { ProduktregisterVy } from "../verktyg/ProduktregisterVy";
 import { ModulbelaggningVy } from "../konstruktion/ModulbelaggningVy";
 import { SkapValjare } from "../konstruktion/SkapValjare";
 import { KomponenterVy } from "../komponenter/KomponenterVy";
@@ -377,6 +379,12 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
   const behoverSkap = arSkapFlik || flik === "bestallningslista" || flik === "komponenter" || flik === "placeringsritningar";
   useEffect(() => { if (behoverSkap && skapLista === null) void hamtaSkap(); }, [behoverSkap]);
   const aktivtSkap = skapLista?.find((x) => x.id === valtSkap) ?? null;
+  // Produktregistret: dess aktiva produkter är förslagen i fältet Produkt (Komponenter och placeringsritningen).
+  const produktregister = useProduktregister();
+  const produktKataloger = useMemo(() => {
+    const aktiva = (produktregister.data?.produkter ?? []).filter((x) => !x.utgatt).map(produktNamn).filter(Boolean);
+    return aktiva.length ? { ...kataloger, produkttyp: aktiva } : kataloger;
+  }, [kataloger, produktregister.data]);
   const anslutsTillForslag = useMemo(() => anslutForslag(komponenter,
     (skapLista ?? []).map((s) => (s.beteckning || s.namn || "").trim()).filter(Boolean)), [komponenter, skapLista]);
   const uppdateraSkap = (s: Skap) => setSkapLista((l) => l?.map((x) => (x.id === s.id ? s : x)) ?? l);
@@ -711,7 +719,7 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
           <KomponenterVy
             projektId={projektId} kanHanteraMallar={!!ratt.hanteraMallar} onUppdatera={() => void hamtaAllt()} visaMeddelande={visaMeddelande}
             onInfo={(k) => setInfoId(k.id)} fokusId={fokusHar}
-            komponenter={komponenter} kataloger={kataloger} blinkar={blinkar} onAndra={andra} onNy={ny} onTaBort={taBort} lasläge={!ratt.skriva}
+            komponenter={komponenter} kataloger={produktKataloger} blinkar={blinkar} onAndra={andra} onNy={ny} onTaBort={taBort} lasläge={!ratt.skriva}
             anslutForslag={anslutsTillForslag} />
         )}
         {flik === "oversikt" && projekt && (
@@ -830,7 +838,7 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
             komponenter={komponenter}
             egenkontroll={listor.egenkontroll}
             installationslista={listor.installationslista}
-            kataloger={kataloger}
+            kataloger={produktKataloger}
             anslutForslag={anslutsTillForslag}
             uppdaterad={ritningVersion}
             fokusKomponent={ritningFokus}
@@ -936,6 +944,7 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
           />
         )}
         {flik === "resursplanering" && <ResursplaneringVy kanSpara={!!ratt.hanteraMallar} />}
+        {flik === "produktregister" && <ProduktregisterVy kanHantera={!!ratt.hanteraMallar} visaMeddelande={visaMeddelande} />}
         {flik === "html-verktyg" && <VerktygVy kanHantera={!!ratt.hanteraMallar} visaMeddelande={visaMeddelande} />}
         {flik === "support" && <SupportVy kanHantera={!!ratt.hanteraMallar} visaMeddelande={visaMeddelande} />}
         {flik === "projektfiler" && <ProjektfilerVy projektId={projektId} lasläge={!skrivbar} uppdaterad={filVersion} visaMeddelande={visaMeddelande} />}
@@ -979,6 +988,7 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
           komponenter={komponenter}
           onVisaKomponent={setInfoId}
           onAndra={(k, f, v) => void andra(k, f, v)}
+          produkter={produktregister.data?.produkter ?? []}
           lasläge={!skrivbar}
         />
       )}

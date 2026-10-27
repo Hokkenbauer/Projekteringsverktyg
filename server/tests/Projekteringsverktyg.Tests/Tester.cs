@@ -1104,3 +1104,37 @@ public class GatewayTester
     }
 }
 
+
+public class ProduktTester
+{
+    private const string Register = """{"produkter":[{"id":"1","fabrikat":"Siemens","modell":"QAE2120","komponenttyp":"Temperaturgivare","io":"AI","stromA":"","fas":"","utgatt":false},{"id":"2","fabrikat":"Grundfos","modell":"Magna3 40-120","komponenttyp":"Pump","io":"DI DU AU","stromA":"1,2","fas":"3"}]}""";
+
+    [Fact]
+    public void Produkt_fyller_i_tomma_falt_och_ger_strom()
+    {
+        var produkter = Produkter.Las(Register);
+        Assert.Equal(2, produkter.Count);
+        var p = Produkter.Hitta(produkter, " siemens qae2120 ")!;
+        Assert.Equal("Siemens QAE2120", p.Namn);
+
+        var k = new Komponent { Komponenttyp = "" };
+        Assert.Equal(new[] { "komponenttyp", "I/O" }, Produkter.FyllFran(k, p));
+        Assert.Equal("Temperaturgivare", k.Komponenttyp);
+        Assert.Equal("AI", k.Signaltyp);
+
+        // Ifyllda fält skrivs inte över.
+        var k2 = new Komponent { Komponenttyp = "Rumsgivare" };
+        KomponentFalt.Satt(k2, "signaltyp", "DI");
+        Assert.Empty(Produkter.FyllFran(k2, p));
+        Assert.Equal("Rumsgivare", k2.Komponenttyp);
+
+        var pump = Produkter.Hitta(produkter, "Grundfos Magna3 40-120")!;
+        Assert.Equal(new Dictionary<string, string> { ["l1"] = "1.2", ["l2"] = "1.2", ["l3"] = "1.2" }, Produkter.Strom(pump));
+        Assert.Empty(Produkter.Strom(p));
+        Assert.Empty(Produkter.Las("inte json"));
+    }
+
+    [Fact]
+    public void Grundregistret_finns() =>
+        Assert.True(Produkter.Las(Projekteringsverktyg.Server.DokumentApi.GemensamKatalogEndpoints.Grund(Produkter.Katalog)).Count >= 40);
+}

@@ -22,6 +22,8 @@ public static class GemensamKatalogEndpoints
         ["projekteringsstod"] = "Projekteringsstöd",
         ["tekniskbeskrivning"] = "Frågor till teknisk beskrivning",
         ["byggvaror"] = "Byggvarudatabasen",
+        // Produktregistret: fabrikat och modell med komponenttyp, I/O, ström m.m. (Verktyg → Produktregister).
+        [KomponentApi.Produkter.Katalog] = "Produktregistret",
         // Resursplaneringen (gemensam för alla projekt). Tom tills någon sparat; verktyget har då sin inbäddade planering.
         ["resursplanering"] = "Resursplaneringen",
         // Loggor till driftkortens sidfot (PNG/JPG i base64), gemensamma för alla projekt.

@@ -5,6 +5,7 @@ import { NAVIGERING } from "../../shell/navigering";
 import { omfattar } from "../listor/ListVy";
 import { Anslutningar, arGateway, lasGateway, portNamn } from "../../lib/gateway";
 import { GatewayRedigerare } from "../konstruktion/GatewayVy";
+import { produktNamn, type Produkt } from "../../lib/produkter";
 
 type Plats = { byggnad: string; plan: string; rum: string; placerad: boolean };
 
@@ -22,6 +23,8 @@ type Props = {
   komponenter: Komponent[];
   /** Visa en annan komponent i panelen. */
   onVisaKomponent: (id: string) => void;
+  /** Produktregistret (för produktens uppgifter och datablad). */
+  produkter: Produkt[];
   /** Ändra ett fält (gatewayens inställningar). */
   onAndra: (k: Komponent, falt: keyof Komponent & string, varde: string) => void;
   lasläge: boolean;
@@ -71,7 +74,7 @@ function status(lista: string, data: Record<string, string> | undefined): string
  * Komponentinformation: var komponenten finns i projektet, med länkar dit.
  * Allt läses från samma komponent (samma Id), inget är kopierat.
  */
-export function KomponentInfo({ projektId, komponent, listdefinitioner, onStang, onGaTill, onVisaPaRitning, uppdaterad, komponenter, onVisaKomponent, onAndra, lasläge }: Props) {
+export function KomponentInfo({ projektId, komponent, listdefinitioner, onStang, onGaTill, onVisaPaRitning, uppdaterad, komponenter, onVisaKomponent, onAndra, lasläge, produkter }: Props) {
   const anslutningar = useMemo(() => new Anslutningar(komponenter), [komponenter]);
   const [rader, setRader] = useState<Record<string, ListRad | null>>({});
   const [platser, setPlatser] = useState<Plats[] | null>(null);
@@ -120,6 +123,7 @@ export function KomponentInfo({ projektId, komponent, listdefinitioner, onStang,
     ...(k.produkt && k.produkttyp && !k.produkttyp.toLowerCase().includes(k.produkt.toLowerCase()) ? [["Fabrikat (äldre fält)", k.produkt] as [string, string]] : []),
     ["Monteringsanvisning", k.monteringsanvisning], ["Övrigt", k.ovrigt],
   ];
+  const produkt = produkter.find((x) => produktNamn(x).toLowerCase() === (k.produkttyp || k.produkt).trim().toLowerCase());
   const gateway = arGateway(k);
   const kedja = anslutningar.kedja(k);
   // Anslutna hit: till komponenten själv, och för en gateway till var och en av portarna.
@@ -197,6 +201,14 @@ export function KomponentInfo({ projektId, komponent, listdefinitioner, onStang,
           {uppgifter.filter(([, v]) => v).map(([n, v]) => (<div key={n}><dt>{n}</dt><dd>{v}</dd></div>))}
         </dl>
         {uppgifter.every(([, v]) => !v) && <p className="dampad">Inga uppgifter ifyllda.</p>}
+        {produkt && (
+          <p className="dampad liten produktinfo">
+            Ur produktregistret: {[produkt.komponenttyp, produkt.io && `I/O ${produkt.io}`, produkt.stromA && `${produkt.stromA} A${produkt.fas === "3" ? " 3-fas" : ""}`,
+              produkt.bedomning && `BVB ${produkt.bedomning}`, produkt.sundaHus && `Sunda Hus ${produkt.sundaHus}`, produkt.utgatt && "utgången"].filter(Boolean).join(" · ")}
+            {/^https?:\/\//i.test(produkt.datablad) && <> · <a href={produkt.datablad} target="_blank" rel="noreferrer">Datablad</a></>}
+          </p>
+        )}
+        {(k.produkttyp || k.produkt) && !produkt && <p className="dampad liten">Produkten finns inte i produktregistret (Verktyg → Produktregister).</p>}
       </section>
 
       <section>

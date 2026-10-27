@@ -96,6 +96,10 @@ public static class KomponentEndpoints
             catch (ArgumentException e) { return Results.ValidationProblem(new Dictionary<string, string[]> { ["varde"] = [e.Message] }); }
             var efter = KomponentFalt.Hamta(k, andring.Falt);
             if (fore == efter) return Results.Ok(KomponentDto.Fran(k));
+            // Vald produkt ur produktregistret: komponenttyp och I/O fylls i om de är tomma.
+            var franProdukt = new List<string>();
+            if (andring.Falt == "produkttyp" && Produkter.Hitta(await Produkter.HamtaAsync(db), efter) is { } produkt)
+                franProdukt = Produkter.FyllFran(k, produkt);
 
             var av = Anvandare.Fran(user);
             k.Version++;
@@ -104,6 +108,8 @@ public static class KomponentEndpoints
             var namn = string.IsNullOrEmpty(k.Beteckning) ? "en komponent" : k.Beteckning;
             var vad = andring.Falt == "signaler" ? "I/O" : andring.Falt == "installningar" ? "inställningar" : andring.Falt;
             Andringslogg.Logga(db, projektId, av, "Komponent", k.Id, $"ändrade {vad} på {namn}", andring.Falt, foreLogg, KomponentFalt.LoggVarde(k, andring.Falt));
+            if (franProdukt.Count > 0)
+                Andringslogg.Logga(db, projektId, av, "Komponent", k.Id, $"fyllde i {string.Join(" och ", franProdukt)} på {namn} från produktregistret");
 
             try
             {
