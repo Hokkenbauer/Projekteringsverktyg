@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { DriftkortSidfotDialog } from "../ritning/DriftkortSidfot";
 import { api, ApiFel, laddaNer, skicka } from "../../lib/api";
-import { arFormaterad, dela, harWordFormat, jamfor, sattIhop, textAv } from "../../lib/funktionstext";
+import { arFormaterad, dela, harWordFormat, sattIhop, systemINamn, textAv } from "../../lib/funktionstext";
+import { KomponentSok, type Kalla } from "./KomponentSok";
 import { useKatalog } from "../../lib/katalog";
 import type { Komponent, Projekt, ProjektDokument } from "../../lib/typer";
 import { skrivUt } from "../../lib/utskrift";
@@ -53,9 +54,9 @@ export function TextKatalogVy(p: Props) {
   const timer = useRef<number | undefined>(undefined);
   const importFil = useRef<HTMLInputElement>(null);
   const [importerar, setImporterar] = useState(false);
-  const [laggerTill, setLaggerTill] = useState(false);
-  /** Saknade beteckningar som användaren valt bort (klick på chippet). */
-  const [bortvalda, setBortvalda] = useState<Set<string>>(new Set());
+  /** Projektets texter som är markerade (för att ta bort flera på en gång). */
+  const [markerade, setMarkerade] = useState<Set<string>>(new Set());
+  const [allaKomponenterOppen, setAllaKomponenterOppen] = useState(false);
   const valRef = useRef(val);
   valRef.current = val;
 
@@ -167,15 +168,45 @@ export function TextKatalogVy(p: Props) {
     } catch (e) { p.visaMeddelande((e as Error).message); void hamtaSparade(); }
   };
 
-  const taBortSparad = async () => {
-    if (!valdSparad || !window.confirm(`Ta bort ${valdSparad.namn} från projektet?`)) return;
+  /**
+   * Tar bort texter ur projektet. Pågående sparning stoppas först (annars kan en sen sparning försöka skriva till
+   * en borttagen text), och listan hämtas om från servern efteråt så att det som visas stämmer.
+   */
+  const taBortTexter = async (ids: string[]) => {
+    const namn = (sparade ?? []).filter((d) => ids.includes(d.id)).map((d) => d.namn);
+    if (!ids.length || !window.confirm(ids.length === 1 ? `Ta bort ${namn[0]} från projektet?` : `Ta bort ${ids.length} texter från projektet?\n\n${namn.join("\n")}`)) return;
     window.clearTimeout(timer.current);
-    try {
-      await api(`/api/projekt/${p.projektId}/dokument/${valdSparad.id}`, { method: "DELETE" });
-      setSparade((l) => l?.filter((x) => x.id !== valdSparad.id) ?? l);
-      setVal(null); setText(""); setStatus("sparat");
-    } catch (e) { p.visaMeddelande((e as Error).message); }
+    if (val?.typ === "sparad" && ids.includes(val.id)) { setVal(null); setText(""); setStatus("sparat"); }
+    const fel: string[] = [];
+    for (const id of ids) {
+      try { await api(`/api/projekt/${p.projektId}/dokument/${id}`, { method: "DELETE" }); }
+      catch (e) { if (!(e instanceof ApiFel && e.status === 404)) fel.push(`${(sparade ?? []).find((d) => d.id === id)?.namn ?? id}: ${(e as Error).message}`); }
+    }
+    setMarkerade(new Set());
+    let kvar: ProjektDokument[] = [];
+    try { kvar = (await hamtaSparade()).filter((d) => ids.includes(d.id)); } catch { /* listan hämtas om vid nästa ändring */ }
+    if (fel.length || kvar.length) p.visaMeddelande(`Kunde inte ta bort: ${fel.length ? fel.join("; ") : kvar.map((d) => d.namn).join(", ")}`);
+    else p.visaMeddelande(ids.length === 1 ? `${namn[0]} är borttagen.` : `${ids.length} texter är borttagna.`);
   };
+  const taBortSparad = () => { if (valdSparad) void taBortTexter([valdSparad.id]); };
+
+  /** Sätter systemet (för beteckningar utan systemnamn) i en importerad text. */
+  const sattSystem = async (id: string, system: string) => {
+    const d = sparade?.find((x) => x.id === id);
+    if (!d || !arFormaterad(d.data)) return;
+    const { meta, html } = dela(d.data);
+    const data = sattIhop({ ...meta, System: system || null }, html);
+    if (val?.typ === "sparad" && val.id === id) { andraText(data); return; }
+    try {
+      const ny = await api<ProjektDokument>(`/api/projekt/${p.projektId}/dokument/${id}`, { method: "PUT", body: skicka({ data, version: d.version }) });
+      setSparade((l) => l?.map((x) => (x.id === id ? ny : x)) ?? l);
+    } catch (e) { p.visaMeddelande(`Systemet kunde inte sparas: ${(e as Error).message}`); }
+  };
+  /** Text att söka komponenter i, med system ur texten (eller ur namnet). */
+  const kalla = (d: ProjektDokument, data = d.data): Kalla => ({
+    id: d.id, namn: d.namn, text: textAv(data),
+    system: (arFormaterad(data) ? dela(data).meta.System ?? "" : "") || systemINamn(d.namn)[0] || "",
+  });
 
   // ---- Katalogen (Admin, Projektledare, System) ----
   const sparaKatalog = async (ny: TextKatalog, klart?: string) => {
@@ -300,30 +331,6 @@ export function TextKatalogVy(p: Props) {
     finally { setImporterar(false); setImportStatus(""); }
   };
 
-  // ---- Komponenter i texten ----
-  const traffar = useMemo(() => (ft && val?.typ === "sparad" && p.komponenter ? jamfor(textAv(text), p.komponenter) : []), [ft, val, text, p.komponenter]);
-  const saknasAlla = traffar.filter((t) => !t.finns);
-  const saknas = saknasAlla.filter((t) => !bortvalda.has(t.beteckning));
-  const laggTillSaknade = async () => {
-    if (!saknas.length || !window.confirm(`Lägga till ${saknas.length} komponenter i Komponenter?\n\n${saknas.map((t) => t.beteckning).join(", ")}`)) return;
-    // Följ projektets sätt att skriva beteckningar (bindestreck eller understreck).
-    const understreck = (p.komponenter ?? []).filter((k) => k.beteckning.includes("_")).length > (p.komponenter ?? []).filter((k) => k.beteckning.includes("-")).length;
-    setLaggerTill(true);
-    let n = 0;
-    try {
-      for (const t of saknas) {
-        const k = await api<Komponent>(`/api/projekt/${p.projektId}/komponenter`, {
-          method: "POST",
-          body: skicka({ beteckning: understreck ? t.beteckning.replace(/-/g, "_") : t.beteckning, system: t.system, beskrivning: `Från funktionstexten ${titel}` }),
-        });
-        p.onNyKomponent?.(k);
-        n++;
-      }
-      p.visaMeddelande(`${n} komponenter är tillagda i Komponenter.`);
-    } catch (e) { p.visaMeddelande(`${n} tillagda, sedan blev det fel: ${(e as Error).message}`); }
-    finally { setLaggerTill(false); }
-  };
-
   return (
     <>
       <div className="brodsmula">{p.grupp}</div>
@@ -344,6 +351,9 @@ export function TextKatalogVy(p: Props) {
             <button className="knapp primar" title="Funktionstexterna i Word utan flödesbilder, i mallarnas Word-stil med projektets sidfot. Välj alla eller några."
               onClick={() => setWordVal(new Set(sparade.map((d) => d.id)))}>Skriv ut i Word (utan bild)…</button>
           )}
+          {ft && !!sparade?.length && p.komponenter && (
+            <button className="knapp" onClick={() => setAllaKomponenterOppen(true)} title="Jämför komponenterna i alla projektets texter med Komponenter och lägg till de som saknas">Komponenter ur texterna…</button>
+          )}
           {ft && !!sparade?.length && <button className="knapp" onClick={skrivUtAlla} title="Snabb utskrift från webbläsaren (inte Word-stil)">Skriv ut alla (webb)</button>}
           {p.kanRedigeraKatalog && <button className="knapp" onClick={() => void nyRubrik()}>+ Ny rubrik i katalogen</button>}
         </div>
@@ -360,12 +370,32 @@ export function TextKatalogVy(p: Props) {
           <input className="sok" type="search" placeholder="Sök i mallarna" value={sok} onChange={(e) => setSok(e.target.value)} />
           {ft && (
             <div className="sparadelista">
-              <h3>Projektets funktionstexter</h3>
+              <div className="sparadehuvud">
+                <h3>Projektets funktionstexter</h3>
+                {!p.lasläge && !!sparade?.length && (
+                  <label className="kryssrad liten" title="Markera alla">
+                    <input type="checkbox" checked={markerade.size === sparade.length && sparade.length > 0}
+                      onChange={(e) => setMarkerade(e.target.checked ? new Set(sparade.map((d) => d.id)) : new Set())} /> Alla
+                  </label>
+                )}
+              </div>
+              {!p.lasläge && markerade.size > 0 && (
+                <div className="sparadeverktyg">
+                  <span className="liten">{markerade.size} markerade</span>
+                  <button className="knapp liten fara" onClick={() => void taBortTexter([...markerade])}>Ta bort markerade</button>
+                  <button className="knapp liten" onClick={() => setMarkerade(new Set())}>Avmarkera</button>
+                </div>
+              )}
               {sparade === null ? <span className="dampad liten">Hämtar…</span>
                 : sparade.length === 0 ? <span className="dampad liten">Inga än. Välj en mall och klicka på Spara i projektet.</span>
                 : sparade.map((d) => (
+                  <div key={d.id} className="sparadrad">
+                  {!p.lasläge && (
+                    <input type="checkbox" aria-label={`Markera ${d.namn}`} checked={markerade.has(d.id)}
+                      onChange={(e) => setMarkerade((m) => { const n = new Set(m); if (e.target.checked) n.add(d.id); else n.delete(d.id); return n; })} />
+                  )}
                   <button
-                    key={d.id} className={`katalograd ${val?.typ === "sparad" && val.id === d.id ? "aktiv" : ""}`}
+                    className={`katalograd ${val?.typ === "sparad" && val.id === d.id ? "aktiv" : ""}`}
                     title={p.lasläge ? d.namn : `${d.namn} – dubbelklicka för att byta namn`}
                     onClick={() => void valjSparad(d)}
                     onDoubleClick={() => { if (!p.lasläge) void valjSparad(d).then(() => bytNamn(d)); }}
@@ -375,6 +405,7 @@ export function TextKatalogVy(p: Props) {
                       <span className="liten" style={{ color: "var(--varning)" }} title="Texten importerades innan Words formatering sparades. Importera Word-filen igen för att få originalets typsnitt, storlekar och tabellbredder i exporten."> · importera om för originalformat</span>
                     )}
                   </button>
+                  </div>
                 ))}
             </div>
           )}
@@ -452,34 +483,14 @@ export function TextKatalogVy(p: Props) {
                   onBlur={() => void lamna()}
                 />
               )}
-              {traffar.length > 0 && (
+              {ft && valdSparad && p.komponenter && (
                 <details className="kompitext">
-                  <summary>
-                    Komponenter i texten: {traffar.length} st{saknasAlla.length ? <>, <b className="varnfarg">{saknasAlla.length} saknas i Komponenter</b></> : ", alla finns i Komponenter"}
-                  </summary>
-                  <div className="kompchips">
-                    {traffar.map((t) => (
-                      t.finns
-                        ? <span key={t.beteckning} className="kompchip finns" title="Finns i Komponenter">✓ {t.beteckning}</span>
-                        : (
-                          <button
-                            key={t.beteckning} type="button"
-                            className={`kompchip saknas ${bortvalda.has(t.beteckning) ? "bortvald" : ""}`}
-                            title={bortvalda.has(t.beteckning) ? "Bortvald – klicka för att ta med" : "Saknas i Komponenter – klicka för att inte lägga till den"}
-                            onClick={() => setBortvalda((s) => { const n = new Set(s); if (n.has(t.beteckning)) n.delete(t.beteckning); else n.add(t.beteckning); return n; })}
-                          >✕ {t.beteckning}</button>
-                        )
-                    ))}
-                  </div>
-                  {!!saknas.length && !p.lasläge && (
-                    <button className="knapp" disabled={laggerTill} onClick={() => void laggTillSaknade()}>
-                      {laggerTill ? "Lägger till…" : `Lägg till de ${saknas.length} som saknas i Komponenter`}
-                    </button>
-                  )}
-                  <p className="dampad liten">
-                    Beteckningar med system först räknas (t.ex. VS01-P01). Signalnamn som VS01-P01-AUT räknas till komponenten VS01-P01.
-                    Bindestreck och understreck räknas lika. Klicka på en saknad beteckning för att inte lägga till den.
-                  </p>
+                  <summary>Komponenter i texten – jämför med Komponenter</summary>
+                  <KomponentSok
+                    projektId={p.projektId} kallor={[kalla(valdSparad, text)]} komponenter={p.komponenter} lasläge={p.lasläge}
+                    onSattSystem={arFormaterad(text) ? (id, sy) => void sattSystem(id, sy) : undefined}
+                    onNyKomponent={p.onNyKomponent} visaMeddelande={p.visaMeddelande}
+                  />
                 </details>
               )}
               {val.typ === "mall" && ft && (
@@ -489,6 +500,15 @@ export function TextKatalogVy(p: Props) {
           )}
         </section>
       </div>
+      {ft && allaKomponenterOppen && sparade && p.komponenter && (
+        <Dialog titel="Komponenter ur projektets texter" oppen onStang={() => setAllaKomponenterOppen(false)} bred
+          fot={<button className="knapp" onClick={() => setAllaKomponenterOppen(false)}>Stäng</button>}>
+          <KomponentSok
+            projektId={p.projektId} kallor={sparade.map((d) => kalla(d))} komponenter={p.komponenter} lasläge={p.lasläge}
+            onSattSystem={(id, sy) => void sattSystem(id, sy)} onNyKomponent={p.onNyKomponent} visaMeddelande={p.visaMeddelande}
+          />
+        </Dialog>
+      )}
       {ft && wordVal && sparade && (
         <Dialog
           titel="Skriv ut funktionstexter i Word" oppen={!!wordVal} onStang={() => setWordVal(null)}

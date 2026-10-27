@@ -965,3 +965,31 @@ table.grid.kort td.lopnr::before { content: "#"; padding: 0; font-family: var(--
 .produkt-saknas ul { list-style: none; padding: 0; margin: 8px 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 4px 16px; }
 .produkt-saknas li { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 13px; }
 .infopanel .produktinfo { margin-top: 6px; }
+
+/* Funktionstexter: markera texter, komponenter ur driftkort */
+.sparadehuvud { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.sparadehuvud .kryssrad { margin: 0; gap: 4px; }
+.sparadeverktyg { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 2px 0 6px; padding: 6px 8px; background: var(--accent-mjuk); border-radius: var(--r); }
+.sparadrad { display: flex; align-items: center; gap: 4px; }
+.sparadrad > input { flex: 0 0 auto; margin: 0 2px 0 4px; }
+.sparadrad > .katalograd { flex: 1; min-width: 0; }
+.ksok { display: flex; flex-direction: column; gap: 10px; padding-top: 8px; }
+.ksok-system { display: flex; flex-direction: column; gap: 6px; }
+.ksok-sysrad { display: grid; grid-template-columns: minmax(180px, 1fr) 140px; gap: 10px; align-items: center; font-size: 13px; }
+.ksok-sysrad input { background: var(--yta-2); border: 1px solid var(--linje); border-radius: var(--r); padding: 5px 8px; color: var(--text); font-size: 13px; }
+.ksok-summa { margin: 0; font-size: 13.5px; }
+.ksok-summa .ok { color: var(--ok); }
+.ksok-tabell { border-collapse: collapse; width: 100%; font-size: 13px; }
+.ksok-tabell th { text-align: left; font-size: 12px; color: var(--dampad); font-weight: 500; padding: 4px 8px; border-bottom: 1px solid var(--linje); }
+.ksok-tabell td { padding: 4px 8px; border-bottom: 1px solid var(--linje); vertical-align: top; }
+.ksok-tabell tr.ej-vald td:not(:first-child) { opacity: .45; }
+.ksok-osaker { font-family: var(--font); font-size: 11px; color: var(--varning); margin-left: 6px; }
+.ksok-finns { display: inline-flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+@media (max-width: 760px) {
+  .ksok-sysrad { grid-template-columns: 1fr; }
+  .ksok-sysrad input { font-size: 16px; }
+}
+.ksok-itexten { white-space: nowrap; }
+.ksok-systemlista summary { cursor: pointer; font-size: 13px; }
+.ksok-systemlista { display: flex; flex-direction: column; gap: 4px; }
+.ksok-systemlista[open] .ksok-sysrad { margin-top: 4px; }
