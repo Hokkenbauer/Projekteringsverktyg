@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useFordrojdSparning } from "../../lib/sparning";
 import { DriftkortSidfotDialog } from "../ritning/DriftkortSidfot";
 import { api, ApiFel, laddaNer, skicka } from "../../lib/api";
 import { arFormaterad, dela, harWordFormat, sattIhop, systemINamn, textAv } from "../../lib/funktionstext";
@@ -51,7 +52,7 @@ export function TextKatalogVy(p: Props) {
   const [sok, setSok] = useState("");
   const [oppna, setOppna] = useState<Set<number>>(new Set());
   const [status, setStatus] = useState<"sparat" | "osparat" | "sparar">("sparat");
-  const timer = useRef<number | undefined>(undefined);
+  const sparning = useFordrojdSparning();
   const importFil = useRef<HTMLInputElement>(null);
   const [importerar, setImporterar] = useState(false);
   /** Projektets texter som är markerade (för att ta bort flera på en gång). */
@@ -80,8 +81,7 @@ export function TextKatalogVy(p: Props) {
     }).catch(() => undefined);
   }, [p.uppdaterad]);
 
-  useEffect(() => () => window.clearTimeout(timer.current), []);
-
+  
   const rubriker = kat.data?.rubriker ?? [];
   const valdMall = val?.typ === "mall" ? rubriker[val.r]?.mallar[val.m] : undefined;
   const valdSparad = val?.typ === "sparad" ? sparade?.find((d) => d.id === val.id) : undefined;
@@ -119,15 +119,11 @@ export function TextKatalogVy(p: Props) {
     setText(t);
     if (val?.typ !== "sparad" || p.lasläge) return;
     setStatus("osparat");
-    window.clearTimeout(timer.current);
     const id = val.id;
-    timer.current = window.setTimeout(() => void sparaNu(id, t), 1000);
+    sparning.planera(() => sparaNu(id, t), 1000);
   };
 
-  const lamna = async () => {
-    window.clearTimeout(timer.current);
-    if (val?.typ === "sparad" && status === "osparat") await sparaNu(val.id, text);
-  };
+  const lamna = async () => { await sparning.nu(); };
 
   const valjMall = async (r: number, m: number) => {
     await lamna();
@@ -175,7 +171,7 @@ export function TextKatalogVy(p: Props) {
   const taBortTexter = async (ids: string[]) => {
     const namn = (sparade ?? []).filter((d) => ids.includes(d.id)).map((d) => d.namn);
     if (!ids.length || !window.confirm(ids.length === 1 ? `Ta bort ${namn[0]} från projektet?` : `Ta bort ${ids.length} texter från projektet?\n\n${namn.join("\n")}`)) return;
-    window.clearTimeout(timer.current);
+    if (val?.typ === "sparad" && ids.includes(val.id)) sparning.avbryt();
     if (val?.typ === "sparad" && ids.includes(val.id)) { setVal(null); setText(""); setStatus("sparat"); }
     const fel: string[] = [];
     for (const id of ids) {

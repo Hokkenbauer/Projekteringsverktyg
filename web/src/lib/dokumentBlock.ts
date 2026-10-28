@@ -9,11 +9,11 @@ import { zip } from "./zip";
  */
 export type Block =
   | { typ: "rubrik"; text: string }
-  | { typ: "text"; text: string; kursiv?: boolean }
-  /** Etikett/värde-tabell (t.ex. Objekt, Kund, Projektör). */
-  | { typ: "form"; rader: [string, string][] }
-  /** Datatabell. En rad som är en sträng blir en avsnittsrad över hela bredden. */
-  | { typ: "tabell"; kolumner: string[]; bredder: number[]; rader: (string[] | string)[]; centrera?: number[] }
+  | { typ: "text"; text: string; kursiv?: boolean; fet?: boolean }
+  /** Etikett/värde-tabell (t.ex. Objekt, Kund, Projektör). Bredd = tabellens bredd i procent (standard 100). */
+  | { typ: "form"; rader: [string, string][]; bredd?: number; etikettBredd?: number }
+  /** Datatabell. En rad som är en sträng (eller {sektion}) blir en avsnittsrad över hela bredden. */
+  | Tabell
   | { typ: "sidbrytning" }
   /**
    * Rutor som i blanketter: varje rad har en eller flera rutor med fet etikett över värdet.
@@ -22,6 +22,27 @@ export type Block =
   | { typ: "rutor"; rader: Ruta[][] }
   /** Luft mellan grupper av rutor. */
   | { typ: "luft"; mm?: number };
+
+/** En cell: text, eller text med bakgrund (t.ex. riskvärde), textfärg, fet stil eller centrering. */
+export type Cell = string | { text: string; fyll?: string; farg?: string; fet?: boolean; mitt?: boolean };
+export type TabellRad = Cell[] | string | { sektion: string; fyll?: string; farg?: string };
+export type Tabell = {
+  typ: "tabell";
+  kolumner: string[];
+  /** Kolumnbredder i procent. Saknas = räknas fram ur innehållet. */
+  bredder?: number[];
+  rader: TabellRad[];
+  /** Kolumner (index) som centreras. */
+  centrera?: number[];
+  /** Rad över kolumnrubrikerna (t.ex. I/O-kortets namn i kortets färg). */
+  titelrad?: { text: string; fyll?: string; farg?: string };
+  /** Ingen rubrikrad (t.ex. en ruta med text och kryss). */
+  utanRubrik?: boolean;
+  /** Tabellens bredd i procent av sidan (standard 100). */
+  bredd?: number;
+  /** Minsta radhöjd i mm (t.ex. tomma rader att fylla i för hand). */
+  radhojd?: number;
+};
 
 export type Ruta = { etikett?: string; varde?: string; bredd?: number; hojd?: number; dampad?: boolean };
 
@@ -36,14 +57,39 @@ export type BlockDokument = {
   egetHuvud?: { rader: [string, string][]; status: string };
 };
 
+export const cellText = (c: Cell | undefined) => (typeof c === "string" ? c : c?.text ?? "");
+export const arSektion = (r: TabellRad): r is string | { sektion: string; fyll?: string; farg?: string } =>
+  typeof r === "string" || !Array.isArray(r);
+export const sektionText = (r: string | { sektion: string }) => (typeof r === "string" ? r : r.sektion);
+
+/**
+ * Kolumnbredder (procent) ur innehållet när de inte är angivna: rubrikens längd och radernas typiska längd,
+ * med ett tak så att en lång kommentar inte tränger ut de andra kolumnerna.
+ */
+export function bredderFor(t: Pick<Tabell, "kolumner" | "bredder" | "rader">): number[] {
+  if (t.bredder && t.bredder.length === t.kolumner.length) return t.bredder;
+  const vikt = t.kolumner.map((k, i) => {
+    const langder = t.rader.filter((r): r is Cell[] => Array.isArray(r)).map((r) => {
+      const s = cellText(r[i]);
+      // Den längsta raden i en flerradig cell räknas.
+      return Math.max(0, ...s.split("\n").map((d) => d.length));
+    }).sort((a, b) => a - b);
+    const typisk = langder.length ? langder[Math.floor(langder.length * 0.9)]! : 0;
+    const rubrik = Math.max(...k.split(/\s+/).map((o) => o.length), Math.min(k.length, 12));
+    return Math.min(45, Math.max(3, rubrik, typisk));
+  });
+  const summa = vikt.reduce((s, v) => s + v, 0) || 1;
+  return vikt.map((v) => (v * 100) / summa);
+}
+
 // ---------------------------------------------------------------- Utskrift / PDF
 
 export function blockHtml(block: Block[]): string {
   return block.map((b) => {
     switch (b.typ) {
       case "rubrik": return `<h2>${esc(b.text)}</h2>`;
-      case "text": return `<p${b.kursiv ? ' style="font-style:italic"' : ""}>${esc(b.text).replace(/\n/g, "<br>")}</p>`;
-      case "form": return `<table class="data form"><tbody>${b.rader.map(([a, v]) => `<tr><th>${esc(a)}</th><td>${esc(v)}</td></tr>`).join("")}</tbody></table>`;
+      case "text": return `<p${b.kursiv || b.fet ? ` style="${b.kursiv ? "font-style:italic;" : ""}${b.fet ? "font-weight:700;" : ""}"` : ""}>${esc(b.text).replace(/\n/g, "<br>")}</p>`;
+      case "form": return `<table class="data form"${b.bredd ? ` style="width:${b.bredd}%"` : ""}><tbody>${b.rader.map(([a, v]) => `<tr><th${b.etikettBredd ? ` style="width:${b.etikettBredd}%"` : ""}>${esc(a)}</th><td>${esc(v).replace(/\n/g, "<br>")}</td></tr>`).join("")}</tbody></table>`;
       case "sidbrytning": return `<div style="break-after:page;page-break-after:always"></div>`;
       case "luft": return `<div style="height:${b.mm ?? 4}mm"></div>`;
       case "rutor": {
@@ -56,15 +102,33 @@ export function blockHtml(block: Block[]): string {
           return `<table class="rutor"><tr>${rad.map((x) => ett(x, x.bredd ?? fri / Math.max(1, utan))).join("")}</tr></table>`;
         }).join("");
       }
-      case "tabell": {
-        const mitt = new Set(b.centrera ?? []);
-        return `<table class="data"><thead><tr>${b.kolumner.map((k, i) => `<th style="width:${b.bredder[i] ?? 10}%${mitt.has(i) ? ";text-align:center" : ""}">${esc(k)}</th>`).join("")}</tr></thead>
-<tbody>${b.rader.map((r) => typeof r === "string"
-          ? `<tr class="sektion"><td colspan="${b.kolumner.length}">${esc(r)}</td></tr>`
-          : `<tr>${r.map((c, i) => `<td${mitt.has(i) ? ' style="text-align:center"' : ""}>${esc(c).replace(/\n/g, "<br>")}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
-      }
+      case "tabell": return tabellHtmlBlock(b);
     }
   }).join("\n");
+}
+
+function tabellHtmlBlock(b: Tabell): string {
+  const mitt = new Set(b.centrera ?? []);
+  const bredder = bredderFor(b);
+  const n = b.kolumner.length;
+  const stil = (fyll?: string, farg?: string) => `${fyll ? `background:${fyll}!important;` : ""}${farg ? `color:${farg};` : ""}`;
+  const titel = b.titelrad ? `<tr><th colspan="${n}" style="${stil(b.titelrad.fyll, b.titelrad.farg)}font-size:10pt">${esc(b.titelrad.text)}</th></tr>` : "";
+  const rubrik = b.utanRubrik ? "" : `<tr>${b.kolumner.map((k, i) => `<th style="width:${bredder[i]!.toFixed(2)}%${mitt.has(i) ? ";text-align:center" : ""}">${esc(k)}</th>`).join("")}</tr>`;
+  const kolgrupp = b.utanRubrik ? `<colgroup>${bredder.map((w) => `<col style="width:${w.toFixed(2)}%">`).join("")}</colgroup>` : "";
+  const hojd = b.radhojd ? `height:${b.radhojd}mm;` : "";
+  const rader = b.rader.map((r) => {
+    if (arSektion(r)) {
+      const o: { fyll?: string; farg?: string } = typeof r === "string" ? {} : r;
+      return `<tr class="sektion"><td colspan="${n}" style="${stil(o.fyll, o.farg)}">${esc(sektionText(r))}</td></tr>`;
+    }
+    return `<tr>${b.kolumner.map((_, i) => {
+      const c = r[i] ?? "";
+      const o = typeof c === "string" ? { text: c } : c;
+      const s = `${hojd}${stil(o.fyll, o.farg)}${o.fet ? "font-weight:700;" : ""}${mitt.has(i) || o.mitt ? "text-align:center;" : ""}`;
+      return `<td${s ? ` style="${s}"` : ""}>${esc(o.text).replace(/\n/g, "<br>")}</td>`;
+    }).join("")}</tr>`;
+  }).join("");
+  return `<table class="data${b.utanRubrik ? " utan-rubrik" : ""}"${b.bredd ? ` style="width:${b.bredd}%"` : ""}>${kolgrupp}${titel || rubrik ? `<thead>${titel}${rubrik}</thead>` : ""}<tbody>${rader}</tbody></table>`;
 }
 
 /** Skriver ut dokumentet (i utskriftsrutan kan man välja Spara som PDF). */
@@ -77,7 +141,9 @@ table.rutor+table.rutor{margin-top:-1px}
 table.rutor td{border:1px solid #000;padding:1.2mm 1.6mm;vertical-align:top;break-inside:avoid}
 table.rutor b{display:block;font-size:9pt}
 table.rutor div{white-space:pre-wrap}
-table.rutor tr{break-inside:avoid;page-break-inside:avoid}`, kropp: blockHtml(d.block) }, fonster);
+table.rutor tr{break-inside:avoid;page-break-inside:avoid}
+table.data.utan-rubrik{table-layout:fixed}
+table.data.utan-rubrik tbody tr:nth-child(even) td{background:none}`, kropp: blockHtml(d.block) }, fonster);
 }
 
 // ---------------------------------------------------------------- Word
@@ -95,8 +161,8 @@ const EMU_MM = 36000;
 const FONT = "Calibri";
 
 /** En textkörning. Radbrytningar i texten blir radbrytningar i Word. */
-function run(text: string, o: { fet?: boolean; kursiv?: boolean; storlek?: number; versaler?: boolean } = {}) {
-  const rpr = `<w:rPr>${o.fet ? "<w:b/>" : ""}${o.kursiv ? "<w:i/>" : ""}${o.versaler ? "<w:caps/>" : ""}${o.storlek ? `<w:sz w:val="${o.storlek}"/><w:szCs w:val="${o.storlek}"/>` : ""}</w:rPr>`;
+function run(text: string, o: { fet?: boolean; kursiv?: boolean; storlek?: number; versaler?: boolean; farg?: string } = {}) {
+  const rpr = `<w:rPr>${o.fet ? "<w:b/>" : ""}${o.kursiv ? "<w:i/>" : ""}${o.versaler ? "<w:caps/>" : ""}${o.farg ? `<w:color w:val="${o.farg.replace("#", "").toUpperCase()}"/>` : ""}${o.storlek ? `<w:sz w:val="${o.storlek}"/><w:szCs w:val="${o.storlek}"/>` : ""}</w:rPr>`;
   return text.split("\n").map((del, i) => `<w:r>${rpr}${i ? "<w:br/>" : ""}<w:t xml:space="preserve">${x(del)}</w:t></w:r>`).join("");
 }
 
@@ -128,7 +194,7 @@ function fordela(bredd: number, procent: number[]) {
 function blockXml(b: Block, bredd: number): string {
   switch (b.typ) {
     case "rubrik": return para(run(b.text, { fet: true, storlek: 20, versaler: true }), { fore: Math.round(5 * MM), efter: Math.round(1.5 * MM), hallIhop: true });
-    case "text": return para(run(b.text, { kursiv: b.kursiv }), { efter: Math.round(1.5 * MM) });
+    case "text": return para(run(b.text, { kursiv: b.kursiv, fet: b.fet }), { efter: Math.round(1.5 * MM) });
     case "sidbrytning": return `<w:p><w:r><w:br w:type="page"/></w:r></w:p>`;
     case "luft": return `<w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="${Math.round((b.mm ?? 4) * MM)}" w:lineRule="exact"/></w:pPr></w:p>`;
     case "rutor": {
@@ -145,25 +211,41 @@ function blockXml(b: Block, bredd: number): string {
       }).join(`<w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="20" w:lineRule="exact"/></w:pPr></w:p>`);
     }
     case "form": {
-      const [a, v] = fordela(bredd, [42, 58]);
+      const total = Math.round((bredd * (b.bredd ?? 100)) / 100);
+      const eb = b.etikettBredd ?? 42;
+      const [a, v] = fordela(total, [eb, 100 - eb]);
       return tabell([a!, v!], b.rader.map(([e, t]) =>
-        `<w:tr><w:trPr><w:cantSplit/></w:trPr>${cell(a!, para(run(e)), { fyll: "F2F2F2" })}${cell(v!, para(run(t)))}</w:tr>`).join(""));
+        `<w:tr><w:trPr><w:cantSplit/></w:trPr>${cell(a!, para(run(e)), { fyll: "F2F2F2" })}${cell(v!, t.split("\n").map((d) => para(run(d))).join(""))}</w:tr>`).join(""));
     }
-    case "tabell": {
-      const br = fordela(bredd, b.bredder.length === b.kolumner.length ? b.bredder : b.kolumner.map(() => 1));
-      const mitt = new Set(b.centrera ?? []);
-      const huvud = `<w:tr><w:trPr><w:cantSplit/><w:tblHeader/></w:trPr>${b.kolumner.map((k, i) =>
-        cell(br[i]!, para(run(k, { fet: true }), { jc: mitt.has(i) ? "center" : undefined }), { fyll: "BFBFBF" })).join("")}</w:tr>`;
-      const rader = b.rader.map((r, n) => {
-        if (typeof r === "string")
-          return `<w:tr><w:trPr><w:cantSplit/></w:trPr>${cell(bredd, para(run(r, { fet: true }), { hallIhop: true }), { fyll: "E2E2E2", span: b.kolumner.length })}</w:tr>`;
-        const fyll = n % 2 === 1 ? "F2F2F2" : undefined; // som utskriften: varannan rad grå
-        return `<w:tr><w:trPr><w:cantSplit/></w:trPr>${b.kolumner.map((_, i) =>
-          cell(br[i]!, para(run(r[i] ?? ""), { jc: mitt.has(i) ? "center" : undefined }), { fyll })).join("")}</w:tr>`;
-      }).join("");
-      return tabell(br, huvud + rader);
-    }
+    case "tabell": return tabellXml(b, bredd);
   }
+}
+
+const hex = (f?: string) => (f ? f.replace("#", "").toUpperCase() : undefined);
+
+function tabellXml(b: Tabell, sidbredd: number): string {
+  const bredd = Math.round((sidbredd * (b.bredd ?? 100)) / 100);
+  const n = b.kolumner.length;
+  const br = fordela(bredd, bredderFor(b));
+  const mitt = new Set(b.centrera ?? []);
+  const hojd = b.radhojd ? `<w:trHeight w:val="${Math.round(b.radhojd * MM)}"/>` : "";
+  const titel = b.titelrad ? `<w:tr><w:trPr><w:cantSplit/><w:tblHeader/></w:trPr>${cell(bredd, para(run(b.titelrad.text, { fet: true, storlek: 20, farg: b.titelrad.farg }), { hallIhop: true }), { fyll: hex(b.titelrad.fyll) ?? "BFBFBF", span: n })}</w:tr>` : "";
+  const huvud = b.utanRubrik ? "" : `<w:tr><w:trPr><w:cantSplit/><w:tblHeader/></w:trPr>${b.kolumner.map((k, i) =>
+    cell(br[i]!, para(run(k, { fet: true }), { jc: mitt.has(i) ? "center" : undefined }), { fyll: "BFBFBF" })).join("")}</w:tr>`;
+  const rader = b.rader.map((r, nr) => {
+    if (arSektion(r)) {
+      const o: { fyll?: string; farg?: string } = typeof r === "string" ? {} : r;
+      return `<w:tr><w:trPr><w:cantSplit/></w:trPr>${cell(bredd, para(run(sektionText(r), { fet: true, farg: o.farg }), { hallIhop: true }), { fyll: hex(o.fyll) ?? "E2E2E2", span: n })}</w:tr>`;
+    }
+    const zebra = !b.utanRubrik && nr % 2 === 1 ? "F2F2F2" : undefined; // som utskriften: varannan rad grå
+    return `<w:tr><w:trPr><w:cantSplit/>${hojd}</w:trPr>${b.kolumner.map((_, i) => {
+      const c = r[i] ?? "";
+      const o = typeof c === "string" ? { text: c } : c;
+      const jc = mitt.has(i) || o.mitt ? "center" as const : undefined;
+      return cell(br[i]!, o.text.split("\n").map((d) => para(run(d, { fet: o.fet, farg: o.farg }), { jc })).join("") || para("", { jc }), { fyll: hex(o.fyll) ?? zebra });
+    }).join("")}</w:tr>`;
+  }).join("");
+  return tabell(br, titel + huvud + rader);
 }
 
 /** Ritningshuvudet som tabell i sidhuvudet (upprepas på varje sida). */
@@ -215,7 +297,9 @@ export function byggWord(d: { liggande?: boolean; block: Block[] }, h: WordHuvud
   const [sidB, sidH] = d.liggande ? [16838, 11906] : [11906, 16838];
   const sidor = Math.round(12 * MM);
   const bredd = sidB - 2 * sidor;
-  const kropp = d.block.map((b) => blockXml(b, bredd)).join("\n");
+  // Två tabeller i följd skulle bli en enda tabell i Word: ett litet stycke emellan håller isär dem.
+  const kropp = d.block.map((b) => blockXml(b, bredd)).reduce((ut, xml) =>
+    ut + (ut.endsWith("</w:tbl>") && xml.startsWith("<w:tbl>") ? `<w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="${Math.round(2 * MM)}" w:lineRule="exact"/></w:pPr></w:p>` : "\n") + xml, "");
 
   const dokument = `${XML}<w:document ${NS}><w:body>${kropp}<w:p/>
 <w:sectPr><w:headerReference w:type="default" r:id="rIdHuvud"/><w:footerReference w:type="default" r:id="rIdFot"/>
@@ -274,7 +358,7 @@ export function byggWord(d: { liggande?: boolean; block: Block[] }, h: WordHuvud
 }
 
 /** Loggan som PNG (SVG ritas om till en bild i hög upplösning, eftersom Word inte kan visa SVG överallt). */
-async function hamtaLogga(url: string): Promise<WordLogga | null> {
+export async function hamtaLogga(url: string): Promise<WordLogga | null> {
   try {
     const bild = new Image();
     bild.crossOrigin = "anonymous";

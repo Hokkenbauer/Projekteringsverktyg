@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
+import { useFordrojdSparning } from "../../lib/sparning";
 import { api, ApiFel, skicka } from "../../lib/api";
 import type { Komponent, Projekt, Skap } from "../../lib/typer";
-import { esc, formHtml, oppnaDokument } from "../../lib/dokumenttema";
+import { skrivUtBlock, type BlockDokument } from "../../lib/dokumentBlock";
 
 /** Samma värden som dagens program (DATA\DropDowns\ApparatskapLedningsfarg). */
 const LEDNINGSFARGER = ["Röd", "Violett", "Svart", "Ljusblå", "Orange", "Brun", "Grå", "Vit", "Gul/Grön", "Blå", "Grön", "Gul"];
@@ -52,6 +53,25 @@ function lasFormular(s: Skap): Formular {
   };
 }
 
+/** Apparatskåpet som dokument (utskrift, PDF och Word). */
+export function apparatskapDokument(skap: Skap, projekt: Projekt | null): BlockDokument {
+  const f = lasFormular(skap);
+  const valda = KOMPONENTER.filter((n) => f.komponenter[n]?.vald);
+  return {
+    titel: `Apparatskåp ${skap.namn}`, kategori: "Apparatskåp", projekt,
+    block: [
+      { typ: "rubrik", text: "Grundinformation och skåpspecifikation" },
+      { typ: "form", rader: [["Beteckning", f.beteckning], ["Placering", f.placering], ["Beskrivning", f.beskrivning], ...SPEC.map(([k, n]): [string, string] => [n, f.spec[k] ?? ""])] },
+      { typ: "rubrik", text: "Ledningsfärger" },
+      { typ: "form", rader: FARGER.map(([k, n]): [string, string] => [n, f.farger[k] ?? ""]) },
+      { typ: "rubrik", text: "Komponenter i skåpet" },
+      valda.length ? { typ: "form", rader: valda.map((n): [string, string] => [n, f.komponenter[n]?.info ?? ""]) } : { typ: "text", text: "Inga valda." },
+      { typ: "rubrik", text: "Övrigt" },
+      { typ: "rutor", rader: [[{ varde: f.ovrigt, hojd: 12 }]] },
+    ],
+  };
+}
+
 type Props = {
   projektId: string;
   projekt: Projekt | null;
@@ -67,7 +87,7 @@ type Props = {
 export function ApparatskapVy({ projektId, projekt, skap, komponenter, lasläge, onSparat, onKonflikt, visaMeddelande }: Props) {
   const [f, setF] = useState<Formular>(() => lasFormular(skap));
   const [status, setStatus] = useState<"sparat" | "osparat" | "sparar">("sparat");
-  const timer = useRef<number | undefined>(undefined);
+  const sparning = useFordrojdSparning();
   const version = useRef(skap.version);
   const senast = useRef(skap.data + skap.beteckning + skap.placering + skap.beskrivning);
 
@@ -77,14 +97,12 @@ export function ApparatskapVy({ projektId, projekt, skap, komponenter, lasläge,
     if (status !== "osparat" && nu !== senast.current) { setF(lasFormular(skap)); senast.current = nu; }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [skap.id, skap.version]);
-  useEffect(() => () => window.clearTimeout(timer.current), []);
-
+  
   const andra = (ny: Formular) => {
     if (lasläge) return;
     setF(ny);
     setStatus("osparat");
-    window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => void spara(ny), 900);
+    sparning.planera(() => spara(ny), 900);
   };
 
   const spara = async (ny: Formular) => {
@@ -113,14 +131,8 @@ export function ApparatskapVy({ projektId, projekt, skap, komponenter, lasläge,
   const anslutna = bet ? komponenter.filter((k) => k.anslutsTill.trim().toLowerCase() === bet) : [];
   const valda = KOMPONENTER.filter((n) => f.komponenter[n]?.vald);
 
-  const skrivUt = () => oppnaDokument({
-    titel: `Apparatskåp ${skap.namn}`, kategori: "Apparatskåp", projekt,
-    kropp: `<h2>Grundinformation och skåpspecifikation</h2>
-${formHtml([["Beteckning", f.beteckning], ["Placering", f.placering], ["Beskrivning", f.beskrivning], ...SPEC.map(([k, n]): [string, string] => [n, f.spec[k] ?? ""])])}
-<div class="tva"><div><h2>Ledningsfärger</h2>${formHtml(FARGER.map(([k, n]): [string, string] => [n, f.farger[k] ?? ""]))}</div>
-<div><h2>Komponenter i skåpet</h2>${valda.length ? formHtml(valda.map((n): [string, string] => [n, f.komponenter[n]?.info ?? ""])) : "<p>Inga valda.</p>"}</div></div>
-<h2>Övrigt</h2><div class="ruta">${esc(f.ovrigt)}</div>`,
-  });
+  const skrivUt = () => { void sparning.nu(); skrivUtBlock(apparatskapDokument({ ...skap, beteckning: f.beteckning, placering: f.placering, beskrivning: f.beskrivning,
+    data: JSON.stringify({ farger: f.farger, komponenter: f.komponenter, spec: f.spec, ovrigt: f.ovrigt }) }, projekt)); };
 
   const falt = (etikett: string, varde: string, satt: (v: string) => void, lang = false) => (
     <label key={etikett} className={`skapfalt ${lang ? "lang" : ""}`}>

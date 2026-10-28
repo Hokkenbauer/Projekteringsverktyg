@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useFordrojdSparning } from "../../lib/sparning";
 import { api, ApiFel, laddaNer, skicka } from "../../lib/api";
 import type { Komponent, Korttyp, ModulKort, Modulbelaggning, Projekt, Skap } from "../../lib/typer";
 import { Dialog } from "../../shell/Dialog";
-import { oppnaDokument } from "../../lib/dokumenttema";
+import { skrivUtBlock, type Block, type BlockDokument } from "../../lib/dokumentBlock";
 
 const MAX_MA = 2000;
 const tal = (v: number | undefined) => (Number.isFinite(v) ? v! : 0).toLocaleString("sv-SE", { maximumFractionDigits: 3 });
@@ -31,6 +32,30 @@ function textFor(hex: string) {
   const n = parseInt(m[1]!, 16);
   const lum = 0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255);
   return lum > 150 ? "#000" : "#fff";
+}
+
+/** Modulbeläggningen som dokument: CPU1 och en tabell per I/O-kort i kortets färg. */
+export function modulDokument(skap: Skap, m: Modulbelaggning, komponenter: Komponent[], projekt: Projekt | null): BlockDokument {
+  const perId = new Map(komponenter.map((k) => [k.id, k]));
+  const totalBredd = m.kort.reduce((s, k) => s + (Number(k.breddMm) || 0), 0);
+  const totalMa = m.kort.reduce((s, k) => s + (Number(k.stromMa) || 0), 0);
+  const kort: Block[] = m.kort.map((k, i) => ({
+    typ: "tabell", kolumner: ["Kanal", "Beteckning", "Komponent", "Beskrivning", "Information"], bredder: [9, 20, 20, 29, 22],
+    titelrad: { text: `M${i + 1}   ${k.beskrivning}   [${tal(k.stromMa)} mA ${tal(k.breddMm)} mm]`, fyll: k.farg, farg: textFor(k.farg) },
+    utanRubrik: !k.kanaler.length,
+    rader: k.kanaler.map((c, j) => {
+      const kp = c.komponentId ? perId.get(c.komponentId) : undefined;
+      return [`M${i + 1}:${j + 1}`, kp?.beteckning ?? "", kp?.komponenttyp ?? "", kp?.beskrivning ?? "", c.information ?? ""];
+    }),
+  }));
+  return {
+    titel: `Modulbeläggning ${skap.namn}`, kategori: "Modulbeläggning", projekt,
+    block: [
+      { typ: "text", text: `CPU1: ${m.cpu1}`, fet: true },
+      ...kort,
+      { typ: "text", text: `Totalt: ${tal(totalBredd)} mm  |  ${tal(totalMa)} / ${tal(MAX_MA)} mA`, fet: true },
+    ],
+  };
 }
 
 type Props = {
@@ -82,7 +107,7 @@ export function ModulbelaggningVy({ projektId, projekt, skap, allaSkap, komponen
   };
   const [dialog, setDialog] = useState(false);
   const [markerad, setMarkerad] = useState<{ kort: string; kanal: number } | null>(null);
-  const timer = useRef<number | undefined>(undefined);
+  const sparning = useFordrojdSparning();
   const version = useRef(skap.version);
   const senast = useRef(skap.moduler);
 
@@ -95,14 +120,12 @@ export function ModulbelaggningVy({ projektId, projekt, skap, allaSkap, komponen
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [skap.id, skap.version, skap.moduler]);
-  useEffect(() => () => window.clearTimeout(timer.current), []);
-
+  
   const andra = (ny: Modulbelaggning) => {
     if (lasläge) return;
     setM(ny);
     setStatus("osparat");
-    window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => void spara(ny), 700);
+    sparning.planera(() => spara(ny), 700);
   };
 
   const spara = async (ny: Modulbelaggning) => {
@@ -198,19 +221,7 @@ export function ModulbelaggningVy({ projektId, projekt, skap, allaSkap, komponen
   const totalBredd = m.kort.reduce((s, k) => s + (Number(k.breddMm) || 0), 0);
   const totalMa = m.kort.reduce((s, k) => s + (Number(k.stromMa) || 0), 0);
 
-  const skrivUt = () => {
-    const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    const kortHtml = m.kort.map((k, i) => `
-      <table class="data modul"><thead><tr><th colspan="5" style="background:${esc(k.farg)};color:${textFor(k.farg)}">M${i + 1} &nbsp; ${esc(k.beskrivning)} &nbsp; [${tal(k.stromMa)} mA ${tal(k.breddMm)} mm]</th></tr>
-      ${k.kanaler.length ? "<tr><th>Kanal</th><th>Beteckning</th><th>Komponent</th><th>Beskrivning</th><th>Information</th></tr>" : ""}</thead>
-      <tbody>${k.kanaler.map((c, j) => { const kp = c.komponentId ? komponentPerId.get(c.komponentId) : undefined;
-        return `<tr><td>M${i + 1}:${j + 1}</td><td>${esc(kp?.beteckning ?? "")}</td><td>${esc(kp?.komponenttyp ?? "")}</td><td>${esc(kp?.beskrivning ?? "")}</td><td>${esc(c.information ?? "")}</td></tr>`; }).join("")}</tbody></table>`).join("");
-    oppnaDokument({
-      titel: `Modulbeläggning ${skap.namn}`, kategori: "Modulbeläggning", projekt,
-      css: "table.modul{margin-bottom:3mm;break-inside:avoid} table.modul thead tr:first-child th{font-size:10pt}",
-      kropp: `<p><b>CPU1:</b> ${esc(m.cpu1)}</p>${kortHtml}<p style="margin-top:3mm"><b>Totalt: ${tal(totalBredd)} mm &nbsp;|&nbsp; ${tal(totalMa)} / ${tal(MAX_MA)} mA</b></p>`,
-    });
-  };
+  const skrivUt = () => skrivUtBlock(modulDokument(skap, m, komponenter, projekt));
 
   return (
     <div className="modulyta" style={{ gridTemplateColumns: `${panel.b}px 1fr` }}>

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useFordrojdSparning } from "../../lib/sparning";
 import type { Kataloger, Komponent, ListRad } from "../../lib/typer";
 import {
   Anslutningar, GATEWAYTYPER, GATEWAY_KOMPONENTTYP, arGateway, gatewaytyp, installning, lasGateway, nastaGatewayBeteckning,
@@ -33,18 +34,16 @@ type RedigerareProps = {
  */
 export function GatewayRedigerare({ gateway, anslutningar, modbus, lasläge, onAndra, visaEnheter, onInfo }: RedigerareProps) {
   const [inst, setInst] = useState<GatewayInstallningar>(() => lasGateway(gateway));
-  const timer = useRef<number | undefined>(undefined);
+  const sparning = useFordrojdSparning();
   const andrad = useRef(false);
   const senaste = useRef(gateway);
   senaste.current = gateway;
   useEffect(() => { if (!andrad.current) setInst(lasGateway(gateway)); }, [gateway.installningar]);
-  useEffect(() => () => window.clearTimeout(timer.current), []);
-
+  
   const spara = (ny: GatewayInstallningar) => {
     setInst(ny);
     andrad.current = true;
-    window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => {
+    sparning.planera(() => {
       andrad.current = false;
       onAndra(senaste.current, "installningar", JSON.stringify(ny));
     }, 600);

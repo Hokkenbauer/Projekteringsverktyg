@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useFordrojdSparning } from "../../lib/sparning";
 import { api, skicka } from "../../lib/api";
 import { STANDARD_UPPGIFTER, sattDokumentUppgifter, type DokUppgifter } from "../../lib/dokumenttema";
 import type { Projekt, ProjektDokument } from "../../lib/typer";
@@ -64,7 +65,7 @@ export function DokumentUppgifter({ projektId, projekt, lasläge, uppdaterad, vi
   const [sf, setSf] = useState<{ dok: ProjektDokument | null; sidfot: Sidfot } | null>(null);
   const dok = useRef<ProjektDokument | null>(null);
   const [status, setStatus] = useState<"" | "osparat" | "sparar">("");
-  const timer = useRef<number | undefined>(undefined);
+  const sparning = useFordrojdSparning();
   const ny = useRef<{ u: DokUppgifter; sf: Sidfot | null } | null>(null);
   const [bibliotek, setBibliotek] = useState<Logga[]>([]);
   useEffect(() => { hamtaLoggor().then((l) => setBibliotek(l.lista)).catch(() => setBibliotek([])); }, []);
@@ -86,8 +87,7 @@ export function DokumentUppgifter({ projektId, projekt, lasläge, uppdaterad, vi
       .catch((e) => visaMeddelande(`Dokumentuppgifterna kunde inte hämtas: ${(e as Error).message}`));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projektId, uppdaterad]);
-  useEffect(() => () => window.clearTimeout(timer.current), []);
-
+  
   const spara = async () => {
     const n = ny.current; if (!n) return;
     ny.current = null;
@@ -117,8 +117,7 @@ export function DokumentUppgifter({ projektId, projekt, lasläge, uppdaterad, vi
     if (nySf && sf) setSf({ ...sf, sidfot: nySf });
     ny.current = { u: nu, sf: nySf ?? ny.current?.sf ?? null };
     setStatus("osparat");
-    window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => void spara(), 900);
+    sparning.planera(() => spara(), 900);
   };
 
   const falt = (k: keyof DokUppgifter, etikett: string, typ = "text") => (

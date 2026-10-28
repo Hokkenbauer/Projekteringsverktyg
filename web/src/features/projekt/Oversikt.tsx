@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { FilexportKnapp } from "../export/FilexportDialog";
 import { api, ApiFel, laddaNer } from "../../lib/api";
 import { Dialog } from "../../shell/Dialog";
 import type { Anteckningar, AttGora, Komponent, ListRad, Logg, Narvarande, Projekt } from "../../lib/typer";
@@ -137,6 +138,7 @@ export function Oversikt({ projekt, komponenter, attGora, anteckningar, logg, na
         <h1>{projekt.namn}</h1>
         <div className="knappar">
           {kanKomplettera && <KompletteraKnapp projekt={projekt} onKompletterat={onKompletterat} />}
+          <FilexportKnapp projekt={projekt} />
           <ProjektExportKnapp projekt={projekt} />
         </div>
       </div>

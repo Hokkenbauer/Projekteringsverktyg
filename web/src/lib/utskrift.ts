@@ -1,4 +1,4 @@
-import { oppnaDokument, tabellHtml } from "./dokumenttema";
+import { skrivUtBlock, type BlockDokument, type Cell } from "./dokumentBlock";
 import type { Projekt } from "./typer";
 
 const esc = (s: string) =>
@@ -13,26 +13,33 @@ export const loggaHtml = (hojd = "11mm") =>
 export const loggaRad = () => `<div style="display:flex;justify-content:flex-end;margin:0 0 3mm">${loggaHtml()}</div>`;
 
 type Innehall =
-  | { typ: "tabell"; kolumner: string[]; rader: string[][]; sammanfattning?: string }
+  | { typ: "tabell"; kolumner: string[]; rader: (Cell[] | string)[]; sammanfattning?: string; bredder?: number[]; centrera?: number[] }
   | { typ: "text"; text: string }
   /** Formaterad text (funktionstexter från Word). HTML:en är redan rensad. */
   | { typ: "html"; html: string };
+
+type Val = { liggande?: boolean; kolumnlinjer?: boolean; kategori?: string };
+
+/** Listor och texter som blockdokument i dokumenttemat (samma innehåll i utskrift, PDF och Word). */
+export function utskriftDokument(titel: string, projekt: Projekt | null, innehall: Exclude<Innehall, { typ: "html" }>, val: Val = {}): BlockDokument {
+  if (innehall.typ === "text") return { titel, projekt, kategori: val.kategori, liggande: val.liggande, block: [{ typ: "text", text: innehall.text }] };
+  return {
+    titel, projekt, kategori: val.kategori,
+    liggande: val.liggande ?? innehall.kolumner.length > 7,
+    block: [
+      ...(innehall.sammanfattning ? [{ typ: "text" as const, text: innehall.sammanfattning }] : []),
+      { typ: "tabell", kolumner: innehall.kolumner, rader: innehall.rader, bredder: innehall.bredder, centrera: innehall.centrera },
+    ],
+  };
+}
 
 /**
  * Öppnar en utskriftsvänlig sida med projektets sidhuvud och skriver ut den.
  * I utskriftsrutan kan man välja "Spara som PDF". Samma mall används av alla listor.
  */
-export function skrivUt(titel: string, projekt: Projekt | null, innehall: Innehall,
-  val: { liggande?: boolean; kolumnlinjer?: boolean; kategori?: string } = {}) {
+export function skrivUt(titel: string, projekt: Projekt | null, innehall: Innehall, val: Val = {}) {
   // Listor och texter får dokumenttemat; formaterad text (funktionstexter) behåller sin egen layout nedan.
-  if (innehall.typ !== "html") {
-    const liggande = val.liggande ?? (innehall.typ === "tabell" && innehall.kolumner.length > 7);
-    const kropp = innehall.typ === "tabell"
-      ? `${innehall.sammanfattning ? `<p>${esc(innehall.sammanfattning)}</p>` : ""}${tabellHtml(innehall.kolumner, innehall.rader)}`
-      : `<div class="ruta" style="border:0;padding:0">${esc(innehall.text)}</div>`;
-    oppnaDokument({ titel, projekt, liggande, kropp, kategori: val.kategori });
-    return;
-  }
+  if (innehall.typ !== "html") { skrivUtBlock(utskriftDokument(titel, projekt, innehall, val)); return; }
   const f = window.open("", "_blank");
   if (!f) {
     alert("Webbläsaren stoppade utskriftsfönstret. Tillåt popup-fönster för sidan och försök igen.");

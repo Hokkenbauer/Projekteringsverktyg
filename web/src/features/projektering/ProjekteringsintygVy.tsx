@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import { useFordrojdSparning } from "../../lib/sparning";
 import { api } from "../../lib/api";
 import type { Anteckningar, ListRad, Projekt } from "../../lib/typer";
-import { oppnaDokument } from "../../lib/dokumenttema";
 import { valtDatum } from "../listor/ListVy";
-import { blockHtml } from "../../lib/dokumentBlock";
-import { gruppera } from "../kontroller/ProjekteringsegenkontrollVy";
+import { skrivUtBlock, type Block, type BlockDokument, type TabellRad } from "../../lib/dokumentBlock";
+import { gruppera, pekMedEa } from "../kontroller/ProjekteringsegenkontrollVy";
 
 type Handling = { handling: string; beskrivning: string; datum: string; signProjektor: string; signProjekteringsledare: string };
 type Anvisning = { dokument: string; typ: string; daterad: string };
@@ -32,7 +32,74 @@ function las(text: string | undefined, projekt: Projekt | null): Intyg {
   return grund;
 }
 
-const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+export type Egenkontroll = { namn: string; rader: ListRad[] };
+
+/** Projekteringsegenkontrollerna i projektet (bilagan till intyget). */
+export async function hamtaEgenkontroller(projektId: string): Promise<Egenkontroll[]> {
+  const kontroller = await api<{ id: string; namn: string }[]>(`/api/projekt/${projektId}/kontroller?typ=projektering`);
+  return Promise.all(kontroller.map(async (k) => ({
+    namn: k.namn,
+    rader: (await api<ListRad[]>(`/api/projekt/${projektId}/listor/kontroll-${k.id}`)).sort((a, b) => a.ordning - b.ordning),
+  })));
+}
+
+/**
+ * Projekteringsintyget som dokument enligt mallen "Projekteringsintyg och egenkontroll": samma rubriker, rutor
+ * och tomma rader att fylla i för hand. Projekteringsegenkontrollerna (egen) blir bilaga på egna sidor.
+ */
+export function intygDokument(text: string | undefined, projekt: Projekt | null, egen: Egenkontroll[], medEa = pekMedEa()): BlockDokument {
+  const intyg = las(text, projekt);
+  const ruta = (b: boolean) => (b ? "✔" : "");
+  const fyll = <T,>(lista: T[], minst: number, tom: T) => [...lista, ...Array.from({ length: Math.max(0, minst - lista.length) }, () => tom)];
+  const bilaga = egen.filter((k) => k.rader.length).flatMap((k): Block[] => {
+    const rader: TabellRad[] = [];
+    // Punkter som är Ej aktuell tas bara med om man valt det i Projekteringsegenkontrollen; avsnitt och punkter numreras om.
+    let nr = 0;
+    for (const a of gruppera(k.rader)) {
+      const punkter = medEa ? a.punkter : a.punkter.filter((x) => x.status !== "ea");
+      if (!punkter.length) continue;
+      nr++;
+      if (a.namn) rader.push(`${nr}. ${a.namn}`);
+      punkter.forEach((x, i) => rader.push([`${nr}.${i + 1}`, x.text, x.status === "ok" ? "OK" : x.status === "kompl" ? "Kompl." : x.status === "ea" ? "E.A." : "", x.rad.data.ovrigt ?? "", valtDatum(x.rad.data.datum), x.rad.data.sign ?? ""]));
+    }
+    return [
+      { typ: "sidbrytning" },
+      { typ: "rubrik", text: `Egenkontroll – ${k.namn}` },
+      { typ: "text", kursiv: true, text: `OK = utförd, Kompl. = komplettering krävs${medEa ? ", E.A. = ej aktuell" : ". Punkter som inte är aktuella är inte med"}. Signering intygar att punkten är kontrollerad.` },
+      { typ: "tabell", kolumner: ["Nr", "Kontrollpunkt", "Status", "Kommentar", "Datum", "Sign."], bredder: [6, 47, 7, 22, 11, 7], centrera: [2], rader },
+    ];
+  });
+  return {
+    titel: "Projekteringsintyg och egenkontroll", kategori: "Projekteringsintyg", projekt,
+    block: [
+      { typ: "form", bredd: 66, etikettBredd: 34, rader: [["Objekt:", intyg.objekt], ["Slutkund:", intyg.slutkund], ["Beställare:", intyg.bestallare],
+        ["Projekteringsledare:", intyg.projekteringsledare], ["Projektör:", intyg.projektor], ["Projektnummer:", intyg.projektnummer]] },
+      { typ: "rubrik", text: "Omfattning" },
+      { typ: "rutor", rader: [[{ etikett: "Projektets omfattning:", varde: intyg.omfattning, hojd: 34 }]] },
+      { typ: "rubrik", text: "Upprättade handlingar" },
+      { typ: "text", text: "Signering av handling intygar kontroll av handlingen.", kursiv: true },
+      { typ: "tabell", kolumner: ["Handling", "Beskrivning", "Datum", "Sign. Projektör", "Sign. Projekterings\u00ADledare"], bredder: [20, 38, 12, 13, 17], radhojd: 7.5,
+        rader: fyll(intyg.handlingar, 6, tomHandling).map((h) => [h.handling, h.beskrivning, valtDatum(h.datum), h.signProjektor, h.signProjekteringsledare]) },
+      { typ: "rubrik", text: "Anvisningar för projektering" },
+      { typ: "tabell", kolumner: ["Dokument", "Typ av dokument", "Daterad"], bredder: [44, 43, 13], radhojd: 5.5,
+        rader: fyll(intyg.anvisningar, 6, tomAnvisning).map((a) => [a.dokument, a.typ, valtDatum(a.daterad)]) },
+      { typ: "rubrik", text: "Avsteg i projektering" },
+      { typ: "rutor", rader: [[{ etikett: "Avsteg som har gjorts under projektering:", varde: intyg.avsteg, hojd: 22 }]] },
+      { typ: "rubrik", text: "Riskanalys för kontrollplan" },
+      { typ: "rutor", rader: [[{ etikett: "Riskanalys utförd, datum/signatur:", varde: intyg.riskanalysUtford, hojd: 11 }]] },
+      { typ: "text", text: "Resultat från riskanalys:", fet: true },
+      { typ: "tabell", kolumner: ["Inga risker uppdagade", "Risker uppdagade. Riskanalys bifogas som bilaga"], bredder: [50, 50], bredd: 66, centrera: [0, 1], radhojd: 12,
+        rader: [[ruta(intyg.ingaRisker), ruta(intyg.riskerUppdagade)]] },
+      { typ: "rubrik", text: "Materialval" },
+      { typ: "tabell", kolumner: ["", ""], utanRubrik: true, bredder: [80, 20], centrera: [1],
+        rader: [[MATERIAL_ENTREPRENOR, ruta(intyg.materialEntreprenor)], [MATERIAL_INTYGAT, ruta(intyg.materialIntygat)]] },
+      { typ: "luft", mm: 5 },
+      { typ: "text", text: "Härmed intygas ovan uppgifter:", fet: true },
+      { typ: "rutor", rader: [[{ etikett: "Ort / datum", varde: intyg.ortDatum, hojd: 12 }], [{ etikett: "Signatur", varde: intyg.signatur, hojd: 12 }]] },
+      ...bilaga,
+    ],
+  };
+}
 
 type Props = {
   projektId?: string;
@@ -49,16 +116,14 @@ type Props = {
 export function ProjekteringsintygVy(p: Props) {
   const [intyg, setIntyg] = useState<Intyg>(() => las(p.text?.text, p.projekt));
   const [status, setStatus] = useState<"sparat" | "osparat" | "sparar">("sparat");
-  const timer = useRef<number | undefined>(undefined);
+  const sparning = useFordrojdSparning();
 
   useEffect(() => { if (status === "sparat" && p.text?.text) setIntyg(las(p.text.text, p.projekt)); }, [p.text?.text]);
-  useEffect(() => () => window.clearTimeout(timer.current), []);
-
+  
   const spara = (ny: Intyg) => {
     setIntyg(ny);
     setStatus("osparat");
-    window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(async () => {
+    sparning.planera(async () => {
       setStatus("sparar");
       try { await p.onSparaText(JSON.stringify(ny)); setStatus("sparat"); }
       catch (e) { setStatus("osparat"); p.visaMeddelande(`Kunde inte spara: ${(e as Error).message}`); }
@@ -99,102 +164,17 @@ export function ProjekteringsintygVy(p: Props) {
 
   const [medEgenkontroll, setMedEgenkontroll] = useState(true);
 
-  /** Projekteringsegenkontrollerna i projektet (för bilagan i utskriften). */
-  const hamtaEgenkontroller = async () => {
-    if (!p.projektId) return [];
-    const kontroller = await api<{ id: string; namn: string }[]>(`/api/projekt/${p.projektId}/kontroller?typ=projektering`);
-    return Promise.all(kontroller.map(async (k) => ({
-      namn: k.namn,
-      rader: (await api<ListRad[]>(`/api/projekt/${p.projektId}/listor/kontroll-${k.id}`)).sort((a, b) => a.ordning - b.ordning),
-    })));
-  };
-
-  /** Utskrift enligt mallen "Projekteringsintyg och egenkontroll": samma rubriker, rutor och tomma rader att fylla i för hand. */
+  /** Utskrift enligt mallen "Projekteringsintyg och egenkontroll", med projekteringsegenkontrollen som bilaga om den är vald. */
   const skrivUt = async () => {
     const f = window.open("", "_blank");
     if (!f) { alert("Webbläsaren stoppade utskriftsfönstret. Tillåt popup-fönster för sidan."); return; }
     f.document.write("<p style='font-family:Arial'>Förbereder utskriften…</p>");
-    let egen: { namn: string; rader: ListRad[] }[] = [];
-    if (medEgenkontroll) {
-      try { egen = await hamtaEgenkontroller(); } catch { egen = []; }
+    await sparning.nu();
+    let egen: Egenkontroll[] = [];
+    if (medEgenkontroll && p.projektId) {
+      try { egen = await hamtaEgenkontroller(p.projektId); } catch { egen = []; }
     }
-    const ruta = (b: boolean) => (b ? "✔" : "");
-    const fyll = <T,>(lista: T[], minst: number, tom: T) => [...lista, ...Array.from({ length: Math.max(0, minst - lista.length) }, () => tom)];
-    const info = ([["Objekt", intyg.objekt], ["Slutkund", intyg.slutkund], ["Beställare", intyg.bestallare],
-      ["Projekteringsledare", intyg.projekteringsledare], ["Projektör", intyg.projektor], ["Projektnummer", intyg.projektnummer]] as const)
-      .map(([e, v]) => `<tr><th>${e}:</th><td>${esc(v)}</td></tr>`).join("");
-    const handlingar = fyll(intyg.handlingar, 6, tomHandling).map((h) =>
-      `<tr class="hog"><td>${esc(h.handling)}</td><td>${esc(h.beskrivning)}</td><td>${esc(valtDatum(h.datum))}</td><td>${esc(h.signProjektor)}</td><td>${esc(h.signProjekteringsledare)}</td></tr>`).join("");
-    const anvisningar = fyll(intyg.anvisningar, 6, tomAnvisning).map((a) =>
-      `<tr><td>${esc(a.dokument)}</td><td>${esc(a.typ)}</td><td>${esc(valtDatum(a.daterad))}</td></tr>`).join("");
-    const bilaga = egen.filter((k) => k.rader.length).map((k) => {
-      const rader: (string[] | string)[] = [];
-      // Punkter som är Ej aktuell tas bara med om man valt det i Projekteringsegenkontrollen; avsnitt och punkter numreras om.
-      let medEa = false;
-      try { medEa = localStorage.getItem("pek-med-ej-aktuella") === "1"; } catch { /* standard: utan */ }
-      let nr = 0;
-      for (const a of gruppera(k.rader)) {
-        const punkter = medEa ? a.punkter : a.punkter.filter((x) => x.status !== "ea");
-        if (!punkter.length) continue;
-        nr++;
-        if (a.namn) rader.push(`${nr}. ${a.namn}`);
-        punkter.forEach((x, i) => rader.push([`${nr}.${i + 1}`, x.text, x.status === "ok" ? "OK" : x.status === "kompl" ? "Kompl." : x.status === "ea" ? "E.A." : "", x.rad.data.ovrigt ?? "", valtDatum(x.rad.data.datum), x.rad.data.sign ?? ""]));
-      }
-      return `
-<h2 class="ny-sida">EGENKONTROLL – ${esc(k.namn.toUpperCase())}</h2>
-<p class="not">OK = utförd, Kompl. = komplettering krävs${medEa ? ", E.A. = ej aktuell" : ". Punkter som inte är aktuella är inte med"}. Signering intygar att punkten är kontrollerad.</p>
-${blockHtml([{ typ: "tabell", kolumner: ["Nr", "Kontrollpunkt", "Status", "Kommentar", "Datum", "Sign."], bredder: [6, 47, 7, 22, 11, 7], centrera: [2], rader }])}`;
-    }).join("");
-
-    oppnaDokument({
-      titel: "Projekteringsintyg och egenkontroll", kategori: "Projekteringsintyg", projekt: p.projekt,
-      css: `.blk{break-inside:avoid;page-break-inside:avoid}
-.not{font-style:italic;margin:-1.5mm 0 2mm}
-table.ram{border-collapse:collapse;width:100%}
-table.ram th,table.ram td{border:1px solid #000;padding:3px 5px;vertical-align:top;text-align:left}
-table.ram thead th{font-weight:700;background:#BFBFBF}
-.info th{background:#F2F2F2}
-.info{width:66%!important}.info th{width:32%;text-align:right!important;font-weight:700;white-space:nowrap}
-.ruta{border:1px solid #000;padding:4px 6px}.ruta b{display:block;margin-bottom:2px}.ruta p{white-space:pre-wrap;margin:0;line-height:1.4}
-.omf{min-height:34mm}.avsteg{min-height:22mm}
-tr.hog td{height:7.5mm}
-.handl th:nth-child(3),.handl td:nth-child(3){width:13%;white-space:nowrap}.handl th:nth-child(4),.handl td:nth-child(4){width:11%}.handl th:nth-child(5),.handl td:nth-child(5){width:15%}
-.anv td{height:4.5mm}.anv th:nth-child(3),.anv td:nth-child(3){width:13%}
-.risk{width:66%!important}.risk th{text-align:center!important;width:50%}.risk td{height:12mm;text-align:center!important;vertical-align:middle;font-size:14pt}
-.mat td:last-child{width:22%;text-align:center!important;vertical-align:middle;font-size:14pt}
-.mitt{text-align:center}
-.linje{border-bottom:1px solid #000;min-height:6mm;padding-top:4mm;margin-bottom:2mm}
-.utford{display:flex;gap:6px;align-items:flex-end;font-weight:700}.utford span{flex:0 0 95mm;border-bottom:1px solid #000;font-weight:400;min-height:5mm}
-.sign b{display:block;margin-top:6mm}
-.ny-sida{page-break-before:always;margin-top:0}
-tr,.ruta{page-break-inside:avoid}
-.egen td{font-size:8.5pt}
-`,
-      kropp: `<table class="ram info">${info}</table>
-<h2>Omfattning</h2>
-<div class="ruta omf"><b>Projektets omfattning:</b><p>${esc(intyg.omfattning)}</p></div>
-<h2>Upprättade handlingar</h2><p class="not">Signering av handling intygar kontroll av handlingen.</p>
-<table class="ram handl"><thead><tr><th>Handling</th><th>Beskrivning</th><th>Datum</th><th>Sign.<br>Projektör</th><th>Sign.<br>Projekterings&shy;ledare</th></tr></thead><tbody>${handlingar}</tbody></table>
-<div class="blk"><h2>Anvisningar för projektering</h2>
-<table class="ram anv"><thead><tr><th>Dokument</th><th>Typ av dokument</th><th>Daterad</th></tr></thead><tbody>${anvisningar}</tbody></table></div>
-<div class="blk"><h2>Avsteg i projektering</h2>
-<div class="ruta avsteg"><b>Avsteg som har gjorts under projektering:</b><p>${esc(intyg.avsteg)}</p></div></div>
-<div class="blk"><h2>Riskanalys för kontrollplan</h2>
-<div class="utford">Riskanalys utförd, datum/signatur: <span>${esc(intyg.riskanalysUtford)}</span></div>
-<p style="font-weight:700;margin:4mm 0 2mm">Resultat från riskanalys:</p>
-<table class="ram risk"><thead><tr><th>Inga risker<br>uppdagade</th><th>Risker uppdagade.<br>Riskanalys bifogas som bilaga</th></tr></thead>
-<tbody><tr><td>${ruta(intyg.ingaRisker)}</td><td>${ruta(intyg.riskerUppdagade)}</td></tr></tbody></table></div>
-<div class="blk"><h2>Materialval</h2>
-<table class="ram mat"><tr><td>${esc(MATERIAL_ENTREPRENOR)}</td><td>${ruta(intyg.materialEntreprenor)}</td></tr>
-<tr><td>${esc(MATERIAL_INTYGAT)}</td><td>${ruta(intyg.materialIntygat)}</td></tr></table></div>
-<div class="sign" style="page-break-inside:avoid">
-<p style="font-weight:700;margin:7mm 0 0">Härmed intygas ovan uppgifter:</p>
-<b>Ort / datum</b><div class="linje">${esc(intyg.ortDatum)}</div>
-<b>Signatur</b><div class="linje">${esc(intyg.signatur)}</div>
-</div>
-${bilaga}
-`,
-    }, f);
+    skrivUtBlock(intygDokument(JSON.stringify(intyg), p.projekt, egen), f);
   };
 
   const kryss = (k: "ingaRisker" | "riskerUppdagade" | "materialEntreprenor" | "materialIntygat", text: string) => (

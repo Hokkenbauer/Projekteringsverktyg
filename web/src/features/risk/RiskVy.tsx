@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { useFordrojdSparning } from "../../lib/sparning";
 import { api, skicka } from "../../lib/api";
 import type { Anteckningar, ListDef, ListRad, Projekt } from "../../lib/typer";
-import { oppnaDokument } from "../../lib/dokumenttema";
+import { skrivUtBlock, type BlockDokument, type Cell } from "../../lib/dokumentBlock";
 
 export type RiskVariant = "projektering" | "produktion";
 
@@ -83,23 +84,63 @@ type Props = {
   children: ReactNode;
 };
 
-const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const riskFarg = (v: number) => (v >= 6 ? "#C53030" : v >= 3 ? "#D69E2E" : v > 0 ? "#2F855A" : undefined);
+
+/** Riskanalysen som dokument (utskrift, PDF och Word): rubrikfält, texter, riskerna och riskmatrisen. */
+export function riskDokument(rubrik: string, variant: RiskVariant, text: string | undefined, rader: ListRad[], projekt: Projekt | null): BlockDokument {
+  const huvud = las(text, variant);
+  const sorterade = [...rader].sort((a, b) => a.ordning - b.ordning);
+  const varden = sorterade.map((r) => ({ s: Number(r.data.sannolikhet), k: Number(r.data.konsekvens) }));
+  const matris: Cell[][] = [3, 2, 1].map((s) => [{ text: String(s), fet: true, mitt: true, fyll: "#BFBFBF" }, ...[1, 2, 3].map((k): Cell => {
+    const n = varden.filter((x) => x.s === s && x.k === k).length;
+    return { text: n ? String(n) : "", fyll: riskFarg(s * k), farg: "#FFFFFF", fet: true, mitt: true };
+  })]);
+  return {
+    titel: rubrik, kategori: "Riskanalys", projekt,
+    block: [
+      { typ: "form", rader: [
+        ["Projekt", [projekt?.namn, projekt?.nummer].filter(Boolean).join(" · ")], ["Objekt", huvud.objekt], ["Datum", huvud.datum],
+        ["Totalentreprenör", huvud.totalentreprenor], ["Handläggare", [huvud.handlaggare, huvud.epost].filter(Boolean).join(", ")],
+      ] },
+      { typ: "rubrik", text: "Inledning" },
+      { typ: "text", text: `Syfte. ${huvud.syfte}` },
+      { typ: "text", text: `Omfattning. ${huvud.omfattning}` },
+      { typ: "rubrik", text: "Metodik" },
+      { typ: "text", text: huvud.metodik },
+      { typ: "rubrik", text: "Riskidentifiering och -bedömning" },
+      { typ: "tabell", kolumner: ["Pos.", "Arbetsmoment", "Risk", "S", "K", "Riskvärde", "Åtgärd", "Ansvarig"],
+        bredder: [5, 15, 23, 4, 4, 10, 27, 12], centrera: [3, 4, 5],
+        rader: sorterade.map((r, i) => {
+          const v = Number(r.data.sannolikhet) * Number(r.data.konsekvens) || 0;
+          return [String(i + 1), r.data.arbetsmoment ?? "", r.data.risk ?? "", r.data.sannolikhet ?? "", r.data.konsekvens ?? "",
+            { text: v ? String(v) : "", fyll: riskFarg(v), farg: v ? "#FFFFFF" : undefined, fet: true, mitt: true }, r.data.atgard ?? "", r.data.ansvarig ?? ""];
+        }) },
+      { typ: "rubrik", text: "Riskmatris" },
+      { typ: "text", text: "Antal risker per sannolikhet (S, rader) och konsekvens (K, kolumner).", kursiv: true },
+      { typ: "tabell", kolumner: ["S \\ K", "1", "2", "3"], bredder: [25, 25, 25, 25], bredd: 32, centrera: [0, 1, 2, 3], radhojd: 7, rader: matris },
+      { typ: "rubrik", text: "Riskhanteringsplan" },
+      { typ: "text", text: huvud.riskhantering },
+      { typ: "rubrik", text: "Uppföljning och utvärdering" },
+      { typ: "text", text: huvud.uppfoljning },
+      { typ: "rubrik", text: "Slutsats" },
+      { typ: "text", text: huvud.slutsats },
+    ],
+  };
+}
 
 export function RiskVy({ projektId, projekt, variant, grupp, rubrik, text, onSparaText, def, rader, lasläge, visaMeddelande, children }: Props) {
   const [huvud, setHuvud] = useState<Huvud>(() => las(text?.text, variant));
   const [status, setStatus] = useState<"sparat" | "osparat" | "sparar">("sparat");
-  const timer = useRef<number | undefined>(undefined);
+  const sparning = useFordrojdSparning();
 
   // Ändringar från andra slår igenom om man inte själv har osparat.
   useEffect(() => { if (status === "sparat" && text?.text) setHuvud(las(text.text, variant)); }, [text?.text]);
-  useEffect(() => () => window.clearTimeout(timer.current), []);
-
+  
   const andra = (falt: keyof Huvud, varde: string) => {
     const ny = { ...huvud, [falt]: varde };
     setHuvud(ny);
     setStatus("osparat");
-    window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(async () => {
+    sparning.planera(async () => {
       setStatus("sparar");
       try { await onSparaText(JSON.stringify(ny)); setStatus("sparat"); }
       catch (e) { setStatus("osparat"); visaMeddelande(`Kunde inte spara: ${(e as Error).message}`); }
@@ -119,36 +160,7 @@ export function RiskVy({ projektId, projekt, variant, grupp, rubrik, text, onSpa
     } catch (e) { visaMeddelande((e as Error).message); }
   };
 
-  const skrivUt = () => {
-    const sorterade = [...(rader ?? [])].sort((a, b) => a.ordning - b.ordning);
-    const farg = (v: number) => (v >= 6 ? "#C53030" : v >= 3 ? "#D69E2E" : v > 0 ? "#2F855A" : "transparent");
-    const matris = [3, 2, 1].map((s) => `<tr><th>${s}</th>${[1, 2, 3].map((k) => {
-      const n = varden.filter((x) => x.s === s && x.k === k).length;
-      return `<td style="background:${farg(s * k)};color:#fff">${n || ""}</td>`;
-    }).join("")}</tr>`).join("");
-    oppnaDokument({
-      titel: rubrik, kategori: "Riskanalys", projekt, liggande: false,
-      css: `p{white-space:pre-wrap;line-height:1.4}
-.v{color:#fff;font-weight:bold;text-align:center}
-table.matris{border-collapse:collapse;margin-top:2mm}table.matris td,table.matris th{width:9mm;height:7mm;text-align:center;border:1px solid #fff}`,
-      kropp: `<table class="data form"><tbody>
-<tr><th>Projekt</th><td>${esc([projekt?.namn, projekt?.nummer].filter(Boolean).join(" · "))}</td></tr>
-<tr><th>Objekt</th><td>${esc(huvud.objekt)}</td></tr><tr><th>Datum</th><td>${esc(huvud.datum)}</td></tr>
-<tr><th>Totalentreprenör</th><td>${esc(huvud.totalentreprenor)}</td></tr>
-<tr><th>Handläggare</th><td>${esc([huvud.handlaggare, huvud.epost].filter(Boolean).join(", "))}</td></tr>
-</tbody></table>
-<h2>Inledning</h2><p><b>Syfte.</b> ${esc(huvud.syfte)}</p><p style="margin-top:6px"><b>Omfattning.</b> ${esc(huvud.omfattning)}</p>
-<h2>Metodik</h2><p>${esc(huvud.metodik)}</p>
-<h2>Riskidentifiering och -bedömning</h2>
-<table class="data risk"><thead><tr><th>Pos.</th><th>Arbetsmoment</th><th>Risk</th><th>S</th><th>K</th><th>Riskvärde</th><th>Åtgärd</th><th>Ansvarig</th></tr></thead><tbody>
-${sorterade.map((r, i) => { const v = Number(r.data.sannolikhet) * Number(r.data.konsekvens) || 0; return `<tr><td>${i + 1}</td><td>${esc(r.data.arbetsmoment ?? "")}</td><td>${esc(r.data.risk ?? "")}</td><td>${esc(r.data.sannolikhet ?? "")}</td><td>${esc(r.data.konsekvens ?? "")}</td><td class="v" style="background:${farg(v)}">${v || ""}</td><td>${esc(r.data.atgard ?? "")}</td><td>${esc(r.data.ansvarig ?? "")}</td></tr>`; }).join("")}
-</tbody></table>
-<h2>Riskmatris</h2><table class="matris"><tr><th></th><th colspan="3">Konsekvens</th></tr><tr><th>S</th><th>1</th><th>2</th><th>3</th></tr>${matris}</table>
-<h2>Riskhanteringsplan</h2><p>${esc(huvud.riskhantering)}</p>
-<h2>Uppföljning och utvärdering</h2><p>${esc(huvud.uppfoljning)}</p>
-<h2>Slutsats</h2><p>${esc(huvud.slutsats)}</p>`,
-    });
-  };
+  const skrivUt = () => skrivUtBlock(riskDokument(rubrik, variant, JSON.stringify(huvud), rader ?? [], projekt));
 
   const falt = (k: keyof Huvud, etikett: string, typ = "text") => (
     <label className="riskfalt">

@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useFordrojdSparning } from "../../lib/sparning";
 import { skrivExcel } from "../../lib/excelFil";
 import { useKatalog } from "../../lib/katalog";
 import type { Anteckningar, Projekt } from "../../lib/typer";
-import { oppnaDokument, tabellHtml } from "../../lib/dokumenttema";
+import { skrivUtBlock, type Block, type BlockDokument } from "../../lib/dokumentBlock";
+import type { Blad } from "../../lib/excelFil";
 
 type Kategori = { id: string; namn: string; fragor: string[] };
 type FrageKatalog = { kategorier: Kategori[] };
@@ -17,7 +19,31 @@ function las(text: string | undefined): Svar {
   return { kategorier: {} };
 }
 
-const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+export type { FrageKatalog as TekniskKatalog };
+
+/** Ibockade kategorier med sina ibockade frågor och svar (det som ska med i utskrift och Excel). */
+function iExporten(katalog: FrageKatalog, text: string | undefined) {
+  const svar = las(text);
+  return katalog.kategorier
+    .filter((k) => svar.kategorier[k.id]?.med !== false)
+    .map((k) => ({ namn: k.namn, fragor: k.fragor.filter((f) => !(svar.kategorier[k.id]?.ejMed ?? []).includes(f)).map((f) => [f, svar.kategorier[k.id]?.svar?.[f] ?? ""] as [string, string]) }))
+    .filter((k) => k.fragor.length);
+}
+
+export function tekniskDokument(katalog: FrageKatalog, text: string | undefined, projekt: Projekt | null): BlockDokument {
+  return {
+    titel: "Teknisk beskrivning", kategori: "Teknisk beskrivning", projekt,
+    block: iExporten(katalog, text).flatMap((k): Block[] => [
+      { typ: "rubrik", text: k.namn },
+      { typ: "tabell", kolumner: ["Fråga", "Svar"], bredder: [45, 55], rader: k.fragor },
+    ]),
+  };
+}
+
+export function tekniskBlad(katalog: FrageKatalog, text: string | undefined): Blad[] {
+  return [{ namn: "Teknisk beskrivning", bredder: [36, 70, 70],
+    rader: [["Kategori", "Fråga", "Svar"], ...iExporten(katalog, text).flatMap((k) => k.fragor.map(([f, s]) => [k.namn, f, s]))] }];
+}
 
 type Props = {
   projekt: Projekt | null;
@@ -40,11 +66,10 @@ export function TekniskBeskrivningVy(p: Props) {
   const [valdId, setValdId] = useState<string | null>(null);
   const [status, setStatus] = useState<"sparat" | "osparat" | "sparar">("sparat");
   const [redigera, setRedigera] = useState<{ namn: string; fragor: string } | null>(null);
-  const timer = useRef<number | undefined>(undefined);
+  const sparning = useFordrojdSparning();
 
   useEffect(() => { if (status === "sparat" && p.text?.text) setSvar(las(p.text.text)); }, [p.text?.text]);
-  useEffect(() => () => window.clearTimeout(timer.current), []);
-
+  
   const kategorier = kat.data?.kategorier ?? [];
   const vald = kategorier.find((k) => k.id === valdId) ?? kategorier[0];
   const med = (id: string) => svar.kategorier[id]?.med !== false;
@@ -56,8 +81,7 @@ export function TekniskBeskrivningVy(p: Props) {
   const spara = (ny: Svar) => {
     setSvar(ny);
     setStatus("osparat");
-    window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(async () => {
+    sparning.planera(async () => {
       setStatus("sparar");
       try { await p.onSparaText(JSON.stringify(ny)); setStatus("sparat"); }
       catch (e) { setStatus("osparat"); p.visaMeddelande(`Kunde inte spara: ${(e as Error).message}`); }
@@ -81,22 +105,11 @@ export function TekniskBeskrivningVy(p: Props) {
     return m;
   }, [kategorier, svar]);
 
-  // Kategorier som är ibockade och har minst en ibockad fråga.
-  const ivagMed = kategorier.filter((k) => med(k.id) && medFragor(k).length > 0);
 
-  const excel = () => void skrivExcel(`Teknisk beskrivning ${p.projekt?.nummer ?? ""}`.trim(), [{
-    namn: "Teknisk beskrivning",
-    bredder: [36, 70, 70],
-    rader: [["Kategori", "Fråga", "Svar"], ...ivagMed.flatMap((k) => medFragor(k).map((f) => [k.namn, f, svarPa(k.id, f)]))],
-  }]).catch((e) => p.visaMeddelande((e as Error).message));
+  const excel = () => void skrivExcel(`Teknisk beskrivning ${p.projekt?.nummer ?? ""}`.trim(), tekniskBlad({ kategorier }, JSON.stringify(svar)))
+    .catch((e) => p.visaMeddelande((e as Error).message));
 
-  const skrivUt = () => {
-    oppnaDokument({
-      titel: "Teknisk beskrivning", kategori: "Teknisk beskrivning", projekt: p.projekt,
-      css: "td{white-space:pre-wrap}table.data td:first-child{width:45%}",
-      kropp: ivagMed.map((k) => `<h2>${esc(k.namn)}</h2>${tabellHtml(["Fråga", "Svar"], medFragor(k).map((fr) => [fr, svarPa(k.id, fr)]))}`).join(""),
-    });
-  };
+  const skrivUt = () => skrivUtBlock(tekniskDokument({ kategorier }, JSON.stringify(svar), p.projekt));
 
   // ---- Katalogen ----
   const sparaKatalog = async (ny: FrageKatalog) => {

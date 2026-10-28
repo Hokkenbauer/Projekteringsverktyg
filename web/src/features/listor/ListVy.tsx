@@ -1,7 +1,8 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { DataGrid, type Blink, type Kolumn } from "../../grid/DataGrid";
 import type { Kataloger, Komponent, ListDef, ListRad, Projekt } from "../../lib/typer";
-import { skrivUt } from "../../lib/utskrift";
+import { skrivUtBlock, type BlockDokument } from "../../lib/dokumentBlock";
+import { utskriftDokument } from "../../lib/utskrift";
 import { ataStyckvis } from "./AtaUtskrift";
 import { Anslutningar } from "../../lib/gateway";
 
@@ -94,6 +95,38 @@ export function byggRader(def: ListDef, rader: ListRad[], komponenter: Komponent
   return [...rader]
     .sort((a, b) => a.ordning - b.ordning)
     .map((r, i) => ({ ...fyll(r.data, null, i + 1), id: r.id }));
+}
+
+/** Signallistans summering: antal per signaltyp. */
+function perSignaltyp(visade: VisadRad[]) {
+  const antal = new Map<string, number>();
+  for (const r of visade) antal.set(r.signaltyp || "Ej angiven", (antal.get(r.signaltyp || "Ej angiven") ?? 0) + 1);
+  return [...antal.entries()].sort((a, b) => a[0].localeCompare(b[0], "sv"));
+}
+
+/**
+ * Listan som dokument (utskrift, PDF och Word). Raderna är de visade (byggRader), i visad ordning.
+ * Anmärkningsbilagan skickar bara de rader som är valda för utskrift.
+ */
+export function listDokument(def: ListDef, rader: VisadRad[], projekt: Projekt | null, extra?: { efter?: string }): BlockDokument {
+  const egetLopnr = def.kolumner.some((k) => k.typ === "lopnr");
+  const anm = def.id === "anmarkningar";
+  const ata = def.id === "ata";
+  const titel = def.id === "iplista" && projekt?.namn ? `${def.namn} ${projekt.namn}` : def.namn;
+  const kryss = def.kolumner.map((k, i) => (k.typ === "kryss" ? i + (egetLopnr ? 0 : 1) : -1)).filter((i) => i >= 0);
+  const d = utskriftDokument(titel, projekt, {
+    typ: "tabell",
+    kolumner: [...(egetLopnr ? [] : ["Nr"]), ...def.kolumner.map((k) => k.rubrik)],
+    rader: rader.map((r, i) => [...(egetLopnr ? [] : [String(i + 1)]), ...def.kolumner.map((k) => (k.typ === "kryss" ? (r[vn(k.nyckel)] === "true" ? "✔" : "")
+      : k.typ === "datum" ? valtDatum(r[vn(k.nyckel)]) : r[vn(k.nyckel)] ?? ""))]),
+    centrera: kryss,
+    sammanfattning: def.id === "signallista" ? perSignaltyp(rader).map(([t, n]) => `${t}: ${n}`).join("   ·   ") : undefined,
+  }, {
+    liggande: anm || ata || undefined,
+    kategori: anm ? "Anmärkningsbilaga" : ata ? "ÄTA-lista" : def.id === "egenkontroll" || def.id.startsWith("kontroll-") ? "Egenkontroll/checklista" : undefined,
+  });
+  if (extra?.efter) d.block.push({ typ: "text", text: extra.efter, fet: true });
+  return d;
 }
 
 type Props = {
@@ -205,24 +238,7 @@ export function ListVy({ def, grupp, rader, komponenter, projekt, blinkar, lasl�
 
   // Alla listor har löpnummer. Har listan ett eget (t.ex. Pos.) visas inte DataGridens Nr.
   const egetLopnr = def.kolumner.some((k) => k.typ === "lopnr");
-  const utskrift = () => {
-    const ut = def.kolumner;
-    const nr = new Map(visade.map((r, i) => [r.id, String(i + 1)]));
-    const valda = valForUtskrift && markerade.length ? visade.filter((r) => markerade.includes(r.id)) : visade;
-    const titel = def.id === "iplista" && projekt?.namn ? `${def.namn} ${projekt.namn}` : def.namn;
-    skrivUt(titel, projekt, {
-      typ: "tabell",
-      kolumner: [...(egetLopnr ? [] : ["Nr"]), ...ut.map((k) => k.rubrik)],
-      rader: valda.map((r) => [...(egetLopnr ? [] : [nr.get(r.id) ?? ""]), ...ut.map((k) => (k.typ === "kryss" ? (r[vn(k.nyckel)] === "true" ? "✔" : "")
-        : k.typ === "datum" ? valtDatum(r[vn(k.nyckel)]) : r[vn(k.nyckel)] ?? ""))]),
-      sammanfattning: summering ? summering.map(([t, n]) => `${t}: ${n}`).join("   ·   ") : undefined,
-    }, {
-      liggande: valForUtskrift || ata || undefined,
-      kategori: valForUtskrift ? "Anmärkningsbilaga" : ata ? "ÄTA-lista" : def.id === "egenkontroll" || def.id.startsWith("kontroll-") ? "Egenkontroll/checklista" : undefined,
-      kolumnlinjer: def.id === "iplista" || valForUtskrift || ata || undefined,
-    });
-  };
-
+  const utskrift = () => skrivUtBlock(listDokument(def, valForUtskrift && markerade.length ? visade.filter((r) => markerade.includes(r.id)) : visade, projekt));
   const tomText = def.kopplad
     ? komponenter.length === 0
       ? "Inga komponenter i projektet än. Lägg till dem under Komponenter."

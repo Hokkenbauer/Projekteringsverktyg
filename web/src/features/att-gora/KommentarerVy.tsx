@@ -3,7 +3,8 @@ import { DataGrid, type Kolumn } from "../../grid/DataGrid";
 import { api, ApiFel, skicka } from "../../lib/api";
 import { oppenRitning } from "../ritning/PlaceringsritningVy";
 import type { Projekt } from "../../lib/typer";
-import { skrivUt } from "../../lib/utskrift";
+import { skrivUtBlock, type BlockDokument } from "../../lib/dokumentBlock";
+import { utskriftDokument } from "../../lib/utskrift";
 
 /** Samma standardkategorier som kommentarslagret i placeringsritningen (public/ritning/placeringsritning.html). */
 const STANDARD: Kategori[] = [
@@ -45,6 +46,16 @@ export function lasKommentarer(json: string | null): { rader: KommentarRad[]; ka
     rader.push({ id: k.id, avslutad: k.klar ? "true" : "", kategori: kat.namn, katId: kat.id, farg: kat.farg || AUTO, text: (k.text ?? "").trim(), byggnad: b.name, plan: f.name, rum: rum?.name ?? "" });
   }
   return { rader, kategorier };
+}
+
+/** Placeringskommentarerna som dokument (utskrift, PDF och Word). */
+export function kommentarDokument(rader: KommentarRad[], projekt: Projekt | null): BlockDokument {
+  return utskriftDokument("Placeringskommentarer", projekt, {
+    typ: "tabell",
+    kolumner: ["Nr", "Kategori", "Kommentar", "Byggnad", "Plan", "Rum", "Avslutad"],
+    bredder: [5, 14, 41, 11, 10, 11, 8], centrera: [6],
+    rader: rader.map((r, i) => [String(i + 1), r.kategori, r.text, r.byggnad, r.plan, r.rum, r.avslutad === "true" ? "✔" : ""]),
+  }, { liggande: true });
 }
 
 type Props = {
@@ -123,11 +134,7 @@ export function KommentarerVy({ projektId, projekt, uppdaterad, onVisa, onPopUt,
     { nyckel: "rum", rubrik: "Rum", typ: "ro", bredd: 140 },
   ], [onVisa]);
 
-  const utskrift = () => skrivUt("Placeringskommentarer", projekt, {
-    typ: "tabell",
-    kolumner: ["Nr", "Kategori", "Kommentar", "Byggnad", "Plan", "Rum", "Avslutad"],
-    rader: visade.map((r, i) => [String(i + 1), r.kategori, r.text, r.byggnad, r.plan, r.rum, r.avslutad === "true" ? "✔" : ""]),
-  }, { liggande: true, kolumnlinjer: true });
+  const utskrift = () => skrivUtBlock(kommentarDokument(visade, projekt));
 
   return (
     <>

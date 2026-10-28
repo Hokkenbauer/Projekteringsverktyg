@@ -5,6 +5,7 @@ import type { Projekt, ProjektDokument, ProjektFil } from "../../lib/typer";
 import { dela } from "../../lib/funktionstext";
 import { Dialog } from "../../shell/Dialog";
 import { temaForVerktyg } from "./tema";
+import { registreraSparning } from "../../lib/sparning";
 
 type BildInfo = { id: string; namn: string; ordning: number; version: number; andrad: string; andradAv: string };
 type Bild = { id: string; namn: string; data: string; version: number };
@@ -156,7 +157,7 @@ export function RitbordVy(p: Props) {
       kanInstallningar: p.kanInstallningar,
     };
     (window as unknown as { rbVard?: Vard }).rbVard = vard;
-    return () => { void verktyg()?.rbSparaNu?.(); redo.current = false; };
+    return () => { const p0 = verktyg()?.rbSparaNu?.(); if (p0) registreraSparning(p0); redo.current = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [p.projektId]);
 

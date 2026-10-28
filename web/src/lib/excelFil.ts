@@ -11,6 +11,7 @@ type XlsxLib = {
     book_append_sheet: (bok: unknown, ark: unknown, namn: string) => void;
   };
   writeFile: (bok: unknown, namn: string) => void;
+  write: (bok: unknown, opt: { type: "array"; bookType: "xlsx" }) => ArrayBuffer;
 };
 
 let laddning: Promise<XlsxLib> | null = null;
@@ -40,16 +41,27 @@ export async function lasExcel(fil: File): Promise<string[][]> {
 
 export type Blad = { namn: string; rader: (string | number)[][]; bredder?: number[] };
 
-/** Skapar och laddar ner en Excel-fil. Första raden i varje blad är rubrikerna. */
-export async function skrivExcel(filnamn: string, blad: Blad[]) {
+async function bok(blad: Blad[]) {
   const lib = await xlsx();
-  const bok = lib.utils.book_new();
+  const b0 = lib.utils.book_new();
   for (const b of blad) {
     const ark = lib.utils.aoa_to_sheet(b.rader);
     if (b.bredder) ark["!cols"] = b.bredder.map((wch) => ({ wch }));
-    lib.utils.book_append_sheet(bok, ark, b.namn.replace(/[\\/?*[\]:]/g, " ").slice(0, 31) || "Blad1");
+    lib.utils.book_append_sheet(b0, ark, b.namn.replace(/[\\/?*[\]:]/g, " ").slice(0, 31) || "Blad1");
   }
-  lib.writeFile(bok, filnamn.endsWith(".xlsx") ? filnamn : `${filnamn}.xlsx`);
+  return { lib, bok: b0 };
+}
+
+/** Skapar och laddar ner en Excel-fil. Första raden i varje blad är rubrikerna. */
+export async function skrivExcel(filnamn: string, blad: Blad[]) {
+  const { lib, bok: b } = await bok(blad);
+  lib.writeFile(b, filnamn.endsWith(".xlsx") ? filnamn : `${filnamn}.xlsx`);
+}
+
+/** Excel-filen som data (t.ex. till en ZIP), utan att ladda ner den. */
+export async function excelData(blad: Blad[]): Promise<Uint8Array> {
+  const { lib, bok: b } = await bok(blad);
+  return new Uint8Array(lib.write(b, { type: "array", bookType: "xlsx" }));
 }
 
 /**

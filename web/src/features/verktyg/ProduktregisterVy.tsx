@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useFordrojdSparning } from "../../lib/sparning";
 import { DataGrid, type Kolumn } from "../../grid/DataGrid";
 import { api } from "../../lib/api";
 import { skrivExcel } from "../../lib/excelFil";
@@ -26,13 +27,12 @@ export function ProduktregisterVy({ kanHantera, visaMeddelande }: Props) {
   const [lokal, setLokal] = useState<Produktregister | null>(null);
   const [status, setStatus] = useState<"sparat" | "osparat" | "sparar">("sparat");
   const [iProjekten, setIProjekten] = useState<string[]>([]);
-  const timer = useRef<number | undefined>(undefined);
+  const sparning = useFordrojdSparning();
   const sparaRef = useRef(reg.spara);
   sparaRef.current = reg.spara;
 
   useEffect(() => { if (status === "sparat" && reg.data) setLokal(reg.data); }, [reg.data]);
-  useEffect(() => () => window.clearTimeout(timer.current), []);
-  useEffect(() => {
+    useEffect(() => {
     api<Kataloger>("/api/kataloger").then((k) => setIProjekten(k.produkttyp ?? [])).catch(() => setIProjekten([]));
   }, []);
 
@@ -40,8 +40,7 @@ export function ProduktregisterVy({ kanHantera, visaMeddelande }: Props) {
   const andra = (ny: Produktregister) => {
     setLokal(ny);
     setStatus("osparat");
-    window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(async () => {
+    sparning.planera(async () => {
       setStatus("sparar");
       try { await sparaRef.current(ny); setStatus("sparat"); }
       catch (e) { setStatus("sparat"); visaMeddelande((e as Error).message); }

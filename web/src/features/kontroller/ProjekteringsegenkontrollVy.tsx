@@ -145,6 +145,49 @@ function lasIntyg(t: string | undefined): Record<string, unknown> {
   try { return t ? JSON.parse(t) as Record<string, unknown> : {}; } catch { return {}; }
 }
 
+/** Medtagna i utskriften: Ej aktuell bara om man valt det (sparas per webbläsare, standard utan). */
+export function pekMedEa(): boolean {
+  try { return localStorage.getItem("pek-med-ej-aktuella") === "1"; } catch { return false; }
+}
+
+/** Projekteringsegenkontrollen som dokument (utskrift, PDF och Word). */
+export function pekDokument(kontrollNamn: string, listrader: ListRad[], projekt: Projekt | null, intygText: string | undefined, medEa: boolean): BlockDokument {
+  const avsnitt = gruppera(listrader);
+  const i = lasIntyg(intygText);
+  const uppg: IntygUppgifter = { projekteringsledare: String(i.projekteringsledare ?? ""), projektor: String(i.projektor ?? "") };
+    // Punkter som är Ej aktuell tas inte med om man inte valt det; avsnitt och punkter numreras om i utskriften.
+    const ruta = (s: Punkt["status"]) => (s === "ok" ? "OK" : s === "kompl" ? "Kompl." : s === "ea" ? "E.A." : "");
+    const rader: (string[] | string)[] = [];
+    let avsnittNr = 0, med = 0, ok = 0, kompl = 0, ea = 0;
+    for (const a of avsnitt) {
+      const punkter = medEa ? a.punkter : a.punkter.filter((x) => x.status !== "ea");
+      if (!punkter.length) continue;
+      avsnittNr++;
+      const klara = punkter.filter((x) => x.status === "ok").length;
+      const helaEa = punkter.every((x) => x.status === "ea");
+      if (a.namn) rader.push(`${avsnittNr}. ${a.namn}${helaEa ? " – ej aktuellt" : ` (${klara} av ${punkter.length - punkter.filter((x) => x.status === "ea").length} utförda)`}`);
+      punkter.forEach((x, i) => {
+        med++;
+        if (x.status === "ok") ok++;
+        if (x.status === "kompl") kompl++;
+        if (x.status === "ea") ea++;
+        rader.push([`${avsnittNr}.${i + 1}`, x.text, ruta(x.status), x.rad.data.ovrigt ?? "", valtDatum(x.rad.data.datum), x.rad.data.sign ?? ""]);
+      });
+    }
+    const block: Block[] = [
+      { typ: "form", rader: [
+        ["Objekt", projekt?.namn ?? ""], ["Kund", projekt?.kund ?? ""], ["Projektnummer", projekt?.nummer ?? ""],
+        ["Projekteringsledare", uppg.projekteringsledare], ["Projektör", uppg.projektor],
+      ] },
+      { typ: "rubrik", text: kontrollNamn },
+      { typ: "text", text: medEa
+        ? `${ok} av ${med - ea} punkter utförda · ${kompl} kräver komplettering · ${ea} ej aktuella · ${med - ok - kompl - ea} öppna. OK = utförd, Kompl. = komplettering krävs, E.A. = ej aktuell. Signering intygar att punkten är kontrollerad.`
+        : `${ok} av ${med} punkter utförda · ${kompl} kräver komplettering · ${med - ok - kompl} öppna. OK = utförd, Kompl. = komplettering krävs. Punkter som inte är aktuella för projektet är inte med. Signering intygar att punkten är kontrollerad.`, kursiv: true },
+      { typ: "tabell", kolumner: ["Nr", "Kontrollpunkt", "Status", "Kommentar", "Datum", "Sign."], bredder: [6, 47, 7, 22, 11, 7], centrera: [2], rader },
+    ];
+    return { titel: "Projekteringsegenkontroll", kategori: "Egenkontroll", projekt: projekt, block };
+  }
+
 export function ProjekteringsegenkontrollVy(p: Props) {
   const avsnitt = useMemo(() => gruppera(p.rader ?? []), [p.rader]);
   const alla = avsnitt.flatMap((a) => a.punkter);
@@ -238,39 +281,7 @@ export function ProjekteringsegenkontrollVy(p: Props) {
   };
 
   // ---- Utskrift och Word ----
-  const dokument = (): BlockDokument => {
-    // Punkter som är Ej aktuell tas inte med om man inte valt det; avsnitt och punkter numreras om i utskriften.
-    const ruta = (s: Punkt["status"]) => (s === "ok" ? "OK" : s === "kompl" ? "Kompl." : s === "ea" ? "E.A." : "");
-    const rader: (string[] | string)[] = [];
-    let avsnittNr = 0, med = 0, ok = 0, kompl = 0, ea = 0;
-    for (const a of avsnitt) {
-      const punkter = medEa ? a.punkter : a.punkter.filter((x) => x.status !== "ea");
-      if (!punkter.length) continue;
-      avsnittNr++;
-      const klara = punkter.filter((x) => x.status === "ok").length;
-      const helaEa = punkter.every((x) => x.status === "ea");
-      if (a.namn) rader.push(`${avsnittNr}. ${a.namn}${helaEa ? " – ej aktuellt" : ` (${klara} av ${punkter.length - punkter.filter((x) => x.status === "ea").length} utförda)`}`);
-      punkter.forEach((x, i) => {
-        med++;
-        if (x.status === "ok") ok++;
-        if (x.status === "kompl") kompl++;
-        if (x.status === "ea") ea++;
-        rader.push([`${avsnittNr}.${i + 1}`, x.text, ruta(x.status), x.rad.data.ovrigt ?? "", valtDatum(x.rad.data.datum), x.rad.data.sign ?? ""]);
-      });
-    }
-    const block: Block[] = [
-      { typ: "form", rader: [
-        ["Objekt", p.projekt?.namn ?? ""], ["Kund", p.projekt?.kund ?? ""], ["Projektnummer", p.projekt?.nummer ?? ""],
-        ["Projekteringsledare", uppg.projekteringsledare], ["Projektör", uppg.projektor],
-      ] },
-      { typ: "rubrik", text: p.kontroll.namn },
-      { typ: "text", text: medEa
-        ? `${ok} av ${med - ea} punkter utförda · ${kompl} kräver komplettering · ${ea} ej aktuella · ${med - ok - kompl - ea} öppna. OK = utförd, Kompl. = komplettering krävs, E.A. = ej aktuell. Signering intygar att punkten är kontrollerad.`
-        : `${ok} av ${med} punkter utförda · ${kompl} kräver komplettering · ${med - ok - kompl} öppna. OK = utförd, Kompl. = komplettering krävs. Punkter som inte är aktuella för projektet är inte med. Signering intygar att punkten är kontrollerad.`, kursiv: true },
-      { typ: "tabell", kolumner: ["Nr", "Kontrollpunkt", "Status", "Kommentar", "Datum", "Sign."], bredder: [6, 47, 7, 22, 11, 7], centrera: [2], rader },
-    ];
-    return { titel: "Projekteringsegenkontroll", kategori: "Egenkontroll", projekt: p.projekt, block };
-  };
+  const dokument = () => pekDokument(p.kontroll.namn, p.rader ?? [], p.projekt, p.intyg?.text, medEa);
   const skrivUt = () => { skrivUtBlock(dokument()); };
   const word = async () => {
     setArbetar(true);

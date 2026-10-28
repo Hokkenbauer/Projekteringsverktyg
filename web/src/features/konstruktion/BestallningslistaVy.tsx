@@ -2,7 +2,9 @@ import { useMemo } from "react";
 import { DataGrid, type Kolumn } from "../../grid/DataGrid";
 import { skrivExcel } from "../../lib/excelFil";
 import type { Komponent, ListRad, Projekt, Skap } from "../../lib/typer";
-import { skrivUt } from "../../lib/utskrift";
+import { skrivUtBlock, type BlockDokument } from "../../lib/dokumentBlock";
+import { utskriftDokument } from "../../lib/utskrift";
+import type { Blad } from "../../lib/excelFil";
 import { arGateway, lasGateway } from "../../lib/gateway";
 
 /** Komponenttyper i Apparatskåp som ska beställas när de är ibockade (samma som dagens program). */
@@ -21,11 +23,10 @@ type Props = {
 };
 
 /**
- * Beställningslista: räknas fram ur Komponenter (per produkttyp och fabrikat), Modulbeläggning (I/O-kort),
- * Modbus RTU (gateways) och Apparatskåp (vissa ibockade komponenter). Inget sparas här.
+ * Beställningslistans rader: räknas fram ur Komponenter (per produkttyp och fabrikat), Modulbeläggning (I/O-kort),
+ * gatewaykomponenterna, äldre Modbus RTU-slingor och Apparatskåp (vissa ibockade komponenter).
  */
-export function BestallningslistaVy(p: Props) {
-  const { rader, utanProdukttyp } = useMemo(() => {
+export function bestallningsRader(komponenter: Komponent[], skap: Skap[] | null, gateways: ListRad[] | undefined): { rader: Rad[]; utanProdukttyp: number } {
     const ut: Rad[] = [];
     const rakna = (kalla: string, nycklar: [string, string][]) => {
       const m = new Map<string, { beskrivning: string; fabrikat: string; antal: number }>();
@@ -41,13 +42,13 @@ export function BestallningslistaVy(p: Props) {
 
     // Produkt (fabrikat och modell) per komponenttyp. Äldre komponenter med bara Fabrikat räknas på det.
     const produkt = (k: Komponent) => (k.produkttyp || k.produkt).trim();
-    const medTyp = p.komponenter.filter((k) => produkt(k) && !arGateway(k));
+    const medTyp = komponenter.filter((k) => produkt(k) && !arGateway(k));
     rakna("Komponenter", medTyp.map((k) => [k.komponenttyp.trim() || "Övrigt", produkt(k)]));
-    rakna("Gateways", p.komponenter.filter(arGateway).map((k) => [`Gateway ${lasGateway(k).typ} (${lasGateway(k).portar.length} portar)`, produkt(k)]));
+    rakna("Gateways", komponenter.filter(arGateway).map((k) => [`Gateway ${lasGateway(k).typ} (${lasGateway(k).portar.length} portar)`, produkt(k)]));
 
     const kort: [string, string][] = [];
     const skapKomp: [string, string][] = [];
-    for (const s of p.skap ?? []) {
+    for (const s of skap ?? []) {
       try {
         const m = JSON.parse(s.moduler || "{}") as { kort?: { beskrivning?: string }[] };
         for (const k of m.kort ?? []) if (k.beskrivning?.trim()) kort.push([k.beskrivning.trim(), ""]);
@@ -58,11 +59,30 @@ export function BestallningslistaVy(p: Props) {
       } catch { /* trasigt formulär hoppas över */ }
     }
     rakna("Modulbeläggning", kort);
-    rakna("Modbus RTU (äldre slingor)", (p.gateways ?? []).filter((g) => (g.data.namn ?? g.data.fabrikat ?? "").trim())
+    rakna("Modbus RTU (äldre slingor)", (gateways ?? []).filter((g) => (g.data.namn ?? g.data.fabrikat ?? "").trim())
       .map((g) => [(g.data.fabrikat || "Modbus RTU-gateway").trim(), ""]));
     rakna("Apparatskåp", skapKomp);
-    return { rader: ut, utanProdukttyp: p.komponenter.filter((k) => !arGateway(k)).length - medTyp.length };
-  }, [p.komponenter, p.skap, p.gateways]);
+    return { rader: ut, utanProdukttyp: komponenter.filter((k) => !arGateway(k)).length - medTyp.length };
+}
+
+const KOLUMNER = ["Nr", "Källa", "Beskrivning", "Produkt / information", "Antal"];
+
+export function bestallningDokument(rubrik: string, projekt: Projekt | null, rader: Rad[]): BlockDokument {
+  return utskriftDokument(rubrik, projekt, { typ: "tabell", kolumner: KOLUMNER, bredder: [5, 20, 38, 29, 8], centrera: [4],
+    rader: rader.map((r, i) => [String(i + 1), r.kalla, r.beskrivning, r.fabrikat, r.antal]) });
+}
+
+export function bestallningBlad(rader: Rad[]): Blad[] {
+  return [{ namn: "Beställningslista", bredder: [6, 18, 50, 36, 8],
+    rader: [KOLUMNER, ...rader.map((r, i) => [i + 1, r.kalla, r.beskrivning, r.fabrikat, Number(r.antal)])] }];
+}
+
+/**
+ * Beställningslista: räknas fram ur Komponenter (per produkttyp och fabrikat), Modulbeläggning (I/O-kort),
+ * Modbus RTU (gateways) och Apparatskåp (vissa ibockade komponenter). Inget sparas här.
+ */
+export function BestallningslistaVy(p: Props) {
+  const { rader, utanProdukttyp } = useMemo(() => bestallningsRader(p.komponenter, p.skap, p.gateways), [p.komponenter, p.skap, p.gateways]);
 
   const kolumner: Kolumn<Rad>[] = [
     { nyckel: "kalla", rubrik: "Källa", typ: "ro", bredd: 150 },
@@ -71,10 +91,8 @@ export function BestallningslistaVy(p: Props) {
     { nyckel: "antal", rubrik: "Antal", typ: "ro", mono: true, bredd: 80 },
   ];
 
-  const excel = () => void skrivExcel(`Beställningslista ${p.projekt?.nummer ?? ""}`.trim(), [{
-    namn: "Beställningslista", bredder: [18, 50, 36, 8],
-    rader: [["Nr", "Källa", "Beskrivning", "Produkt / information", "Antal"], ...rader.map((r, i) => [i + 1, r.kalla, r.beskrivning, r.fabrikat, Number(r.antal)])],
-  }]).catch((e) => p.visaMeddelande((e as Error).message));
+  const excel = () => void skrivExcel(`Beställningslista ${p.projekt?.nummer ?? ""}`.trim(), bestallningBlad(rader))
+    .catch((e) => p.visaMeddelande((e as Error).message));
 
   return (
     <>
@@ -83,7 +101,7 @@ export function BestallningslistaVy(p: Props) {
         <h1>{p.rubrik}</h1>
         <div className="knappar">
           <button className="knapp" onClick={excel}>Exportera till Excel</button>
-          <button className="knapp" onClick={() => skrivUt(p.rubrik, p.projekt, { typ: "tabell", kolumner: ["Nr", "Källa", "Beskrivning", "Produkt / information", "Antal"], rader: rader.map((r, i) => [String(i + 1), r.kalla, r.beskrivning, r.fabrikat, r.antal]) })}>Skriv ut / PDF</button>
+          <button className="knapp" onClick={() => skrivUtBlock(bestallningDokument(p.rubrik, p.projekt, rader))}>Skriv ut / PDF</button>
         </div>
       </div>
       <p className="ingress">

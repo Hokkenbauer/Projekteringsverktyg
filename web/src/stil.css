@@ -993,3 +993,25 @@ table.grid.kort td.lopnr::before { content: "#"; padding: 0; font-family: var(--
 .ksok-systemlista summary { cursor: pointer; font-size: 13px; }
 .ksok-systemlista { display: flex; flex-direction: column; gap: 4px; }
 .ksok-systemlista[open] .ksok-sysrad { margin-top: 4px; }
+
+/* Filexport (Översikt): handlingar i en ZIP */
+.fexp-format { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin: 4px 0 8px; }
+.fexp-format .kryssrad { margin: 0; }
+.fexp-knappar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.fexp-lista { display: flex; flex-direction: column; gap: 8px; max-height: 56vh; overflow: auto; padding-right: 4px; }
+.fexp-grupp { border: 1px solid var(--linje); border-radius: var(--r); padding: 4px 10px 8px; margin: 0; }
+.fexp-grupp legend { padding: 0 4px; }
+.fexp-grupp legend .kryssrad { margin: 0; }
+.fexp-rad { display: grid; grid-template-columns: auto minmax(0, 1fr) auto 160px; align-items: center; gap: 8px; padding: 3px 0; font-size: 13.5px; cursor: pointer; }
+.fexp-rad + .fexp-rad { border-top: 1px solid var(--linje); }
+.fexp-rad.tom .fexp-namn { color: var(--dampad); }
+.fexp-info { text-align: right; }
+.fexp-filtyp { font-family: var(--font-mono); color: var(--accent); text-align: right; }
+.fexp-forlopp progress { width: 100%; height: 14px; }
+.fexp-forlopp p { margin: 6px 0 0; }
+.fexp-resultat ul { margin: 4px 0 10px; padding-left: 20px; font-size: 13px; }
+@media (max-width: 760px) {
+  .fexp-rad { grid-template-columns: auto minmax(0, 1fr); padding: 6px 0; }
+  .fexp-info, .fexp-filtyp { grid-column: 2; text-align: left; }
+  .fexp-lista { max-height: none; }
+}

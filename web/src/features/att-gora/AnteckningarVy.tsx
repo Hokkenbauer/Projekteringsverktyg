@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useFordrojdSparning } from "../../lib/sparning";
 import type { Anteckningar } from "../../lib/typer";
 
 type Props = {
@@ -28,7 +29,7 @@ export function AnteckningarVy({
   const [text, setText] = useState(anteckningar?.text ?? "");
   const [status, setStatus] = useState<"sparat" | "osparat" | "sparar" | "fel">("sparat");
   const senastSparat = useRef(anteckningar?.text ?? "");
-  const timer = useRef<number | undefined>(undefined);
+  const sparning = useFordrojdSparning();
 
   // Ändringar från andra slår igenom så länge man inte själv har osparad text.
   useEffect(() => {
@@ -53,18 +54,10 @@ export function AnteckningarVy({
   const andra = (varde: string) => {
     setText(varde);
     setStatus("osparat");
-    window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => void spara(varde), 1200);
+    sparning.planera(() => spara(varde), 1200);
   };
 
-  // Sparar det som inte hunnit sparas när vyn stängs (t.ex. byte av flik i pop-ut-fönstret).
-  const textRef = useRef(text); textRef.current = text;
-  const statusRef = useRef(status); statusRef.current = status;
-  useEffect(() => () => {
-    window.clearTimeout(timer.current);
-    if (statusRef.current === "osparat") void onSpara(textRef.current).catch(() => undefined);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Det som inte hunnit sparas när vyn stängs (t.ex. byte av flik i pop-ut-fönstret) sparas av useFordrojdSparning.
 
   return (
     <>
@@ -86,7 +79,7 @@ export function AnteckningarVy({
         readOnly={lasläge}
         value={text}
         onChange={(e) => andra(e.target.value)}
-        onBlur={() => { if (status === "osparat") { window.clearTimeout(timer.current); void spara(text); } }}
+        onBlur={() => { if (status === "osparat") void sparning.nu(); }}
         onKeyDown={(e) => {
           if (e.key === "Tab") {
             e.preventDefault();

@@ -2,13 +2,34 @@ import { useMemo } from "react";
 import { DataGrid, type Blink, type Kolumn } from "../../grid/DataGrid";
 import { FUNKTIONER, TYPER, sammanfatta, signalnamn, type Signal } from "../../lib/signaler";
 import type { Komponent, Projekt } from "../../lib/typer";
-import { skrivUt } from "../../lib/utskrift";
+import { skrivUtBlock, type BlockDokument } from "../../lib/dokumentBlock";
+import { utskriftDokument } from "../../lib/utskrift";
 
 type Rad = {
   id: string; komponentId: string; signalId: string;
   signalnamn: string; typ: string; funktion: string; beskrivning: string;
   system: string; beteckning: string; komponenttyp: string; anslutsTill: string;
 };
+
+/** En rad per I/O-punkt, sorterad på signalnamn. */
+export function signalRader(komponenter: Komponent[]): Rad[] {
+  return komponenter.flatMap((k) => k.signaler.map((s) => ({
+    id: `${k.id}:${s.id}`, komponentId: k.id, signalId: s.id,
+    signalnamn: signalnamn(k.beteckning, s), typ: s.typ, funktion: s.funktion, beskrivning: s.beskrivning,
+    system: k.system, beteckning: k.beteckning, komponenttyp: k.komponenttyp, anslutsTill: k.anslutsTill,
+  }))).sort((a, b) => a.signalnamn.localeCompare(b.signalnamn, "sv", { numeric: true }));
+}
+
+export function signallistaDokument(komponenter: Komponent[], projekt: Projekt | null): BlockDokument {
+  const rader = signalRader(komponenter);
+  const antalPerTyp = sammanfatta(rader.map((r) => ({ id: r.id, typ: r.typ, funktion: "", beskrivning: "" })));
+  return utskriftDokument("Signallista (I/O)", projekt, {
+    typ: "tabell", sammanfattning: `${rader.length} signaler: ${antalPerTyp}`,
+    kolumner: ["Nr", "Signalnamn", "Typ", "Beskrivning", "Komponenttyp", "Ansluts till"],
+    bredder: [5, 26, 8, 30, 17, 14],
+    rader: rader.map((r, i) => [String(i + 1), r.signalnamn, r.typ, r.beskrivning, r.komponenttyp, r.anslutsTill]),
+  });
+}
 
 type Props = {
   komponenter: Komponent[];
@@ -26,11 +47,7 @@ type Props = {
  * här och sparas på komponenten; övriga uppgifter ändras i Komponenter.
  */
 export function SignallistaVy({ komponenter, projekt, blinkar, lasläge, onAndra, onExcel, onInfo, fokusId }: Props) {
-  const rader: Rad[] = useMemo(() => komponenter.flatMap((k) => k.signaler.map((s) => ({
-    id: `${k.id}:${s.id}`, komponentId: k.id, signalId: s.id,
-    signalnamn: signalnamn(k.beteckning, s), typ: s.typ, funktion: s.funktion, beskrivning: s.beskrivning,
-    system: k.system, beteckning: k.beteckning, komponenttyp: k.komponenttyp, anslutsTill: k.anslutsTill,
-  }))).sort((a, b) => a.signalnamn.localeCompare(b.signalnamn, "sv", { numeric: true })), [komponenter]);
+  const rader: Rad[] = useMemo(() => signalRader(komponenter), [komponenter]);
 
   const alla = [...new Set(Object.values(FUNKTIONER).flat())];
   const kolumner: Kolumn<Rad>[] = [
@@ -51,11 +68,7 @@ export function SignallistaVy({ komponenter, projekt, blinkar, lasläge, onAndra
   };
 
   const antalPerTyp = sammanfatta(rader.map((r) => ({ id: r.id, typ: r.typ, funktion: "", beskrivning: "" })));
-  const skriv = () => skrivUt("Signallista (I/O)", projekt, {
-    typ: "tabell", sammanfattning: `${rader.length} signaler: ${antalPerTyp}`,
-    kolumner: ["Nr", "Signalnamn", "Typ", "Beskrivning", "Komponenttyp", "Ansluts till"],
-    rader: rader.map((r, i) => [String(i + 1), r.signalnamn, r.typ, r.beskrivning, r.komponenttyp, r.anslutsTill]),
-  });
+  const skriv = () => skrivUtBlock(signallistaDokument(komponenter, projekt));
 
   return (
     <>

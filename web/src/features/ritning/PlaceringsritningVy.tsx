@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { api, ApiFel, hamtaBinar, skicka } from "../../lib/api";
 import { temaForVerktyg as tema } from "./tema";
 import { Dialog } from "../../shell/Dialog";
+import { registreraSparning } from "../../lib/sparning";
 import type { Kataloger, Komponent, ListRad, Projekt, ProjektFil } from "../../lib/typer";
 
 type Ritning = { data: string | null; version: number; andrad: string | null; andradAv: string };
@@ -317,6 +318,7 @@ export function PlaceringsritningVy(p: Props) {
         ? "Din sista ändring i ritningen kunde inte sparas: någon annan sparade samtidigt."
         : `Din sista ändring i ritningen kunde inte sparas: ${(e as Error).message}`);
     }).finally(() => { sparningVidStang = null; });
+    registreraSparning(sparningVidStang);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

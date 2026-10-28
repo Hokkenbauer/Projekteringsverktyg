@@ -2804,54 +2804,49 @@ async function ensurePdfLibs(){
   }
   return hasPdfLib();
 }
-$('btnPdf').onclick = async () => {
+/** Bilden som PDF-data: vektor via svg2pdf, annars som bild. null = inget PDF-bibliotek (då återstår utskrift). */
+async function rbPdfData(){
   const w = doc.w * 0.75, h = doc.h * 0.75;
-  let svgEl;
-  try { svgEl = cleanCopy(); }
-  catch(err){ console.error(err); setMsg('Kunde inte förbereda ritningen — se konsolen'); return; }
-
-  if (!hasPdfLib()){ setMsg('Hämtar PDF-bibliotek…'); await ensurePdfLibs(); }
+  const svgEl = cleanCopy();
+  if (!hasPdfLib()) await ensurePdfLibs();
   const ctor = window.jspdf && window.jspdf.jsPDF;
-  if (!ctor){
-    setMsg('PDF-biblioteket kunde inte hämtas — öppnar utskrift i stället');
-    return printFallback(svgEl);
-  }
-
-  let pdf;
-  try {
-    pdf = new ctor({ orientation: w > h ? 'landscape' : 'portrait', unit:'pt', format:[w, h] });
-  } catch(err){ console.error(err); return printFallback(svgEl); }
-
+  if (!ctor) return null;
   // 1: vektor
+  const pdf = new ctor({ orientation: w > h ? 'landscape' : 'portrait', unit:'pt', format:[w, h] });
   if (typeof pdf.svg === 'function'){
     const holder = document.createElement('div');
     holder.style.cssText = 'position:fixed;left:-9999px;top:0';
     holder.appendChild(svgEl); document.body.appendChild(holder);
     try {
-      setMsg('Skapar PDF…');
       await pdf.svg(svgEl, { x:0, y:0, width:w, height:h });
-      pdf.save(fileName('pdf'));
-      setMsg('Sparade ' + fileName('pdf'));
-      return;
+      return pdf.output('arraybuffer');
     } catch(err){
       console.error('svg2pdf misslyckades:', err);
-      setMsg('Vektorexport misslyckades — försöker som bild');
     } finally { holder.remove(); }
   }
-
   // 2: bild i PDF
+  const png = await svgToPng(cleanCopy(), doc.w, doc.h, 2);
+  const p2 = new ctor({ orientation: w > h ? 'landscape' : 'portrait', unit:'pt', format:[w, h] });
+  p2.addImage(png, 'PNG', 0, 0, w, h);
+  return p2.output('arraybuffer');
+}
+window.rbPdfData = rbPdfData;
+/** Bilden som SVG (med I/O), för filexporten. */
+window.rbSvg = () => '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(cleanCopy());
+$('btnPdf').onclick = async () => {
+  let data;
   try {
-    const png = await svgToPng(cleanCopy(), doc.w, doc.h, 2);
-    const p2 = new ctor({ orientation: w > h ? 'landscape' : 'portrait', unit:'pt', format:[w, h] });
-    p2.addImage(png, 'PNG', 0, 0, w, h);
-    p2.save(fileName('pdf'));
-    setMsg('Sparade ' + fileName('pdf') + ' som bild');
+    if (!hasPdfLib()) setMsg('Hämtar PDF-bibliotek…');
+    setMsg('Skapar PDF…');
+    data = await rbPdfData();
+  } catch(err){ console.error(err); data = null; }
+  if (data){
+    download(new Blob([data], { type: 'application/pdf' }), fileName('pdf'));
+    setMsg('Sparade ' + fileName('pdf'));
     return;
-  } catch(err){ console.error('bildexport misslyckades:', err); }
-
-  // 3: utskrift
+  }
   setMsg('PDF misslyckades — öppnar utskrift i stället');
-  printFallback(cleanCopy());
+  try { printFallback(cleanCopy()); } catch(err){ console.error(err); setMsg('Kunde inte förbereda ritningen — se konsolen'); }
 };
 function download(blob, name){
   const a = document.createElement('a');

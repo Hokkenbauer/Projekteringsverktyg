@@ -3268,6 +3268,52 @@ async function exportPlanPDF(){
   }catch(err){alert('Export misslyckades: '+err.message);}
   finally{busy(false);}
 }
+/// Filexporten i webbappen: en PDF per plan (planvy + komponentförteckning), utan dialoger.
+/// Kabellager och kommentarer som är tända tas med (samma förval som lagervalsdialogen).
+/// Returnerar [{byggnad, plan, data}] där data är PDF-filen (ArrayBuffer).
+async function pvExporteraPlaner(){
+  const {jsPDF}=window.jspdf;
+  const PW=841.89,PH=595.28,M=40;
+  const ut=[];
+  for(const b of P.buildings)for(const f of b.floors){
+    if(!f.layers.length||!f.ref)continue;
+    for(const l of f.layers){if(l.visible)await ensureDoc(l);}
+    let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
+    f.layers.forEach(l=>{const e=cache.get(l.id);if(!e||!l.visible)return;
+      x0=Math.min(x0,l.ox);y0=Math.min(y0,l.oy);x1=Math.max(x1,l.ox+e.pageW*l.k);y1=Math.max(y1,l.oy+e.pageH*l.k);});
+    f.components.forEach(c=>{
+      if(c.x==null||!f.ref)return;
+      const wx=c.x*f.ref.w,wy=c.y*f.ref.h;
+      x0=Math.min(x0,wx);y0=Math.min(y0,wy);x1=Math.max(x1,wx);y1=Math.max(y1,wy);
+    });
+    if(!isFinite(x0)){x0=0;y0=0;x1=f.ref.w;y1=f.ref.h;}
+    const mx=(x1-x0)*0.05+20,my=(y1-y0)*0.05+20;
+    const box={x:x0-mx,y:y0-my,w:(x1-x0)+mx*2,h:(y1-y0)+my*2};
+    const nKomm=(f.kommentarer||[]).filter(k=>(k.text||'').trim()).length;
+    const lager=(f.instLayers||[]).filter(l=>l.visible).map(l=>l.id);
+    if(nKomm&&P.settings.visaKomm!==false)lager.push(KOMM_LAGER);
+    const {sorted,numbering}=numreraKomponenter(f.components.filter(c=>c.x!=null&&compVisible(c,f,b)));
+    const c=await renderPlanCanvas(f,box,planScaleFor(box,20e6),{skipComponents:true,cableLayerIds:lager});
+    const pdf=new jsPDF({unit:'pt',format:[box.w,box.h],orientation:box.w>box.h?'landscape':'portrait'});
+    pdf.addImage(c.toDataURL('image/jpeg',0.92),'JPEG',0,0,box.w,box.h);
+    ritaMarkorer(pdf,f,b,sorted,numbering,comp=>({x:comp.x*f.ref.w-box.x,y:comp.y*f.ref.h-box.y}));
+    pdf.setFontSize(9);pdf.setTextColor(120);
+    pdf.text(b.name+' – '+f.name,10,12);
+    pdf.addPage('a4','landscape');
+    let y=M;
+    pdf.setFontSize(8);pdf.setTextColor(130);
+    pdf.text((P.name||'Projekt')+'  ·  '+b.name+'  ·  '+f.name,M,y);y+=6;
+    pdfLogga(pdf,PW,M,y-8);pdf.setDrawColor(200);pdf.line(M,y,PW-M,y);y+=20;
+    pdf.setFontSize(15);pdf.setTextColor(20);
+    pdf.text('Komponentförteckning',M,y);y+=22;
+    ritaKomponentTabell(pdf,PW,PH,M,y,sorted,numbering,
+      {header:'Placering',get:c=>c.roomId?(f.rooms.find(r=>r.id===c.roomId)?.name||'—'):'Direkt på plan'});
+    ut.push({byggnad:b.name,plan:f.name,data:pdf.output('arraybuffer')});
+  }
+  return ut;
+}
+window.pvExporteraPlaner=pvExporteraPlaner;
+
 async function exportAllPlansPDF(){
   const list=[];
   P.buildings.forEach(b=>b.floors.forEach(f=>{if(f.layers.length&&f.ref)list.push({b,f});}));
