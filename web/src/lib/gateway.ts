@@ -120,6 +120,7 @@ export class Anslutningar {
     if (falt === "_gateway") return port.namn;
     if (falt === "_installning") return installning(port.port);
     if (falt === "_via") return steg.at(-1)?.beteckning ?? "";
+    if (falt === "_gatewayip") return lasGateway(port.gateway).ip;
     return "";
   }
 }

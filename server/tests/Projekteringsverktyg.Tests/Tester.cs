@@ -1063,6 +1063,61 @@ public class GatewayTester
     private const string Moxa = """{"typ":"GW-MB-RTU","ip":"10.0.0.5","portar":[{"namn":"Port1","tcpPort":"1501","baudrate":"9600","paritet":"Even","databitar":"8","stopbit":"1"},{"namn":"Port2","tcpPort":"1502","baudrate":"19200","paritet":"None","databitar":"","stopbit":"2"}]}""";
 
     [Fact]
+    public void Slavadresser_per_gateway_borjar_pa_10()
+    {
+        var gw1 = K("GW1", "AS01", Gateways.Komponenttyp, "Modbus TCP", Moxa);
+        var gw2 = K("GW2", "AS01", Gateways.Komponenttyp, "Modbus TCP", Moxa);
+        var a = K("R10-GT501", "GW1-Port2", "Rumsregulator", "Modbus RTU");
+        var b = K("R2-GT501", "GW1-Port1", "Rumsregulator", "Modbus RTU");
+        var c = K("R2-ST401", "R2-GT501", "Spjällställdon", "Modbus RTU");
+        var d = K("R3-GT501", "GW2-Port1", "Rumsregulator", "Modbus RTU");
+        var t = K("AS01-TCP", "GW2-Port1", "Mätare", "Modbus TCP");
+        var alla = new List<Komponent> { gw1, gw2, a, b, c, d, t };
+        var rad = alla.ToDictionary(k => k, _ => Guid.NewGuid());
+        var enheter = new[] { a, b, c, d, t }.Select(k => (rad[k], k, "")).ToList();
+
+        var nya = Gateways.Slavadresser(enheter, alla, omNumrera: false);
+        // GW1: Port1 först (R2-GT501, R2-ST401), sedan Port2 (R10-GT501). GW2 börjar om på 10. TCP får ingen.
+        Assert.Equal("10", nya[rad[b]]);
+        Assert.Equal("11", nya[rad[c]]);
+        Assert.Equal("12", nya[rad[a]]);
+        Assert.Equal("10", nya[rad[d]]);
+        Assert.False(nya.ContainsKey(rad[t]));
+
+        // Befintliga adresser lämnas; en ny enhet får nästa lediga.
+        var med = new List<(Guid, Komponent, string)> { (rad[b], b, "10"), (rad[c], c, ""), (rad[a], a, "12") };
+        Assert.Equal(new Dictionary<Guid, string> { [rad[c]] = "11" }, Gateways.Slavadresser(med, alla, false));
+        // Numrera om: alla i ordning, bara ändrade returneras.
+        var om = Gateways.Slavadresser(new List<(Guid, Komponent, string)> { (rad[b], b, "10"), (rad[c], c, "15"), (rad[a], a, "11") }, alla, true);
+        Assert.Equal(new Dictionary<Guid, string> { [rad[c]] = "11", [rad[a]] = "12" }, om);
+    }
+
+    [Fact]
+    public void Naturlig_ordning_jamfor_tal_som_tal()
+    {
+        var l = new List<string> { "R10", "R2", "R1001", "r101", "ST2" };
+        l.Sort(NaturligOrdning.Instans);
+        Assert.Equal(new[] { "R2", "R10", "r101", "R1001", "ST2" }, l);
+    }
+
+    [Fact]
+    public void Iplistan_visar_gatewayens_ip()
+    {
+        var gw = K("GW1", "AS01", Gateways.Komponenttyp, "Modbus TCP", Moxa);
+        gw.Id = Guid.NewGuid();
+        var u = K("R1-GT501", "GW1-Port1", "Rumsregulator", "Modbus RTU");
+        var alla = new List<Komponent> { gw, u };
+        var def = Projekteringsverktyg.Server.ListApi.Listdefinitioner.Hitta("iplista")!;
+        var data = new Dictionary<string, string> { ["enhet"] = gw.Id.ToString(), ["ip"] = "1.2.3.4" };
+        Projekteringsverktyg.Server.ListApi.KolumnDef.BeraknaAlla(def.Kolumner, data, alla);
+        Assert.Equal("10.0.0.5", data["ip"]);
+        var fri = new Dictionary<string, string> { ["enhet"] = "Router", ["ip"] = "1.2.3.4" };
+        Projekteringsverktyg.Server.ListApi.KolumnDef.BeraknaAlla(def.Kolumner, fri, alla);
+        Assert.Equal("1.2.3.4", fri["ip"]);
+        Assert.Equal("10.0.0.5", Gateways.Harledd(u, "_gatewayip", alla));
+    }
+
+    [Fact]
     public void Kedjan_gar_via_rc_till_gatewayporten()
     {
         var gw = K("GW-MB-RTU1", "AS01", Gateways.Komponenttyp, "Modbus TCP", Moxa);

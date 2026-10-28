@@ -426,7 +426,7 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
     api<ListRad[]>(`/api/projekt/${projektId}/listor/${listId}/hamta-komponenter`, { method: "POST" })
       .then((nya) => {
         for (const r of nya) laggListRad(listId, r);
-        if (nya.length) visaMeddelande(`${nya.length} ${hamtarFran === "kraft" ? "laster" : hamtarFran === "modbus" ? "Modbus-enheter" : "mätare"} hämtades från Komponenter.`);
+        if (nya.length) visaMeddelande(`${nya.length} ${hamtarFran === "kraft" ? "laster" : hamtarFran === "modbus" ? "Modbus-enheter" : hamtarFran === "gateways" ? "gateways" : "mätare"} hämtades från Komponenter.`);
       })
       .catch(() => { /* listan fungerar ändå */ });
   }, [listId, hamtarFran, listanLaddad, projektId]);
@@ -516,6 +516,15 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
       await api(`/api/projekt/${projektId}/listor/modbus/flera`, { method: "POST", body: skicka(nya.map((k) => ({ beteckning: k.id }))) });
       visaMeddelande(`${nya.length} komponenter tillagda.`);
     } catch (e) { visaMeddelande(`Komponenterna kunde inte läggas till: ${(e as Error).message}`); }
+  };
+
+  /** Modbus: alla RTU-enheter får nya slavadresser per gateway (10, 11, 12 …). Ändringarna kommer via livesynken. */
+  const numreraSlavadresser = async () => {
+    if (!window.confirm("Numrera om alla slavadresser?\n\nVarje gateway börjar på 10 och räknar uppåt (10, 11, 12 …), port för port i beteckningsordning. Enheter utan adress får annars automatiskt nästa lediga när listan öppnas.\n\nEnheter som redan är inställda på plats måste ställas om om deras adress ändras.")) return;
+    try {
+      const svar = await api<{ andrade: number }>(`/api/projekt/${projektId}/listor/modbus/slavadresser`, { method: "POST" });
+      visaMeddelande(svar.andrade ? `${svar.andrade} slavadresser ändrades.` : "Alla slavadresser var redan i ordning.");
+    } catch (e) { visaMeddelande(`Slavadresserna kunde inte numreras: ${(e as Error).message}`); }
   };
 
   const sparaText = async (nyckel: string, text: string) => {
@@ -622,6 +631,7 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
       onNy={() => void nyListRad(listDef)}
       onTaBort={(ids) => void taBortListRader(listDef, ids)}
       onFlytta={(ids) => void flyttaLista(listDef.id, ids)}
+      onAndraKomponent={(k, f, v) => void andra(k, f, v)}
       onExcel={() => void laddaNer(`/api/projekt/${projektId}/listor/${listDef.id}/excel`, `${listDef.namn}.xlsx`).catch((e) => visaMeddelande((e as Error).message))}
       onFlik={onFlik}
       inbaddad={inbaddad}
@@ -629,7 +639,11 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
       kataloger={kataloger}
       forslagExtra={listDef.id === "modbus" ? { slinga: (listor.modbusrtu ?? []).map((g) => (g.data.namn ?? "").trim()).filter(Boolean) } : undefined}
       extraKnappar={listDef.id === "modbus" && skrivbar ? (
-        <button className="knapp" onClick={() => void hamtaModbusKomponenter()}>Hämta Modbus-komponenter</button>
+        <>
+          <button className="knapp" onClick={() => void hamtaModbusKomponenter()}>Hämta Modbus-komponenter</button>
+          <button className="knapp" title="Alla Modbus RTU-enheter får nya slavadresser: 10, 11, 12 … per gateway, port för port i beteckningsordning"
+            onClick={() => void numreraSlavadresser()}>Numrera om slavadresser…</button>
+        </>
       ) : listDef.id === "byggvarubedomning" || listDef.id === "sundahus" ? (
         <ByggvaruKnappar
           lista={listDef.id} projektId={projektId} rader={listor[listDef.id]} lasläge={!skrivbar}

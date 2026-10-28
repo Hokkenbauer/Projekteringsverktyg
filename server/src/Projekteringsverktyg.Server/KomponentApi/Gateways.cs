@@ -88,6 +88,7 @@ public static class Gateways
         "_gateway" => Kedja(k, komponenter) is { } x ? $"{x.Gateway.Beteckning.Trim()}-{x.Port.Namn.Trim()}" : "",
         "_installning" => Kedja(k, komponenter) is { } x ? Installning(x.Port) : "",
         "_via" => Kedja(k, komponenter) is { Via: { } v } ? v.Beteckning : "",
+        "_gatewayip" => Kedja(k, komponenter) is { } x ? Las(x.Gateway).Ip : "",
         "_protokoll" => Protokoll(k),
         _ => "",
     };
@@ -99,7 +100,86 @@ public static class Gateways
         return string.Join(", ", new[] { typer.Contains("Modbus RTU") ? "RTU" : "", typer.Contains("Modbus TCP") ? "TCP" : "" }.Where(x => x != ""));
     }
 
+    /// <summary>Första slavadressen på varje gateway (beslut 2026-10-28: 10, 11, 12 … och varje gateway börjar om).</summary>
+    public const int ForstaSlavadress = 10;
+
+    /// <summary>
+    /// Slavadresser per gateway. enheter = (radens Id, komponenten, nuvarande slavadress). Bara Modbus RTU-enheter som
+    /// når en gateway får adress. omNumrera = alla får nya adresser från 10 i ordning (port, sedan beteckning);
+    /// annars får bara tomma nästa lediga adress på sin gateway, och befintliga lämnas orörda.
+    /// Returnerar de rader som ska ändras: radens Id → ny adress.
+    /// </summary>
+    public static Dictionary<Guid, string> Slavadresser(IEnumerable<(Guid Rad, Komponent Komponent, string Adress)> enheter, IReadOnlyList<Komponent> komponenter, bool omNumrera)
+    {
+        var ut = new Dictionary<Guid, string>();
+        var perGateway = enheter
+            .Where(e => Protokoll(e.Komponent).Contains("RTU"))
+            .Select(e => (e.Rad, e.Komponent, Adress: (e.Adress ?? "").Trim(), Kedja: Kedja(e.Komponent, komponenter)))
+            .Where(e => e.Kedja is not null)
+            .GroupBy(e => e.Kedja!.Value.Gateway.Id);
+        foreach (var g in perGateway)
+        {
+            var portar = Las(g.First().Kedja!.Value.Gateway).Portar.Select(p => p.Namn.Trim()).ToList();
+            var ordnade = g.OrderBy(e => portar.IndexOf(e.Kedja!.Value.Port.Namn.Trim()))
+                .ThenBy(e => e.Komponent.Beteckning, NaturligOrdning.Instans).ToList();
+            if (omNumrera)
+            {
+                var n = ForstaSlavadress;
+                foreach (var e in ordnade)
+                {
+                    var ny = (n++).ToString();
+                    if (e.Adress != ny) ut[e.Rad] = ny;
+                }
+                continue;
+            }
+            var upptagna = ordnade.Select(e => int.TryParse(e.Adress, out var a) ? a : -1).Where(a => a >= 0).ToHashSet();
+            var nasta = ForstaSlavadress;
+            foreach (var e in ordnade.Where(e => e.Adress == ""))
+            {
+                while (upptagna.Contains(nasta)) nasta++;
+                upptagna.Add(nasta);
+                ut[e.Rad] = nasta.ToString();
+            }
+        }
+        return ut;
+    }
+
     /// <summary>Komponenter som hör hemma i Modbus-listan: har en Modbus-punkt och är inte själva en gateway.</summary>
     public static bool ArModbusEnhet(Komponent k) =>
         !ArGateway(k) && Signaler.Las(k).Any(s => s.Typ is "Modbus RTU" or "Modbus TCP");
+}
+
+/// <summary>Sortering där siffror jämförs som tal: R101 före R1001, ST2 före ST10.</summary>
+public sealed class NaturligOrdning : IComparer<string>
+{
+    public static readonly NaturligOrdning Instans = new();
+    private static readonly System.Globalization.CompareInfo Svensk = new System.Globalization.CultureInfo("sv-SE").CompareInfo;
+
+    public int Compare(string? x, string? y)
+    {
+        x ??= ""; y ??= "";
+        int i = 0, j = 0;
+        while (i < x.Length && j < y.Length)
+        {
+            if (char.IsDigit(x[i]) && char.IsDigit(y[j]))
+            {
+                int si = i, sj = j;
+                while (i < x.Length && char.IsDigit(x[i])) i++;
+                while (j < y.Length && char.IsDigit(y[j])) j++;
+                var a = x[si..i].TrimStart('0'); var b = y[sj..j].TrimStart('0');
+                if (a.Length != b.Length) return a.Length.CompareTo(b.Length);
+                var c = string.CompareOrdinal(a, b);
+                if (c != 0) return c;
+            }
+            else
+            {
+                int si = i, sj = j;
+                while (i < x.Length && !char.IsDigit(x[i])) i++;
+                while (j < y.Length && !char.IsDigit(y[j])) j++;
+                var c = Svensk.Compare(x[si..i], y[sj..j], System.Globalization.CompareOptions.IgnoreCase);
+                if (c != 0) return c;
+            }
+        }
+        return (x.Length - i).CompareTo(y.Length - j);
+    }
 }

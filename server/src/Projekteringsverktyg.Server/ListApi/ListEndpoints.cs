@@ -95,19 +95,46 @@ public static class ListEndpoints
             return Results.Ok(rader.Where(r => !AutoRader.ArDold(r)).Select(Dto));
         });
 
-        // Listor som hämtar rader från Komponenter (Kraftberäkning, Mätplan): lägg till det som saknas.
+        // Listor som hämtar rader från Komponenter (Kraftberäkning, Mätplan, Modbus, IP-lista): lägg till det som saknas.
+        // Modbus: enheter utan slavadress får också nästa lediga på sin gateway (skickas ut via livesynken).
         g.MapPost("/hamta-komponenter", async (Guid projektId, string lista, ClaimsPrincipal user, PvDbContext db, IHubContext<ProjektHub> hub) =>
         {
             var def = Listdefinitioner.Hitta(lista);
             if (def is null || def.Hamtar is null) return Results.NotFound();
             var av = Anvandare.Fran(user);
             var nya = await AutoRader.LaggTillSaknadeAsync(db, projektId, def, lista, av);
-            if (nya.Count == 0) return Results.Ok(Array.Empty<ListRadDto>());
-            // Två som öppnar listan samtidigt: den andra får krock på unika indexet och gör inget.
-            try { await db.SaveChangesAsync(); }
-            catch (DbUpdateException) { return Results.Ok(Array.Empty<ListRadDto>()); }
+            if (nya.Count > 0)
+            {
+                // Två som öppnar listan samtidigt: den andra får krock på unika indexet och gör inget.
+                try { await db.SaveChangesAsync(); }
+                catch (DbUpdateException) { return Results.Ok(Array.Empty<ListRadDto>()); }
+            }
+            var andrade = new List<ListRad>();
+            if (def.Hamtar == "modbus")
+            {
+                andrade = await AutoRader.SattSlavadresserAsync(db, projektId, false, av);
+                if (andrade.Count > 0)
+                {
+                    try { await db.SaveChangesAsync(); }
+                    catch (DbUpdateException) { andrade = []; }
+                }
+            }
             foreach (var rad in nya) await Skicka(hub, projektId, lista, "skapad", Dto(rad), av);
+            foreach (var rad in andrade.Where(r => !nya.Contains(r))) await Skicka(hub, projektId, lista, "andrad", Dto(rad), av);
             return Results.Ok(nya.Select(Dto));
+        });
+
+        // Modbus: numrera om alla slavadresser per gateway från 10 (port för port, i beteckningsordning).
+        g.MapPost("/slavadresser", async (Guid projektId, string lista, ClaimsPrincipal user, PvDbContext db, IHubContext<ProjektHub> hub) =>
+        {
+            if (lista != "modbus") return Results.NotFound();
+            var av = Anvandare.Fran(user);
+            var andrade = await AutoRader.SattSlavadresserAsync(db, projektId, true, av);
+            if (andrade.Count == 0) return Results.Ok(new { andrade = 0 });
+            try { await db.SaveChangesAsync(); }
+            catch (DbUpdateConcurrencyException) { return Results.Conflict(new { meddelande = "Listan ändrades samtidigt av någon annan. Försök igen." }); }
+            foreach (var rad in andrade) await Skicka(hub, projektId, lista, "andrad", Dto(rad), av);
+            return Results.Ok(new { andrade = andrade.Count });
         });
 
         // Ny rad i en fri lista.

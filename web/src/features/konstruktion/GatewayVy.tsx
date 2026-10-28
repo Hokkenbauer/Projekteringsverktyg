@@ -19,7 +19,7 @@ function enheterPaPort(a: Anslutningar, namn: string) {
 type RedigerareProps = {
   gateway: Komponent;
   anslutningar: Anslutningar;
-  /** Modbus-listans rader (för ID per enhet). */
+  /** Modbus-listans rader (för slavadress per enhet). */
   modbus: ListRad[] | undefined;
   lasläge: boolean;
   onAndra: (k: Komponent, falt: keyof Komponent & string, varde: string) => void;
@@ -73,7 +73,7 @@ export function GatewayRedigerare({ gateway, anslutningar, modbus, lasläge, onA
             {GATEWAYTYPER.map((t) => <option key={t.kod} value={t.kod}>{t.kod} – {t.namn}</option>)}
           </select>
         </label>
-        <label><span>IP-adress</span>
+        <label title="Samma IP-adress som i IP-listan (Driftsättning), där gatewayen finns som egen rad"><span>IP-adress</span>
           <input value={inst.ip} readOnly={lasläge} placeholder="192.168.0.10" onChange={(e) => spara({ ...inst, ip: e.target.value })} />
         </label>
       </div>
@@ -95,7 +95,7 @@ export function GatewayRedigerare({ gateway, anslutningar, modbus, lasläge, onA
                 <td>{val(p.stopbit, STOPBIT, (v) => port(i, "stopbit", v), "Stopbit")}</td>
                 <td className={enheter.length > typ.maxPerPort || dubbla.length ? "gw-fel" : ""}>
                   <span className="mono">{enheter.length} / {typ.maxPerPort}</span>
-                  {dubbla.length > 0 && <small> · ID {dubbla.join(", ")} dubbla</small>}
+                  {dubbla.length > 0 && <small> · slavadress {dubbla.join(", ")} dubbla</small>}
                   <small className="dampad"> · {installning(p)}</small>
                 </td>
                 {!lasläge && (
@@ -129,7 +129,7 @@ export function GatewayRedigerare({ gateway, anslutningar, modbus, lasläge, onA
                     <button className="lank mono" onClick={() => onInfo?.(k.id)}>{k.beteckning || "(utan beteckning)"}</button>
                     <span>{k.komponenttyp}</span>
                     <span className="dampad">{via ? `via ${via.beteckning}` : "direkt"}</span>
-                    <span className="mono">{idFor.get(k.id) ? `ID ${idFor.get(k.id)}` : "ID saknas"}</span>
+                    <span className="mono">{idFor.get(k.id) ? `Slavadress ${idFor.get(k.id)}` : "Slavadress saknas"}</span>
                   </li>
                 );
               })}

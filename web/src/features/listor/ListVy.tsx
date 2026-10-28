@@ -4,7 +4,7 @@ import type { Kataloger, Komponent, ListDef, ListRad, Projekt } from "../../lib/
 import { skrivUtBlock, type BlockDokument } from "../../lib/dokumentBlock";
 import { utskriftDokument } from "../../lib/utskrift";
 import { ataStyckvis } from "./AtaUtskrift";
-import { Anslutningar } from "../../lib/gateway";
+import { Anslutningar, arGateway, lasGateway } from "../../lib/gateway";
 
 /** En rad som tabellen visar: id + ett textvärde per kolumn. */
 export type VisadRad = Record<string, string> & { id: string };
@@ -38,6 +38,7 @@ export function byggRader(def: ListDef, rader: ListRad[], komponenter: Komponent
   const perId = new Map(komponenter.map((k) => [k.id, k]));
   // Härledda fält (_gateway, _via …) räknas ur anslutningskedjan. Byggs bara när listan behöver dem.
   const kedjor = def.kolumner.some((k) => k.komponentFalt?.startsWith("_")) ? new Anslutningar(komponenter) : null;
+  const gatewayFor = (v: string) => { const g = perId.get(v); return g && arGateway(g) ? g : null; };
   const fyll = (data: Record<string, string>, k: Komponent | null, nr: number) => {
     const ut: Record<string, string> = {};
     for (const kol of def.kolumner) {
@@ -75,6 +76,10 @@ export function byggRader(def: ListDef, rader: ListRad[], komponenter: Komponent
         const hamta = (n: string) => ut[vn(n)] ?? data[n] ?? "";
         const a = tal(hamta(kol.faktorer[0]!)), b = tal(hamta(kol.faktorer[1]!));
         ut[vn(kol.nyckel)] = a !== null && b !== null ? String(a - b) : "";
+      }
+      else if (kol.komponentFalt === "_ip" && kol.faktorer?.[0] && gatewayFor(data[kol.faktorer[0]] ?? "")) {
+        // IP-listan: en gateways IP-adress finns på gatewayen (samma som i Modbus RTU och Komponentinformation).
+        ut[vn(kol.nyckel)] = lasGateway(gatewayFor(data[kol.faktorer[0]] ?? "")!).ip;
       }
       else if (kol.typ === "nummer") ut[vn(kol.nyckel)] = data[kol.nyckel] ?? "";
       else ut[vn(kol.nyckel)] = data[kol.nyckel] ?? kol.standard ?? "";
@@ -157,9 +162,11 @@ type Props = {
   extraKnappar?: ReactNode;
   /** Ny ordning på raderna (fria listor): hela ordningen som rad-id:n. */
   onFlytta?: (ids: string[]) => void;
+  /** Ändra ett fält på en komponent (t.ex. gatewayens IP-adress från IP-listan). */
+  onAndraKomponent?: (k: Komponent, falt: keyof Komponent & string, varde: string) => void;
 };
 
-export function ListVy({ def, grupp, rader, komponenter, projekt, blinkar, lasläge, onAndra, onNy, onTaBort, onExcel, onFlik, inbaddad, utanUtskrift, onInfo, fokusId, kataloger, forslagExtra, extraKnappar, onFlytta }: Props) {
+export function ListVy({ def, grupp, rader, komponenter, projekt, blinkar, lasläge, onAndra, onNy, onTaBort, onExcel, onFlik, inbaddad, utanUtskrift, onInfo, fokusId, kataloger, forslagExtra, extraKnappar, onFlytta, onAndraKomponent }: Props) {
   const visade = useMemo(() => byggRader(def, rader ?? [], komponenter), [def, rader, komponenter]);
   // Anmärkningsbilagan: bara ikryssade rader skrivs ut (inga ikryssade = alla).
   const valForUtskrift = def.id === "anmarkningar";
@@ -176,6 +183,12 @@ export function ListVy({ def, grupp, rader, komponenter, projekt, blinkar, lasl�
   const andra = (r: VisadRad, visadNyckel: string, varde: string) => {
     const nyckel = visadNyckel === "id_" ? "id" : visadNyckel;
     const kol = def.kolumner.find((k) => k.nyckel === nyckel);
+    // IP-adressen på en gateway-rad sparas på gatewayen, inte i listan (en uppgift, ett ställe).
+    if (kol?.komponentFalt === "_ip" && kol.faktorer?.[0] && onAndraKomponent) {
+      const kopplad = rader?.find((x) => x.id === r.id)?.data[kol.faktorer[0]] ?? "";
+      const gw = komponenter.find((k) => k.id === kopplad);
+      if (gw && arGateway(gw)) { onAndraKomponent(gw, "installningar", JSON.stringify({ ...lasGateway(gw), ip: varde.trim() })); return; }
+    }
     if (kol?.typ === "koppling") {
       const t = varde.trim().toLowerCase();
       const kp = t ? komponenter.find((k) => k.beteckning.trim().toLowerCase() === t) : undefined;
@@ -301,7 +314,7 @@ export function ListVy({ def, grupp, rader, komponenter, projekt, blinkar, lasl�
               const s = r.gateway?.trim().toLowerCase();
               if (!s) return nyckel === "gateway" && r.protokoll !== "TCP" ? "Ingen gateway: ange komponentens Ansluts till (gatewayport eller RC)" : undefined;
               if (r.protokoll === "TCP") return undefined;
-              if (nyckel === "id_" && r.id_?.trim() && (modbusKontroll.idPerSlinga.get(`${s}|${r.id_.trim()}`) ?? 0) > 1) return "Samma ID finns två gånger på porten";
+              if (nyckel === "id_" && r.id_?.trim() && (modbusKontroll.idPerSlinga.get(`${s}|${r.id_.trim()}`) ?? 0) > 1) return "Samma slavadress finns två gånger på porten";
               if (nyckel === "gateway" && (modbusKontroll.perSlinga.get(s) ?? 0) > 32) return "Fler än 32 enheter på porten";
               return undefined;
             } : undefined}

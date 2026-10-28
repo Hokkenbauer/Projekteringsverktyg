@@ -110,6 +110,12 @@ public static partial class AutoRader
             kandidater = komponenter.Where(KomponentApi.Gateways.ArModbusEnhet).ToList();
             kolumn = "beteckning";
         }
+        else if (def.Hamtar == "gateways")
+        {
+            // IP-listan: varje gateway är en nätverksenhet.
+            kandidater = komponenter.Where(KomponentApi.Gateways.ArGateway).ToList();
+            kolumn = "enhet";
+        }
         else return [];
         if (kandidater.Count == 0) return [];
 
@@ -139,8 +145,44 @@ public static partial class AutoRader
         }
         if (nya.Count > 0)
             Andringslogg.Logga(db, projektId, av, "Lista", null,
-                $"hämtade {nya.Count} {(def.Hamtar switch { "kraft" => "laster", "modbus" => "Modbus-enheter", _ => "mätare" })} från Komponenter till {def.Namn}");
+                $"hämtade {nya.Count} {(def.Hamtar switch { "kraft" => "laster", "modbus" => "Modbus-enheter", "gateways" => "gateways", _ => "mätare" })} från Komponenter till {def.Namn}");
         return nya;
+    }
+
+    /// <summary>
+    /// Modbus-listan: sätter slavadress per gateway (10, 11, 12 …). omNumrera = alla RTU-enheter numreras om,
+    /// annars får bara de utan adress nästa lediga. Returnerar ändrade rader (loggat, inte sparat).
+    /// </summary>
+    public static async Task<List<ListRad>> SattSlavadresserAsync(PvDbContext db, Guid projektId, bool omNumrera, Anvandare av, CancellationToken ct = default)
+    {
+        var komponenter = await db.Komponenter.AsNoTracking().Where(k => k.ProjektId == projektId).ToListAsync(ct);
+        var perId = komponenter.ToDictionary(k => k.Id);
+        var rader = (await db.ListRader.Where(r => r.ProjektId == projektId && r.Lista == "modbus").ToListAsync(ct))
+            .Where(r => !ArDold(r)).ToList();
+        var enheter = new List<(Guid, Komponent, string)>();
+        foreach (var r in rader)
+        {
+            var data = ListEndpoints.LasData(r.Data);
+            var id = r.KomponentId ?? (Guid.TryParse(data.GetValueOrDefault("beteckning", ""), out var g) ? g : Guid.Empty);
+            if (perId.TryGetValue(id, out var k)) enheter.Add((r.Id, k, data.GetValueOrDefault("id", "")));
+        }
+        var nya = KomponentApi.Gateways.Slavadresser(enheter, komponenter, omNumrera);
+        var andrade = new List<ListRad>();
+        foreach (var r in rader.Where(r => nya.ContainsKey(r.Id)))
+        {
+            var data = ListEndpoints.LasData(r.Data);
+            data["id"] = nya[r.Id];
+            r.Data = JsonSerializer.Serialize(data, Json);
+            r.Version++;
+            r.Andrad = DateTimeOffset.UtcNow;
+            r.AndradAv = av.Namn;
+            andrade.Add(r);
+        }
+        if (andrade.Count > 0)
+            Andringslogg.Logga(db, projektId, av, "Lista", null, omNumrera
+                ? $"numrerade om slavadresserna i Modbus ({andrade.Count} enheter ändrade, 10, 11, 12 … per gateway)"
+                : $"satte slavadress på {andrade.Count} Modbus-enheter (nästa lediga per gateway)");
+        return andrade;
     }
 
     public static bool ArDold(ListRad r) => ListEndpoints.LasData(r.Data).GetValueOrDefault(Dold) == "true";

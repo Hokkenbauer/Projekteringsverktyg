@@ -65,6 +65,12 @@ public sealed record KolumnDef(
                             : k.KomponentFalt == "_gateway" ? data.GetValueOrDefault("slinga", "") : ""
                         : KomponentApi.KomponentFalt.Hamta(kp, k.KomponentFalt);
             }
+            else if (k.KomponentFalt == "_ip" && k.Faktorer is [var enhet, ..]
+                     && HittaKoppling(data.GetValueOrDefault(enhet, ""), komponenter) is { } gw && KomponentApi.Gateways.ArGateway(gw))
+            {
+                // IP-listan: en gateways IP-adress finns på gatewayen (en uppgift, ett ställe).
+                data[k.Nyckel] = KomponentApi.Gateways.Las(gw).Ip;
+            }
             else if (k.Typ == "differens" && k.Faktorer is [var a, var b])
             {
                 data[k.Nyckel] = Tal(data.GetValueOrDefault(a, "")) is { } x && Tal(data.GetValueOrDefault(b, "")) is { } y
@@ -246,13 +252,15 @@ public static class Listdefinitioner
             ]),
 
         new("iplista", "IP-lista", "Driftsättning",
-            "Nätverksenheter i projektet. Dubbla IP-adresser markeras i rött.",
+            "Nätverksenheter i projektet. Projektets gateways läggs in automatiskt; deras IP-adress sparas på gatewayen och syns i Modbus RTU, Komponentinformation och Modbus-listan. Dubbla IP-adresser markeras i rött.",
             Kopplad: false,
+            Hamtar: "gateways",
             Kolumner:
             [
-                new("enhet", "Enhet", Bredd: 180),
+                new("enhet", "Enhet", "koppling", Bredd: 180),
                 new("mac", "MAC-adress", Mono: true),
-                new("ip", "IP-adress", Mono: true),
+                // För en gateway är IP-adressen gatewayens egen (Installningar.Ip), inte radens.
+                new("ip", "IP-adress", Mono: true, KomponentFalt: "_ip", Faktorer: ["enhet"]),
                 new("natmask", "Nätmask", Mono: true, Standard: "255.255.255.0"),
                 new("gateway", "Gateway", Mono: true),
                 new("dns1", "DNS 1", Mono: true),
@@ -290,7 +298,7 @@ public static class Listdefinitioner
 
         // ---------------- Konstruktion ----------------
         new("modbus", "Modbus", "Konstruktion",
-            "Alla komponenter med en Modbus-punkt läggs in automatiskt. Gateway och port räknas fram ur komponentens Ansluts till (direkt eller via t.ex. en RC), och kommunikationsinställningen ärvs från gatewayporten. Fyll i ID (och IP för Modbus TCP). Samma ID två gånger på samma port och fler än 32 enheter per port markeras.",
+            "Alla komponenter med en Modbus-punkt läggs in automatiskt. Gateway och port räknas fram ur komponentens Ansluts till (direkt eller via t.ex. en RC), kommunikationsinställningen ärvs från gatewayporten och gatewayens IP-adress från IP-listan. Slavadressen sätts automatiskt per gateway: 10, 11, 12 … (varje gateway börjar om på 10). Samma slavadress två gånger på samma gateway och fler än 32 enheter per port markeras.",
             Kopplad: false,
             Hamtar: "modbus",
             Kolumner:
@@ -301,7 +309,8 @@ public static class Listdefinitioner
                 new("via", "Via", "fran", KomponentFalt: "_via", Faktorer: ["beteckning"], Mono: true, Bredd: 120),
                 new("gateway", "Gateway / port", "fran", KomponentFalt: "_gateway", Faktorer: ["beteckning"], Mono: true, Bredd: 170),
                 new("installning", "Inställning", "fran", KomponentFalt: "_installning", Faktorer: ["beteckning"], Mono: true, Bredd: 90),
-                new("id", "ID", Mono: true, Bredd: 70),
+                new("gatewayip", "Gateway-IP", "fran", KomponentFalt: "_gatewayip", Faktorer: ["beteckning"], Mono: true, Bredd: 110),
+                new("id", "Slavadress", Mono: true, Bredd: 86),
                 new("ip", "IP-adress (TCP)", Mono: true),
                 new("ovrigt", "Övrigt"),
                 new("kontrollerad", "Kontrollerad", "kryss", SatterDatum: "datum", SatterSign: "sign"),
