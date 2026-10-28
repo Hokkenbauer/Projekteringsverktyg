@@ -206,7 +206,7 @@ public static class Listdefinitioner
             ]),
 
         new("brandspjall", "Brandspjällstabell", "Komponenter & Listor",
-            "Visar komponenter vars komponenttyp innehåller \"spjäll\" och \"brand\". Uppgifterna hör till komponenten.",
+            "Visar komponenter vars komponenttyp innehåller \"brand\" (t.ex. Brandgasspjäll, Brandspjäll). Beteckning och placering hör till komponenten; ett ST7xx från ett driftkort får komponenttypen Brandgasspjäll.",
             Kopplad: true,
             KomponenttypInnehaller: ["brand"],
             Kolumner:

@@ -4,7 +4,7 @@
  */
 export type Signal = { id: string; typ: string; funktion: string; beskrivning: string };
 
-export const TYPER = ["DI", "DU", "AI", "AU", "Modbus RTU", "Modbus TCP", "M-bus", "BACnet", "KNX", "DALI"];
+export const TYPER = ["DI", "DU", "AI", "AU", "Modbus RTU", "Modbus TCP", "M-bus", "SIOX", "BACnet", "KNX", "DALI"];
 
 /** Snabbknappar i I/O-rutan. */
 export const SNABBTYPER = ["DI", "DU", "AI", "AU", "Modbus RTU", "Modbus TCP", "M-bus"];
@@ -28,6 +28,7 @@ export function normaliseraTyp(typ: string): string | null {
     case "RTU": case "MODBUS RTU": case "MODBUS": return "Modbus RTU";
     case "TCP": case "MODBUS TCP": return "Modbus TCP";
     case "MBUS": case "M BUS": return "M-bus";
+    case "SIOX": return "SIOX";
     case "BACNET": return "BACnet";
     case "KNX": return "KNX";
     case "DALI": return "DALI";
@@ -45,7 +46,7 @@ export function nastaFunktion(typ: string, befintliga: Signal[]): string {
 export const nySignal = (typ: string, befintliga: Signal[]): Signal =>
   ({ id: nyttId(), typ, funktion: nastaFunktion(typ, befintliga), beskrivning: "" });
 
-const TYP_RE = /(?<![A-ZÅÄÖ])(?:(\d{1,2})\s*[X×*]?\s*)?(MODBUS[\s_-]*RTU|MODBUS[\s_-]*TCP|MODBUS|M[\s_-]?BUS|BACNET|KNX|DALI|RTU|TCP|DI|DO|DU|AI|AO|AU)(?![A-ZÅÄÖ])/g;
+const TYP_RE = /(?<![A-ZÅÄÖ])(?:(\d{1,2})\s*[X×*]?\s*)?(MODBUS[\s_-]*RTU|MODBUS[\s_-]*TCP|MODBUS|M[\s_-]?BUS|SIOX|BACNET|KNX|DALI|RTU|TCP|DI|DO|DU|AI|AO|AU)(?![A-ZÅÄÖ])/g;
 
 /** "2DI DU AO RTU" → nya punkter efter de befintliga (som påverkar vilka funktioner som föreslås). */
 export function tolka(text: string, befintliga: Signal[] = []): Signal[] {

@@ -18,7 +18,7 @@ public static partial class Signaler
     public const int MaxAntal = 200;
 
     /// <summary>Typerna i sorteringsordning. Samma förkortningar som Ritbordets I/O-rader.</summary>
-    public static readonly string[] Typer = ["DI", "DU", "AI", "AU", "Modbus RTU", "Modbus TCP", "M-bus", "BACnet", "KNX", "DALI"];
+    public static readonly string[] Typer = ["DI", "DU", "AI", "AU", "Modbus RTU", "Modbus TCP", "M-bus", "SIOX", "BACnet", "KNX", "DALI"];
 
     /// <summary>Förslag på funktion per typ. Nya punkter får första förslaget som inte redan används på komponenten.</summary>
     public static readonly Dictionary<string, string[]> Funktioner = new()
@@ -120,6 +120,7 @@ public static partial class Signaler
             "RTU" or "MODBUS RTU" or "MODBUS" => "Modbus RTU",
             "TCP" or "MODBUS TCP" => "Modbus TCP",
             "MBUS" or "M BUS" => "M-bus",
+            "SIOX" => "SIOX",
             "BACNET" => "BACnet",
             "KNX" => "KNX",
             "DALI" => "DALI",
@@ -127,6 +128,6 @@ public static partial class Signaler
         };
     }
 
-    [GeneratedRegex(@"(?<![A-ZÅÄÖ])(?:(?<antal>\d{1,2})\s*[X×*]?\s*)?(?<typ>MODBUS[\s_-]*RTU|MODBUS[\s_-]*TCP|MODBUS|M[\s_-]?BUS|BACNET|KNX|DALI|RTU|TCP|DI|DO|DU|AI|AO|AU)(?![A-ZÅÄÖ])")]
+    [GeneratedRegex(@"(?<![A-ZÅÄÖ])(?:(?<antal>\d{1,2})\s*[X×*]?\s*)?(?<typ>MODBUS[\s_-]*RTU|MODBUS[\s_-]*TCP|MODBUS|M[\s_-]?BUS|SIOX|BACNET|KNX|DALI|RTU|TCP|DI|DO|DU|AI|AO|AU)(?![A-ZÅÄÖ])")]
     private static partial Regex TypRegex();
 }

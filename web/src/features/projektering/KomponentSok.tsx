@@ -64,7 +64,12 @@ export function KomponentSok({ projektId, kallor, komponenter, lasläge, onSattS
     setIvalda(pa ? new Set(nya.filter((r) => r.osaker).map((r) => r.beteckning)) : new Set());
   };
 
-  const typFor = (b: string) => KOMPONENTTYP_FOR_KOD[/^([A-ZÅÄÖ]+)/.exec(b.split("-").at(-1) ?? "")?.[1] ?? ""] ?? "";
+  // ST7xx är brandgasspjäll (ST701, ST702 …), övriga ST spjällställdon.
+  const typFor = (b: string) => {
+    const del = b.split(/[-_]/).at(-1) ?? "";
+    if (/^ST7\d\d?$/.test(del)) return "Brandgasspjäll";
+    return KOMPONENTTYP_FOR_KOD[/^([A-ZÅÄÖ]+)/.exec(del)?.[1] ?? ""] ?? "";
+  };
 
   const laggTill = async () => {
     if (!valda.length || !window.confirm(`Lägga till ${valda.length} komponenter i Komponenter?`)) return;

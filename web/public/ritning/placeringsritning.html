@@ -4353,14 +4353,14 @@ document.getElementById('pvRequestSync')?.addEventListener('click', ()=>{
 });
 
 /* ---------- I/O-punkter (samma regler som webbappens lib/signaler.ts och serverns Signaler.cs) ---------- */
-const IO_TYPER=['DI','DU','AI','AU','Modbus RTU','Modbus TCP','M-bus','BACnet','KNX','DALI'];
+const IO_TYPER=['DI','DU','AI','AU','Modbus RTU','Modbus TCP','M-bus','SIOX','BACnet','KNX','DALI'];
 const IO_SNABB=['DI','DU','AI','AU','Modbus RTU','Modbus TCP','M-bus'];
 const IO_FUNK={DI:['DRIFT','LARM','INDIKERING','NIVÅ','FLÖDE','SÄKERHET'],DU:['MANÖVER','STOPP','ÖPPNA','STÄNG','STEG2'],AI:['MÄTVÄRDE','ÅTERKOPPLING','TEMP','TRYCK','FLÖDE'],AU:['STYRSIGNAL','VARVTAL','BÖRVÄRDE']};
 function ioTyp(t){const x=String(t||'').trim().toUpperCase().replace(/[\s_-]+/g,' ');
-  return {DI:'DI',DU:'DU',DO:'DU',AI:'AI',AU:'AU',AO:'AU',RTU:'Modbus RTU','MODBUS RTU':'Modbus RTU',MODBUS:'Modbus RTU',TCP:'Modbus TCP','MODBUS TCP':'Modbus TCP',MBUS:'M-bus','M BUS':'M-bus',BACNET:'BACnet',KNX:'KNX',DALI:'DALI'}[x]||null;}
+  return {DI:'DI',DU:'DU',DO:'DU',AI:'AI',AU:'AU',AO:'AU',RTU:'Modbus RTU','MODBUS RTU':'Modbus RTU',MODBUS:'Modbus RTU',TCP:'Modbus TCP','MODBUS TCP':'Modbus TCP',MBUS:'M-bus','M BUS':'M-bus',SIOX:'SIOX',BACNET:'BACnet',KNX:'KNX',DALI:'DALI'}[x]||null;}
 function ioNy(typ,lista){const f=IO_FUNK[typ]||[];const anv=new Set(lista.filter(s=>s.typ===typ).map(s=>s.funktion));
   return {id:Math.random().toString(36).slice(2,12),typ,funktion:f.find(x=>!anv.has(x))||'',beskrivning:''};}
-function ioTolka(text,lista){const ut=[];const re=/(?<![A-ZÅÄÖ])(?:(\d{1,2})\s*[X×*]?\s*)?(MODBUS[\s_-]*RTU|MODBUS[\s_-]*TCP|MODBUS|M[\s_-]?BUS|BACNET|KNX|DALI|RTU|TCP|DI|DO|DU|AI|AO|AU)(?![A-ZÅÄÖ])/g;
+function ioTolka(text,lista){const ut=[];const re=/(?<![A-ZÅÄÖ])(?:(\d{1,2})\s*[X×*]?\s*)?(MODBUS[\s_-]*RTU|MODBUS[\s_-]*TCP|MODBUS|M[\s_-]?BUS|SIOX|BACNET|KNX|DALI|RTU|TCP|DI|DO|DU|AI|AO|AU)(?![A-ZÅÄÖ])/g;
   for(const m of String(text).toUpperCase().matchAll(re)){const n=Math.min(64,Math.max(1,+(m[1]||1)));const t=ioTyp(m[2]);if(!t)continue;
     for(let i=0;i<n;i++)ut.push(ioNy(t,lista.concat(ut)));}
   return ut;}
