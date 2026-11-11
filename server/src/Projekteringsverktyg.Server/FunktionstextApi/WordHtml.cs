@@ -384,6 +384,16 @@ public static partial class WordHtml
 
         private XElement? Xml(XElement? kalla, string attribut) => Xml((string?)kalla?.Attribute(attribut));
 
+        /// <summary>
+        /// Tabeller som skapats i verktyget (data-pv="rubrik"/"data") har ingen sparad Word-formatering.
+        /// De får driftkortens regel: Arial 8 pt, rubriktabellen fet och datatabellen uttryckligen icke-fet.
+        /// </summary>
+        private XElement? tabellRpr;
+        private bool iNyTabell;
+
+        private const string ArialRubrik = """<w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:b/><w:sz w:val="16"/><w:szCs w:val="16"/></w:rPr>""";
+        private const string ArialData = """<w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:b w:val="0"/><w:bCs w:val="0"/><w:sz w:val="16"/><w:szCs w:val="16"/></w:rPr>""";
+
         /// <summary>Words krav på ordningen i w:rPr (fel ordning kan ge "filen är skadad").</summary>
         private static readonly string[] RprOrdning = ["rStyle", "rFonts", "b", "bCs", "i", "iCs", "caps", "smallCaps", "strike", "dstrike", "outline", "shadow",
             "emboss", "imprint", "noProof", "snapToGrid", "vanish", "webHidden", "color", "spacing", "w", "kern", "position", "sz", "szCs", "highlight",
@@ -472,7 +482,7 @@ public static partial class WordHtml
         {
             var p = new XElement(W + "p");
             var sparad = Xml(kalla, "data-ppr");
-            var basR = Xml(kalla, "data-r");
+            var basR = Xml(kalla, "data-r") ?? tabellRpr;
             if (sparad is not null && sparad.Name == W + "pPr")
             {
                 // Styckets formatering som i originalet (stil, indrag, avstånd, lista, sektionsbrytning).
@@ -497,6 +507,8 @@ public static partial class WordHtml
                     pPr.Add(new XElement(W + "ind", new XAttribute(W + "left", 360), new XAttribute(W + "hanging", 240)));
                 }
             }
+            if (iNyTabell && rubrik == 0)
+                pPr.Add(new XElement(W + "spacing", new XAttribute(W + "before", 0), new XAttribute(W + "after", 0)));
             if (rubrik > 0 && stil is null)
                 pPr.Add(new XElement(W + "spacing", new XAttribute(W + "before", 240), new XAttribute(W + "after", 60)));
             if (pPr.HasElements) p.Add(pPr);
@@ -555,13 +567,18 @@ public static partial class WordHtml
                 .Sum(c => int.TryParse((string?)c.Attribute("colspan"), out var s) ? s : 1)).DefaultIfEmpty(1).Max());
             var tbl = new XElement(W + "tbl");
             var sparadTbl = Xml(table, "data-tblpr");
+            var roll = (string?)table.Attribute("data-pv");
+            var ny = (sparadTbl is null || sparadTbl.Name != W + "tblPr") && roll is "rubrik" or "data";
             if (sparadTbl is not null && sparadTbl.Name == W + "tblPr") tbl.Add(sparadTbl);
             else
             {
                 var tblPr = new XElement(W + "tblPr");
                 var stil = TabellStil((string?)table.Attribute("data-stil"));
                 if (stil is not null) tblPr.Add(new XElement(W + "tblStyle", new XAttribute(W + "val", stil)));
-                tblPr.Add(new XElement(W + "tblW", new XAttribute(W + "w", 0), new XAttribute(W + "type", "auto")));
+                // Tabeller skapade i verktyget fyller hela spaltens bredd.
+                tblPr.Add(ny
+                    ? new XElement(W + "tblW", new XAttribute(W + "w", 5000), new XAttribute(W + "type", "pct"))
+                    : new XElement(W + "tblW", new XAttribute(W + "w", 0), new XAttribute(W + "type", "auto")));
                 if (stil is null)
                     tblPr.Add(new XElement(W + "tblBorders",
                         new[] { "top", "left", "bottom", "right", "insideH", "insideV" }.Select(k => new XElement(W + k,
@@ -572,6 +589,10 @@ public static partial class WordHtml
             var bredder = ((string?)table.Attribute("data-grid") ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries)
                 .Select(x => int.TryParse(x, out var b) ? b : 0).ToList();
             if (bredder.Count == 0 || bredder.Any(b => b <= 0)) bredder = Enumerable.Repeat(9000 / kolumner, kolumner).ToList();
+            // Kolumner tillagda eller borttagna utan att bredderna följt med: dela den sparade bredden lika.
+            else if (bredder.Count != kolumner) bredder = Enumerable.Repeat(bredder.Sum() / kolumner, kolumner).ToList();
+            var (forraRpr, forraNy) = (tabellRpr, iNyTabell);
+            if (ny) { tabellRpr = Xml(roll == "rubrik" ? ArialRubrik : ArialData); iNyTabell = true; }
             tbl.Add(new XElement(W + "tblGrid", bredder.Select(b => new XElement(W + "gridCol", new XAttribute(W + "w", b)))));
             foreach (var tr in rader)
             {
@@ -597,6 +618,7 @@ public static partial class WordHtml
                 }
                 tbl.Add(wtr);
             }
+            (tabellRpr, iNyTabell) = (forraRpr, forraNy);
             return tbl;
         }
     }

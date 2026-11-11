@@ -41,7 +41,7 @@ const BLOCK = new Set(["P", "H1", "H2", "H3", "UL", "OL", "LI", "TABLE", "TR", "
 const STYCKE = ["data-stil", "data-ppr", "data-r"];
 const TILLATNA_ATTR: Record<string, string[]> = {
   P: STYCKE, H1: STYCKE, H2: STYCKE, H3: STYCKE, LI: [...STYCKE, "data-num"],
-  TABLE: ["data-stil", "data-tblpr", "data-grid"], TR: ["data-trpr"], TD: ["colspan", "data-tcpr"], TH: ["colspan", "data-tcpr"],
+  TABLE: ["data-stil", "data-tblpr", "data-grid", "data-pv"], TR: ["data-trpr"], TD: ["colspan", "data-tcpr"], TH: ["colspan", "data-tcpr"],
 };
 
 /**

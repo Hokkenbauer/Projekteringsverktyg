@@ -551,6 +551,28 @@ public class FunktionstextWordTester
     }
 
     [Fact]
+    public void Tabell_skapad_i_verktyget_blir_Arial_8_med_fet_rubrik_och_icke_fet_data()
+    {
+        var html = "<table data-pv=\"rubrik\"><tr><td><p>Komponent</p></td><td><p>Inställning</p></td></tr></table><p></p>" +
+                   "<table data-pv=\"data\" data-grid=\"3000,3000,3000\"><tr><td><p>GT11</p></td><td><p>21 °C</p></td></tr></table>";
+        var word = WordHtml.TillWord(html, null);
+        using var zip = new System.IO.Compression.ZipArchive(new MemoryStream(word));
+        using var s = zip.GetEntry("word/document.xml")!.Open();
+        var dok = System.Xml.Linq.XDocument.Load(s);
+        var tabeller = dok.Descendants(Wn + "tbl").ToList();
+        Assert.Equal(2, tabeller.Count);
+        var rubrik = tabeller[0].Descendants(Wn + "r").First().Element(Wn + "rPr")!;
+        var data = tabeller[1].Descendants(Wn + "r").First().Element(Wn + "rPr")!;
+        Assert.Equal("Arial", (string?)rubrik.Element(Wn + "rFonts")!.Attribute(Wn + "ascii"));
+        Assert.Equal("16", (string?)rubrik.Element(Wn + "sz")!.Attribute(Wn + "val"));
+        Assert.Null(rubrik.Element(Wn + "b")!.Attribute(Wn + "val"));
+        Assert.Equal("0", (string?)data.Element(Wn + "b")!.Attribute(Wn + "val"));
+        Assert.Equal("16", (string?)data.Element(Wn + "sz")!.Attribute(Wn + "val"));
+        // Tre sparade bredder men två kolumner: bredderna delas lika.
+        Assert.Equal(2, tabeller[1].Element(Wn + "tblGrid")!.Elements(Wn + "gridCol").Count());
+    }
+
+    [Fact]
     public void Trasig_html_blir_stycken_i_stallet_for_fel()
     {
         var word = WordHtml.TillWord("<p>Öppen <b>tagg</p>", null);
