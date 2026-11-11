@@ -305,6 +305,12 @@
       <p class="hint" style="margin-top:8px">Verktyget är kvar tills du trycker Esc. Dra med pilen på tom yta för att markera flera.</p>
     </div>
 
+    <div class="sec" id="ioSec" style="display:none">
+      <h2>I/O-streck</h2>
+      <button class="btn wide" id="btnIoStada" title="Flyttar I/O-streck i sidled så att de inte ligger ovanpå varandra eller går genom texter och symboler">Städa I/O-streck</button>
+      <p class="hint" style="margin-top:8px">Nya streck flyttas automatiskt bort från andra streck och texter. Städa tar alla på en gång.</p>
+    </div>
+
     <div class="sec">
       <h2>Linjetyper <span class="tag" id="stdTag">—</span></h2>
       <div class="presets" id="presets"></div>
@@ -770,6 +776,7 @@ function paintLayers(){
   });
   const ioKnapp = document.querySelector('.tool[data-tool="io"]');
   if (ioKnapp) ioKnapp.style.display = arDriftkort() ? '' : 'none';
+  if ($('ioSec')) $('ioSec').style.display = arDriftkort() ? '' : 'none';
   if (tool === 'io' && !arDriftkort()) setTool('select');
   const sel = $('moveTo'); sel.innerHTML = '';
   layers().forEach(l => {
@@ -2178,6 +2185,7 @@ function openLib(mode){
 }
 function closeLib(){ $('lib').hidden = true; }
 $('btnSymLib').onclick = () => openLib('symbol');
+$('btnIoStada').onclick = ioStadaKnapp;
 $('btnTplLib').onclick = () => openLib('template');
 $('libClose').onclick = closeLib;
 $('libEdit').onclick = () => { closeLib(); openSettings(libMode === 'symbol' ? 'sym' : 'tpl'); };
@@ -3016,7 +3024,10 @@ function ioFast(){
   d.g.id = 'io_' + (++idCounter);
   stamp(d.g);
   d.g.dataset.name = 'I/O ' + d.rad[0];
-  if (sista.x < d.rad[2] * PT || sista.x > d.rad[3] * PT) setMsg('Obs: strecket hamnar utanför raden ' + d.rad[0]);
+  d.g.dataset.rad = d.rad[0];
+  const flyttat = ioStadaAlla([d.g]) > 0;
+  if (flyttat) setMsg('I/O-streck till ' + d.rad[0] + ' – flyttat i sidled så att det inte krockar');
+  else if (sista.x < d.rad[2] * PT || sista.x > d.rad[3] * PT) setMsg('Obs: strecket hamnar utanför raden ' + d.rad[0]);
   else setMsg('I/O-streck till ' + d.rad[0]);
   $('rdLen').textContent = '';
   refresh();
@@ -3095,6 +3106,114 @@ function ioRita(g, pkt){
   g.dataset.rad = rad[0];
   rebase(g);
   return rad;
+}
+
+/* ---- Städa I/O-streck (regler från AutoCAD-driftkorten, se skillen Flödesbilder och I/O-streck) ----
+   - Parallella lodräta I/O-streck ligger minst IO_AVST isär (i mallarna 3,4–4 pt), aldrig ovanpå varandra.
+   - Ett lodrätt streck går inte genom texter eller andra symboler. Vågräta rör får korsas, lodräta rör inte.
+   - Ett streck som går rakt ner från symbolen och måste flyttas får en kort vågrät stump ut från symbolen
+     (som givarnas stump i mallarna) och går sedan ner bredvid.
+   - Mellanliggande vågräta bitar flyttas upp/ner på samma sätt så att de inte ligger på varandra eller på text.
+   Nya streck städas när de fästs; knappen Städa I/O-streck städar alla. */
+const IO_AVST = 3.4 * PT;
+const IO_MARG = 1.2 * PT;
+const IO_STEG = 0.5 * PT;
+function ioAllaStreck(){
+  const l = stage.querySelector('[data-io="streck"]');
+  return l ? [...l.children].filter(arIoStreck) : [];
+}
+/** Texter och symboler i flödesbilden som I/O-strecken ska gå runt (lager med I/O-rader, I/O och sidfot räknas inte). */
+function ioHinder(){
+  const inv = stage.getCTM().inverse();
+  const ut = [];
+  layers().filter(l => !l.dataset.io && !l.dataset.noexp).forEach(l => [...l.children].forEach(n => {
+    if (!n.dataset || !n.dataset.item) return;
+    (n.tagName === 'text' ? [n] : [...n.querySelectorAll('text')]).forEach(t => {
+      try {
+        const b = tbox(t.getBBox(), inv.multiply(t.getCTM()));
+        if (b.width > 0 && b.height > 0) ut.push({ x: b.x, y: b.y, w: b.width, h: b.height, text: true });
+      } catch(e){}
+    });
+    if (n.tagName === 'text') return;
+    const b = box(n);
+    if (b.h < 4 * PT) return;                       // vågräta rör får korsas
+    if (b.w > 150 * PT && b.h > 150 * PT) return;    // stora grupper (hela aggregat) räknas inte
+    ut.push({ x: b.x, y: b.y, w: b.w, h: b.h });
+  }));
+  return ut;
+}
+const ioInne = (h, q, m) => q.x >= h.x - m && q.x <= h.x + h.w + m && q.y >= h.y - m && q.y <= h.y + h.h + m;
+/** Närmaste x där en lodrät bit (y1–y2) inte ligger för nära andra I/O-streck eller går genom hinder. */
+function ioFriX(x0, y1, y2, fasta, hinder){
+  const ok = (x, medHinder) => fasta.every(f => f.y2 < y1 - IO_MARG || f.y1 > y2 + IO_MARG || Math.abs(f.x - x) >= IO_AVST - 0.01) &&
+    (!medHinder || hinder.every(h => h.y + h.h < y1 || h.y > y2 || x < h.x - IO_MARG || x > h.x + h.w + IO_MARG));
+  for (const medHinder of [true, false])
+    for (let k = 0; k <= 80; k++)
+      for (const t of k ? [1, -1] : [1]){ const x = x0 + t * k * IO_STEG; if (ok(x, medHinder)) return x; }
+  return x0;
+}
+function ioFriY(y0, x1, x2, fasta, hinder){
+  const ok = (y, medHinder) => fasta.every(f => f.x2 < x1 - IO_MARG || f.x1 > x2 + IO_MARG || Math.abs(f.y - y) >= IO_AVST - 0.01) &&
+    (!medHinder || hinder.filter(h => h.text).every(h => h.x + h.w < x1 || h.x > x2 || y < h.y - IO_MARG || y > h.y + h.h + IO_MARG));
+  for (const medHinder of [true, false])
+    for (let k = 0; k <= 40; k++)
+      for (const t of k ? [-1, 1] : [1]){ const y = y0 + t * k * IO_STEG; if (ok(y, medHinder)) return y; }
+  return y0;
+}
+/** Städar I/O-strecken. bara = de streck som får flyttas (övriga ligger fast), annars alla. Returnerar antal ändrade. */
+function ioStadaAlla(bara){
+  const alla = ioAllaStreck();
+  if (!alla.length) return 0;
+  alla.forEach(ioBaka);
+  const hinder = ioHinder();
+  const flytta = new Set(bara || alla);
+  const lista = alla.map(g => ({ g, pkt: ioStada(ioPunkter(g)) }));
+  const fastaV = [], fastaH = [];
+  const lagg = pkt => { for (let i = 0; i < pkt.length - 1; i++){ const a = pkt[i], b = pkt[i + 1];
+    if (Math.abs(a.x - b.x) < 0.3) fastaV.push({ x: a.x, y1: Math.min(a.y, b.y), y2: Math.max(a.y, b.y) });
+    else if (Math.abs(a.y - b.y) < 0.3) fastaH.push({ y: a.y, x1: Math.min(a.x, b.x), x2: Math.max(a.x, b.x) }); } };
+  lista.filter(s => !flytta.has(s.g)).forEach(s => lagg(s.pkt));
+  // Från vänster till höger efter streckets längsta lodräta bit, så att strecken inte byter plats.
+  const huvudX = pkt => { let b = null, l = -1; for (let i = 0; i < pkt.length - 1; i++){ const d = Math.abs(pkt[i + 1].y - pkt[i].y);
+    if (Math.abs(pkt[i].x - pkt[i + 1].x) < 0.3 && d > l){ l = d; b = pkt[i].x; } } return b ?? pkt[0].x; };
+  let andrade = 0;
+  for (const s of lista.filter(s => flytta.has(s.g)).sort((a, b) => huvudX(a.pkt) - huvudX(b.pkt))){
+    const pkt = s.pkt.map(q => ({ x: q.x, y: q.y }));
+    // Symbolen som strecket utgår från är inget hinder för det egna strecket.
+    const egna = hinder.filter(h => !ioInne(h, pkt[0], 2 * PT));
+    let andrad = false;
+    for (let i = 0; i < pkt.length - 1; i++){
+      const a = pkt[i], b = pkt[i + 1];
+      if (Math.abs(a.x - b.x) >= 0.3) continue;
+      const y1 = Math.min(a.y, b.y), y2 = Math.max(a.y, b.y);
+      const x = ioFriX(a.x, y1, y2, fastaV, egna);
+      if (Math.abs(x - a.x) > 0.3){
+        andrad = true;
+        if (i === 0){ pkt.splice(1, 0, { x, y: a.y }); b.x = x; i++; }
+        else { a.x = x; b.x = x; }
+      }
+      fastaV.push({ x, y1, y2 });
+    }
+    // Vågräta bitar mitt i strecket (inte stumpen vid symbolen).
+    for (let i = 1; i < pkt.length - 2; i++){
+      const a = pkt[i], b = pkt[i + 1];
+      if (Math.abs(a.y - b.y) >= 0.3) continue;
+      const x1 = Math.min(a.x, b.x), x2 = Math.max(a.x, b.x);
+      const y = ioFriY(a.y, x1, x2, fastaH, egna);
+      if (Math.abs(y - a.y) > 0.3){ andrad = true; a.y = y; b.y = y; }
+      fastaH.push({ y, x1, x2 });
+    }
+    if (andrad){ ioRita(s.g, pkt); andrade++; }
+  }
+  return andrade;
+}
+function ioStadaKnapp(){
+  if (!arDriftkort()) return setMsg('Städa I/O-streck finns bara i driftkort');
+  push();
+  const n = ioStadaAlla();
+  if (!n){ undoStack.pop(); setMsg('I/O-strecken ligger redan fritt – inget att städa'); }
+  else setMsg(`${n} I/O-streck flyttade så att de inte krockar (Ctrl+Z ångrar)`);
+  select([]); refresh();
 }
 let ioRedigering = null;   // { g, typ:'v'|'s'|'e', i, pkt0 }
 function ioHandtag(g, r){
