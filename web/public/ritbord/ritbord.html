@@ -3025,6 +3025,17 @@ function ioFast(){
   stamp(d.g);
   d.g.dataset.name = 'I/O ' + d.rad[0];
   d.g.dataset.rad = d.rad[0];
+  // Ett streck som börjar vid samma komponent som ett befintligt läggs ihop med det: ett streck, en punkt per rad.
+  const tvilling = ioAllaStreck().find(e => e !== d.g && ioSammaStart(ioPunkter(e)[0], pkt[0]));
+  if (tvilling){
+    d.g.remove();
+    ioSlaIhop(tvilling, [d.rad[0]]);
+    ioStadaAlla([tvilling]);
+    setMsg(`${d.rad[0]} lades på strecket från samma komponent (${tvilling.dataset.name.replace('I/O ', '')})`);
+    $('rdLen').textContent = '';
+    refresh();
+    return;
+  }
   const flyttat = ioStadaAlla([d.g]) > 0;
   if (flyttat) setMsg('I/O-streck till ' + d.rad[0] + ' – flyttat i sidled så att det inte krockar');
   else if (sista.x < d.rad[2] * PT || sista.x > d.rad[3] * PT) setMsg('Obs: strecket hamnar utanför raden ' + d.rad[0]);
@@ -3087,6 +3098,10 @@ function ioRita(g, pkt){
   if (pkt.length < 2) return;
   const rad = ioRadFor(pkt[pkt.length - 1].y);
   const yR = rad[1] * PT;
+  // Flera signaler från samma komponent = ett streck med en punkt på varje rad (data-rader="Di,Du,Au").
+  // Strecket slutar på den understa raden; rader under den nya änden faller bort.
+  const rader = [...new Set([...(g.dataset.rader || '').split(',').filter(Boolean), rad[0]])]
+    .map(n => DK.rader.find(r => r[0] === n)).filter(r => r && r[1] * PT <= yR + 0.5);
   pkt[pkt.length - 1].y = yR;
   // Sista biten ska vara lodrät ner till raden.
   const fore = pkt[pkt.length - 2];
@@ -3096,21 +3111,25 @@ function ioRita(g, pkt){
   g.querySelectorAll('circle').forEach(c => c.remove());
   const punkt = (cx, cy) => mk('circle', { cx, cy, r: 1.56 * PT, fill: '#000000', stroke: 'none' });
   const sista = pkt[pkt.length - 1];
-  g.appendChild(punkt(sista.x, yR));
+  const fore2 = pkt[pkt.length - 2];
+  rader.forEach(r => { const y = r[1] * PT; if (y >= Math.min(fore2.y, yR) - 0.5) g.appendChild(punkt(sista.x, y)); });
   const yAs = DK.as.y * PT;
   for (let i = 1; i < pkt.length; i++){
     const a = pkt[i - 1], b = pkt[i];
     if ((a.y - yAs) * (b.y - yAs) < 0) g.appendChild(punkt(a.x + (b.x - a.x) * (yAs - a.y) / (b.y - a.y), yAs));
   }
-  g.dataset.name = 'I/O ' + rad[0];
+  const namn = rader.map(r => r[0]);
+  g.dataset.name = 'I/O ' + namn.join('+');
   g.dataset.rad = rad[0];
+  if (namn.length > 1) g.dataset.rader = namn.join(','); else delete g.dataset.rader;
   rebase(g);
   return rad;
 }
 
 /* ---- Städa I/O-streck (regler från AutoCAD-driftkorten, se skillen Flödesbilder och I/O-streck) ----
    - Parallella lodräta I/O-streck ligger minst IO_AVST isär (i mallarna 3,4–4 pt), aldrig ovanpå varandra.
-   - Ett lodrätt streck går inte genom texter eller andra symboler. Vågräta rör får korsas, lodräta rör inte.
+   - Ett lodrätt streck går inte genom texter eller symboler och följer inte lodräta rör eller ramkanter. Vågräta rör och ramkanter får korsas.
+   - Flera signaler från samma komponent = ett streck med en punkt på varje rad (Håkan 2026-11-12).
    - Ett streck som går rakt ner från symbolen och måste flyttas får en kort vågrät stump ut från symbolen
      (som givarnas stump i mallarna) och går sedan ner bredvid.
    - Mellanliggande vågräta bitar flyttas upp/ner på samma sätt så att de inte ligger på varandra eller på text.
@@ -3122,50 +3141,135 @@ function ioAllaStreck(){
   const l = stage.querySelector('[data-io="streck"]');
   return l ? [...l.children].filter(arIoStreck) : [];
 }
-/** Texter och symboler i flödesbilden som I/O-strecken ska gå runt (lager med I/O-rader, I/O och sidfot räknas inte). */
-function ioHinder(){
+/** Två streck börjar vid samma komponent när starterna ligger på samma höjd och nära varandra. */
+const ioSammaStart = (a, b) => !!a && !!b && Math.abs(a.y - b.y) <= 3 * PT && Math.abs(a.x - b.x) <= 15 * PT;
+/** Lägger till rader på ett streck och förlänger det ner till den understa. */
+function ioSlaIhop(g, nyaRader){
+  ioBaka(g);
+  const namn = [...new Set([...(g.dataset.rader || g.dataset.rad || '').split(',').filter(Boolean), ...nyaRader])];
+  const rader = namn.map(n => DK.rader.find(r => r[0] === n)).filter(Boolean);
+  const under = rader.reduce((b, r) => r[1] > b[1] ? r : b);
+  g.dataset.rader = rader.map(r => r[0]).join(',');
+  const pkt = ioPunkter(g);
+  pkt[pkt.length - 1].y = under[1] * PT;
+  ioRita(g, pkt);
+}
+
+/** Geometrin i flödesbilden som I/O-strecken ska ta hänsyn till (lager med I/O-rader, I/O och sidfot räknas inte):
+    - texter (rutor)
+    - fyllda symboldelar (rutor), utom mycket stora ytor
+    - lodräta linjer: rör, ramar och kanter (får inte följas, bara korsas)
+    - vågräta linjer: rör och ramar (får korsas av lodräta streck) */
+function ioGeometri(){
   const inv = stage.getCTM().inverse();
-  const ut = [];
-  layers().filter(l => !l.dataset.io && !l.dataset.noexp).forEach(l => [...l.children].forEach(n => {
-    if (!n.dataset || !n.dataset.item) return;
-    (n.tagName === 'text' ? [n] : [...n.querySelectorAll('text')]).forEach(t => {
-      try {
-        const b = tbox(t.getBBox(), inv.multiply(t.getCTM()));
-        if (b.width > 0 && b.height > 0) ut.push({ x: b.x, y: b.y, w: b.width, h: b.height, text: true });
-      } catch(e){}
-    });
-    if (n.tagName === 'text') return;
-    const b = box(n);
-    if (b.h < 4 * PT) return;                       // vågräta rör får korsas
-    if (b.w > 150 * PT && b.h > 150 * PT) return;    // stora grupper (hela aggregat) räknas inte
-    ut.push({ x: b.x, y: b.y, w: b.w, h: b.h });
+  const texter = [], ytor = [], lodrata = [], vagrata = [];
+  const tillStage = el => inv.multiply(el.getCTM());
+  const lager = layers().filter(l => !l.dataset.io && !l.dataset.noexp);
+  lager.forEach(l => l.querySelectorAll('text').forEach(t => {
+    if (t.parentNode && t.parentNode.closest && t.parentNode.closest('text')) return;
+    try { const b = tbox(t.getBBox(), tillStage(t)); if (b.width > 0 && b.height > 0) texter.push({ x: b.x, y: b.y, w: b.width, h: b.height, el: t }); } catch(e){}
   }));
-  return ut;
+  lager.forEach(l => l.querySelectorAll('path, line, polyline, polygon, rect, circle, ellipse').forEach(el => {
+    if (el.closest('defs, pattern, text') || el.getAttribute('visibility') === 'hidden') return;
+    const cs = getComputedStyle(el);
+    if (cs.display === 'none' || cs.visibility === 'hidden') return;
+    let m; try { m = tillStage(el); } catch(e){ return; }
+    const fylld = cs.fill && cs.fill !== 'none' && cs.fillOpacity !== '0' && !/rgba\([^)]*,\s*0\)/.test(cs.fill);
+    let b; try { b = tbox(el.getBBox(), m); } catch(e){ return; }
+    if (fylld && b.width < 150 * PT && b.height < 150 * PT && b.width > 0.5 && b.height > 0.5) ytor.push({ x: b.x, y: b.y, w: b.width, h: b.height });
+    if (cs.stroke === 'none' || !el.getTotalLength) return;
+    // Linjerna följs bit för bit, så att även ramar och knäckta rör blir rätt.
+    let L; try { L = el.getTotalLength(); } catch(e){ return; }
+    if (!(L > 0)) return;
+    const n = Math.min(4000, Math.max(2, Math.ceil(L / 2)));
+    let f = null, run = null;
+    const avsluta = () => { if (!run) return; const len = run.typ === 'v' ? run.b - run.a : run.b - run.a;
+      if (len > 3 * PT) (run.typ === 'v' ? lodrata : vagrata).push(run); run = null; };
+    for (let i = 0; i <= n; i++){
+      let q; try { q = el.getPointAtLength(L * i / n).matrixTransform(m); } catch(e){ break; }
+      if (f){
+        const dx = Math.abs(q.x - f.x), dy = Math.abs(q.y - f.y);
+        const typ = dx < 0.3 && dy > 0.05 ? 'v' : dy < 0.3 && dx > 0.05 ? 'h' : null;
+        if (run && run.typ === typ && Math.abs((typ === 'v' ? q.x : q.y) - run.k) < 0.6){
+          if (typ === 'v'){ run.a = Math.min(run.a, q.y); run.b = Math.max(run.b, q.y); } else { run.a = Math.min(run.a, q.x); run.b = Math.max(run.b, q.x); }
+        } else {
+          avsluta();
+          if (typ === 'v') run = { typ, k: q.x, a: Math.min(f.y, q.y), b: Math.max(f.y, q.y) };
+          else if (typ === 'h') run = { typ, k: q.y, a: Math.min(f.x, q.x), b: Math.max(f.x, q.x) };
+        }
+      }
+      f = q;
+    }
+    avsluta();
+  }));
+  return { texter, ytor, lodrata, vagrata };
 }
 const ioInne = (h, q, m) => q.x >= h.x - m && q.x <= h.x + h.w + m && q.y >= h.y - m && q.y <= h.y + h.h + m;
-/** Närmaste x där en lodrät bit (y1–y2) inte ligger för nära andra I/O-streck eller går genom hinder. */
-function ioFriX(x0, y1, y2, fasta, hinder){
-  const ok = (x, medHinder) => fasta.every(f => f.y2 < y1 - IO_MARG || f.y1 > y2 + IO_MARG || Math.abs(f.x - x) >= IO_AVST - 0.01) &&
-    (!medHinder || hinder.every(h => h.y + h.h < y1 || h.y > y2 || x < h.x - IO_MARG || x > h.x + h.w + IO_MARG));
-  for (const medHinder of [true, false])
-    for (let k = 0; k <= 80; k++)
-      for (const t of k ? [1, -1] : [1]){ const x = x0 + t * k * IO_STEG; if (ok(x, medHinder)) return x; }
-  return x0;
+/** Geometrin utan det som hör till komponenten strecket börjar vid. */
+function ioUtanEgen(geo, p0){
+  const m = 3 * PT;
+  return {
+    texter: geo.texter,
+    ytor: geo.ytor.filter(h => !ioInne(h, p0, m)),
+    lodrata: geo.lodrata.filter(r => !(Math.abs(r.k - p0.x) < m + 6 * PT && p0.y >= r.a - m && p0.y <= r.b + m)),
+    vagrata: geo.vagrata,
+  };
 }
-function ioFriY(y0, x1, x2, fasta, hinder){
-  const ok = (y, medHinder) => fasta.every(f => f.x2 < x1 - IO_MARG || f.x1 > x2 + IO_MARG || Math.abs(f.y - y) >= IO_AVST - 0.01) &&
-    (!medHinder || hinder.filter(h => h.text).every(h => h.x + h.w < x1 || h.x > x2 || y < h.y - IO_MARG || y > h.y + h.h + IO_MARG));
-  for (const medHinder of [true, false])
-    for (let k = 0; k <= 40; k++)
-      for (const t of k ? [-1, 1] : [1]){ const y = y0 + t * k * IO_STEG; if (ok(y, medHinder)) return y; }
-  return y0;
+/** Hur illa en lodrät bit vid x (y1–y2) krockar: texter och symboler genomkorsade, linjer som följs. */
+function ioKostnadX(x, y1, y2, geo){
+  let k = 0;
+  for (const h of geo.texter) if (!(h.y + h.h < y1 || h.y > y2) && x > h.x - IO_MARG && x < h.x + h.w + IO_MARG) k += 10;
+  for (const h of geo.ytor) if (!(h.y + h.h < y1 || h.y > y2) && x > h.x - IO_MARG && x < h.x + h.w + IO_MARG) k += 10;
+  for (const r of geo.lodrata) if (!(r.b < y1 || r.a > y2) && Math.abs(r.k - x) < IO_AVST) k += 10;
+  return k;
+}
+/** Närmaste x med så få krockar som möjligt. Avståndet till andra I/O-streck (IO_AVST) är ett krav. */
+function ioFriX(x0, y1, y2, fasta, geo){
+  const fri = x => fasta.every(f => f.y2 < y1 - IO_MARG || f.y1 > y2 + IO_MARG || Math.abs(f.x - x) >= IO_AVST - 0.01);
+  let bast = null, bastK = Infinity;
+  for (let k = 0; k <= 120; k++)
+    for (const t of k ? [1, -1] : [1]){
+      const x = x0 + t * k * IO_STEG;
+      if (!fri(x)) continue;
+      const kost = ioKostnadX(x, y1, y2, geo) + k * IO_STEG / PT * 0.5;   // en krock väger som 20 pt omväg
+      if (kost < bastK){ bastK = kost; bast = x; }
+    }
+  return bast ?? x0;
+}
+function ioFriY(y0, x1, x2, fasta, geo){
+  const fri = y => fasta.every(f => f.x2 < x1 - IO_MARG || f.x1 > x2 + IO_MARG || Math.abs(f.y - y) >= IO_AVST - 0.01);
+  const kost = y => geo.texter.filter(h => !(h.x + h.w < x1 || h.x > x2) && y > h.y - IO_MARG && y < h.y + h.h + IO_MARG).length * 10 +
+    geo.vagrata.filter(r => !(r.b < x1 || r.a > x2) && Math.abs(r.k - y) < IO_AVST).length * 10;
+  let bast = null, bastK = Infinity;
+  for (let k = 0; k <= 60; k++)
+    for (const t of k ? [-1, 1] : [1]){
+      const y = y0 + t * k * IO_STEG;
+      if (!fri(y)) continue;
+      const kk = kost(y) + k * IO_STEG / PT * 0.5;
+      if (kk < bastK){ bastK = kk; bast = y; }
+    }
+  return bast ?? y0;
 }
 /** Städar I/O-strecken. bara = de streck som får flyttas (övriga ligger fast), annars alla. Returnerar antal ändrade. */
 function ioStadaAlla(bara){
-  const alla = ioAllaStreck();
+  let alla = ioAllaStreck();
   if (!alla.length) return 0;
   alla.forEach(ioBaka);
-  const hinder = ioHinder();
+  let andrade = 0;
+  // Streck från samma komponent slås ihop till ett (bara vid full städning).
+  if (!bara){
+    for (let i = 0; i < alla.length; i++){
+      const a = alla[i]; if (!a.isConnected) continue;
+      for (let j = i + 1; j < alla.length; j++){
+        const b = alla[j]; if (!b.isConnected) continue;
+        if (!ioSammaStart(ioPunkter(a)[0], ioPunkter(b)[0])) continue;
+        const rb = (b.dataset.rader || b.dataset.rad || ioRadFor(ioPunkter(b).pop().y)[0]).split(',');
+        b.remove(); ioSlaIhop(a, rb); andrade++;
+      }
+    }
+    alla = ioAllaStreck();
+  }
+  const geo = ioGeometri();
   const flytta = new Set(bara || alla);
   const lista = alla.map(g => ({ g, pkt: ioStada(ioPunkter(g)) }));
   const fastaV = [], fastaH = [];
@@ -3176,17 +3280,15 @@ function ioStadaAlla(bara){
   // Från vänster till höger efter streckets längsta lodräta bit, så att strecken inte byter plats.
   const huvudX = pkt => { let b = null, l = -1; for (let i = 0; i < pkt.length - 1; i++){ const d = Math.abs(pkt[i + 1].y - pkt[i].y);
     if (Math.abs(pkt[i].x - pkt[i + 1].x) < 0.3 && d > l){ l = d; b = pkt[i].x; } } return b ?? pkt[0].x; };
-  let andrade = 0;
   for (const s of lista.filter(s => flytta.has(s.g)).sort((a, b) => huvudX(a.pkt) - huvudX(b.pkt))){
     const pkt = s.pkt.map(q => ({ x: q.x, y: q.y }));
-    // Symbolen som strecket utgår från är inget hinder för det egna strecket.
-    const egna = hinder.filter(h => !ioInne(h, pkt[0], 2 * PT));
+    const egen = ioUtanEgen(geo, pkt[0]);
     let andrad = false;
     for (let i = 0; i < pkt.length - 1; i++){
       const a = pkt[i], b = pkt[i + 1];
       if (Math.abs(a.x - b.x) >= 0.3) continue;
       const y1 = Math.min(a.y, b.y), y2 = Math.max(a.y, b.y);
-      const x = ioFriX(a.x, y1, y2, fastaV, egna);
+      const x = ioFriX(a.x, y1, y2, fastaV, egen);
       if (Math.abs(x - a.x) > 0.3){
         andrad = true;
         if (i === 0){ pkt.splice(1, 0, { x, y: a.y }); b.x = x; i++; }
@@ -3199,7 +3301,7 @@ function ioStadaAlla(bara){
       const a = pkt[i], b = pkt[i + 1];
       if (Math.abs(a.y - b.y) >= 0.3) continue;
       const x1 = Math.min(a.x, b.x), x2 = Math.max(a.x, b.x);
-      const y = ioFriY(a.y, x1, x2, fastaH, egna);
+      const y = ioFriY(a.y, x1, x2, fastaH, egen);
       if (Math.abs(y - a.y) > 0.3){ andrad = true; a.y = y; b.y = y; }
       fastaH.push({ y, x1, x2 });
     }
@@ -3207,13 +3309,39 @@ function ioStadaAlla(bara){
   }
   return andrade;
 }
+/** Texter som ligger på rör, symboler, I/O-streck eller andra texter. Texter kan inte flyttas automatiskt
+    (läget beror på vad texten beskriver), så de markeras för hand-rättning. */
+function ioTextkrockar(){
+  const geo = ioGeometri();
+  const io = ioAllaStreck().map(g => ioStada(ioPunkter(g)));
+  const m = 1 * PT;
+  const over = (a, b) => a.x < b.x + b.w + m && a.x + a.w + m > b.x && a.y < b.y + b.h + m && a.y + a.h + m > b.y;
+  const ut = new Set();
+  geo.texter.forEach((t, i) => {
+    const krock =
+      geo.texter.some((u, j) => j !== i && over(t, u)) ||
+      geo.ytor.some(h => over(t, h)) ||
+      geo.lodrata.some(r => r.k > t.x - m && r.k < t.x + t.w + m && r.b > t.y && r.a < t.y + t.h) ||
+      geo.vagrata.some(r => r.k > t.y - m && r.k < t.y + t.h + m && r.b > t.x && r.a < t.x + t.w) ||
+      io.some(pkt => pkt.some((a, k) => { const b = pkt[k + 1]; if (!b) return false;
+        return over(t, { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.abs(b.x - a.x), h: Math.abs(b.y - a.y) }); }));
+    if (!krock) return;
+    // Markera hela objektet texten tillhör (överst i sitt lager).
+    let n = t.el; while (n.parentNode && !(n.parentNode.parentNode === stage)) n = n.parentNode;
+    if (n && n.dataset && n.dataset.item && !n.dataset.lock && n.tagName === 'text') ut.add(n);
+  });
+  return [...ut];
+}
 function ioStadaKnapp(){
   if (!arDriftkort()) return setMsg('Städa I/O-streck finns bara i driftkort');
   push();
   const n = ioStadaAlla();
-  if (!n){ undoStack.pop(); setMsg('I/O-strecken ligger redan fritt – inget att städa'); }
-  else setMsg(`${n} I/O-streck flyttade så att de inte krockar (Ctrl+Z ångrar)`);
-  select([]); refresh();
+  const texter = ioTextkrockar();
+  if (!n) undoStack.pop();
+  const delar = [n ? `${n} I/O-streck städade (Ctrl+Z ångrar)` : 'I/O-strecken ligger redan fritt'];
+  if (texter.length) delar.push(`${texter.length} text${texter.length > 1 ? 'er' : ''} ligger på rör, symboler eller streck och är markerade – flytta eller radbryt dem`);
+  setMsg(delar.join('. '));
+  select(texter); refresh();
 }
 let ioRedigering = null;   // { g, typ:'v'|'s'|'e', i, pkt0 }
 function ioHandtag(g, r){
