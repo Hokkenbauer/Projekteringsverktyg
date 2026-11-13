@@ -54,6 +54,8 @@ type Props<T extends Rad> = {
   markeradeVerktyg?: (ids: string[]) => ReactNode;
   /** Raderna går att flytta (dra i handtaget eller pilarna). Får hela den nya ordningen som id:n. */
   onFlytta?: (ids: string[]) => void;
+  /** Visar bara rader som klarar filtret (t.ex. snabbfilter). Löpnumren behålls; flytt går inte medan filtret döljer rader. */
+  filtrera?: (rad: T) => boolean;
   /** Rubrik på kolumnen med markeringsrutor (t.ex. "För utskrift"). */
   markeraRubrik?: string;
   /** Anropas när markeringen ändras. */
@@ -63,7 +65,7 @@ type Props<T extends Rad> = {
 };
 
 export function DataGrid<T extends Rad>({
-  rader, kolumner, sokPlatshallare, onAndra, onNy: nyIn, onTaBort: taBortIn, blinkar = [], verktyg, lasläge = false, tomText, cellVarning, cellKlass, markeradeVerktyg, onInfo, fokusId, onFlytta: flyttaIn, markeraRubrik, onMarkerade, utanLopnummer,
+  rader, kolumner, sokPlatshallare, onAndra, onNy: nyIn, onTaBort: taBortIn, blinkar = [], verktyg, lasläge = false, tomText, cellVarning, cellKlass, markeradeVerktyg, onInfo, fokusId, onFlytta: flyttaIn, markeraRubrik, onMarkerade, utanLopnummer, filtrera,
 }: Props<T>) {
   const ram = useRef<HTMLDivElement>(null);
   // Mobil: varje rad visas som ett kort (rubrik + värde under varandra). Kan växlas till tabell; valet gäller alla tabeller.
@@ -111,7 +113,8 @@ export function DataGrid<T extends Rad>({
   const [over, setOver] = useState<{ id: string; fore: boolean } | null>(null);
   // Flytta går bara när listan visas i sin egen ordning (ingen sökning eller sortering).
   const harFlytta = !!flyttaIn && !lasläge;
-  const kanFlytta = harFlytta && !sok && !sortering;
+  const filtrerat = !!filtrera && rader.some((r) => !filtrera(r));
+  const kanFlytta = harFlytta && !sok && !sortering && !filtrerat;
   const flytta = (id: string, malIndex: number) => {
     const ids = rader.map((r) => r.id);
     const fran = ids.indexOf(id);
@@ -134,7 +137,7 @@ export function DataGrid<T extends Rad>({
   const visaNr = !utanLopnummer;
 
   const synliga = useMemo(() => {
-    let lista = rader;
+    let lista = filtrera ? rader.filter(filtrera) : rader;
     if (sok) {
       const q = sok.toLowerCase();
       lista = lista.filter((r) => kolumner.some((k) => String(r[k.nyckel] ?? "").toLowerCase().includes(q)));
@@ -149,7 +152,7 @@ export function DataGrid<T extends Rad>({
       );
     }
     return lista;
-  }, [rader, kolumner, sok, sortering]);
+  }, [rader, kolumner, sok, sortering, filtrera]);
 
   // Rad i fokus: rensa sökningen om den döljer raden och scrolla fram den.
   useEffect(() => {
@@ -181,8 +184,11 @@ export function DataGrid<T extends Rad>({
       return n;
     });
 
-  const sortera = (nyckel: string) =>
-    setSortering((s) => (s?.nyckel === nyckel ? { nyckel, riktning: (s.riktning * -1) as 1 | -1 } : { nyckel, riktning: 1 }));
+  // Kryssrutor sorteras ikryssade först vid första klicket (det man oftast vill se), annars stigande.
+  const sortera = (nyckel: string) => {
+    const forst: 1 | -1 = kolumner.find((k) => k.nyckel === nyckel)?.typ === "kryss" ? -1 : 1;
+    setSortering((s) => (s?.nyckel === nyckel ? { nyckel, riktning: (s.riktning * -1) as 1 | -1 } : { nyckel, riktning: forst }));
+  };
 
   return (
     <div className="grid-yta">
@@ -221,7 +227,7 @@ export function DataGrid<T extends Rad>({
             {kort ? "▤ Tabell" : "▦ Kort"}
           </button>
         )}
-        {harFlytta && !kanFlytta && (
+        {harFlytta && !kanFlytta && !filtrerat && (
           <button className="knapp" onClick={() => { setSok(""); setSortering(null); }} title="Rader kan bara flyttas när listan visas i egen ordning">Visa egen ordning</button>
         )}
         <span className="antal">
@@ -264,7 +270,7 @@ export function DataGrid<T extends Rad>({
           <tbody>
             {synliga.length === 0 && (
               <tr><td colSpan={kolumner.length + 4} className="tom">
-                {rader.length === 0 ? (tomText ?? "Inga rader än. Klicka på Ny rad för att börja.") : "Inga rader matchar sökningen."}
+                {rader.length === 0 ? (tomText ?? "Inga rader än. Klicka på Ny rad för att börja.") : filtrerat && !sok ? "Inga rader att visa med valt filter." : "Inga rader matchar sökningen."}
               </td></tr>
             )}
             {synliga.map((r, index) => (
