@@ -1023,3 +1023,97 @@ table.grid.kort td.lopnr::before { content: "#"; padding: 0; font-family: var(--
 /* Att göra – snabbfilter */
 .attgora-filter { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--dampad); }
 .attgora-filter select { padding: 4px 6px; border: 1px solid var(--linje); border-radius: var(--r); background: var(--yta); color: var(--text); }
+
+/* ===== Nytt utseende (prov, 2026-11-14) =====
+   Väljs under Utseende i kontomenyn (data-utseende="nytt" på <html>). Färgerna kommer från temat som vanligt;
+   här ändras bara typsnitt, hörn, rubriker, meny, tabeller och projekthuvudet (ritningshuvud som på utskrifterna).
+   Det nuvarande utseendet lever parallellt tills vi byter. Ta bort hela avsnittet för att gå tillbaka. */
+@font-face { font-family: "Carlito"; src: url(/typsnitt/Carlito-Regular.ttf) format("truetype"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Carlito"; src: url(/typsnitt/Carlito-Bold.ttf) format("truetype"); font-weight: 700; font-display: swap; }
+@font-face { font-family: "Carlito"; src: url(/typsnitt/Carlito-Italic.ttf) format("truetype"); font-weight: 400; font-style: italic; font-display: swap; }
+
+.ritningshuvud { display: none; }
+
+:root[data-utseende="nytt"] {
+  --font: Calibri, Carlito, "Segoe UI", Arial, sans-serif;
+  --font-smal: var(--font);
+  --font-mono: var(--font);
+  --r: 2px;
+  --linje-stark: color-mix(in srgb, var(--linje) 70%, var(--text));
+}
+[data-utseende="nytt"] body { font-size: 14.5px; line-height: 1.4; font-variant-numeric: tabular-nums; }
+[data-utseende="nytt"] h1 { font-size: 23px; font-weight: 700; }
+[data-utseende="nytt"] h2 { font-size: 16px; font-weight: 700; }
+
+/* Rubriker och etiketter: vanlig stil i stället för små versaler med glesa bokstäver. */
+[data-utseende="nytt"] :is(.grupp-knapp, .brodsmula, .tal span, .fasmarke, .grid th, .enkel th, .infopanel h3, .katalogpanel h3, table.grid.kort td::before, .pek-kolumner) {
+  text-transform: none; letter-spacing: 0;
+}
+[data-utseende="nytt"] .brodsmula { font-size: 13px; }
+[data-utseende="nytt"] :is(.infopanel h3, .katalogpanel h3) { font-size: 14px; font-weight: 700; color: var(--text); }
+
+/* Topprad och statusrad */
+[data-utseende="nytt"] .topprad { padding: 6px 16px; min-height: 44px; border-bottom-color: var(--linje-stark); }
+[data-utseende="nytt"] .varumarke-namn { font-weight: 400; color: var(--dampad); }
+[data-utseende="nytt"] .versionsrad { font-size: 12.5px; padding: 3px 16px; background: var(--yta-2); border-top-color: var(--linje-stark); }
+
+/* Meny: gruppnamn i fetstil, tätare flikar, aktiv flik markerad med bakgrund. */
+[data-utseende="nytt"] .sidnav { border-right-color: var(--linje-stark); padding-top: 6px; }
+[data-utseende="nytt"] .grupp-knapp { font-size: 14.5px; font-weight: 700; color: var(--text); gap: 6px; }
+[data-utseende="nytt"] .grupp-knapp .chevron { width: 9px; }
+[data-utseende="nytt"] .flik { border-left: 0; font-size: 14.5px; }
+@media (min-width: 1001px) {
+  [data-utseende="nytt"] .grupp-knapp { padding: 5px 14px; }
+  [data-utseende="nytt"] .flik { padding: 3px 14px 3px 29px; }
+}
+[data-utseende="nytt"] .flik.aktiv { font-weight: 700; }
+[data-utseende="nytt"] .fas { font-size: 12px; }
+[data-utseende="nytt"] .tillbaka { padding: 4px 14px 8px; }
+
+/* Knappar och fält: raka hörn, mindre utfyllnad. */
+[data-utseende="nytt"] .knapp { padding: 3px 12px; font-size: 14px; border-color: var(--linje-stark); }
+[data-utseende="nytt"] .knapp.primar { font-weight: 400; }
+[data-utseende="nytt"] :is(.sok, .filterrad select, .filterrad input, .kontroll select, .kontroll input, .nytt-projekt input) { padding: 3px 7px; border-color: var(--linje-stark); }
+
+/* Tabeller som i Excel: lodräta streck, rubriker i vanlig fetstil, tätare rader och ränder. */
+[data-utseende="nytt"] .grid-ram { border-color: var(--linje-stark); }
+[data-utseende="nytt"] .grid th { font-size: 14px; font-weight: 700; color: var(--text); padding: 5px 8px; border-bottom-color: var(--linje-stark); border-right: 1px solid var(--linje); }
+[data-utseende="nytt"] .grid td { border-right: 1px solid var(--linje); }
+[data-utseende="nytt"] .grid :is(th, td):last-child { border-right: 0; }
+[data-utseende="nytt"] .grid tbody tr:nth-child(even):not(.markerad) td { background: color-mix(in srgb, var(--yta-2) 45%, var(--yta)); }
+[data-utseende="nytt"] .grid td input[type="text"], [data-utseende="nytt"] .grid td select { padding: 3px 8px; font-size: 14px; }
+[data-utseende="nytt"] .grid td.ro span { padding: 3px 8px; font-size: 14px; }
+[data-utseende="nytt"] .grid td input[type="date"] { padding: 2px 8px; }
+[data-utseende="nytt"] .grid td.lopnr { padding: 3px 8px 3px 4px; font-size: 13px; text-align: right; }
+[data-utseende="nytt"] :is(.grid td.mono input, .grid td.ro.mono span, .mono, .iocell) { font-size: 14px; }
+[data-utseende="nytt"] .enkel th { font-size: 14px; font-weight: 700; color: var(--text); padding: 5px 8px; background: var(--yta-2); border-bottom-color: var(--linje-stark); }
+[data-utseende="nytt"] .enkel td { padding: 4px 8px; }
+[data-utseende="nytt"] .enkel :is(th, td) + :is(th, td) { border-left: 1px solid var(--linje); }
+
+/* Paneler och kort: inga rundade hörn. */
+[data-utseende="nytt"] :is(.panel, .tal, .planerad-ruta, .felruta) { border-radius: 0; }
+[data-utseende="nytt"] .tal span { font-size: 13px; }
+
+/* Projekthuvud = ritningshuvud: projekt till vänster, uppgiftsrutor och statusruta till höger. */
+[data-utseende="nytt"] .projekthuvud { justify-content: flex-start; align-items: stretch; gap: 0; padding: 0; margin: -16px -24px 14px; background: var(--yta); border-bottom: 1px solid var(--linje-stark); }
+[data-utseende="nytt"] .projektnamn { flex: 1 1 280px; padding: 8px 16px; border-right: 1px solid var(--linje); display: flex; flex-direction: column-reverse; justify-content: center; }
+[data-utseende="nytt"] .projektnamn b { font-size: 19px; }
+[data-utseende="nytt"] .projektnamn span { font-size: 12.5px; }
+[data-utseende="nytt"] .ritningshuvud { display: flex; margin: 0; }
+[data-utseende="nytt"] .ritningshuvud > div { padding: 8px 14px; border-right: 1px solid var(--linje); display: flex; flex-direction: column; justify-content: center; }
+[data-utseende="nytt"] .ritningshuvud dt { font-size: 12.5px; color: var(--dampad); }
+[data-utseende="nytt"] .ritningshuvud dd { margin: 0; font-weight: 700; white-space: nowrap; }
+[data-utseende="nytt"] .ritningshuvud .rh-statusruta { border-right: 0; }
+[data-utseende="nytt"] .rh-statusruta dd { border: 2px solid var(--text); padding: 3px 12px; }
+[data-utseende="nytt"] .narvaro { padding: 8px 16px; border-left: 1px solid var(--linje); margin-left: auto; }
+[data-utseende="nytt"] .menyknapp { margin: 8px 0 8px 12px; }
+
+@media (max-width: 1000px) {
+  [data-utseende="nytt"] .ritningshuvud > div:not(.rh-statusruta) { display: none; }
+}
+@media (max-width: 760px) {
+  [data-utseende="nytt"] .projekthuvud { margin: 0 -12px 12px; padding: 0; }
+  [data-utseende="nytt"] .projektnamn { padding: 6px 10px; border-right: 0; }
+  [data-utseende="nytt"] .ritningshuvud { display: none; }
+  [data-utseende="nytt"] .narvaro { padding: 6px 10px; }
+}

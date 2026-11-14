@@ -41,6 +41,7 @@ import { TextKatalogVy } from "../projektering/TextKatalogVy";
 import { RiskVy } from "../risk/RiskVy";
 import { ProjektStatusVy } from "../status/ProjektStatusVy";
 import { DokumentUppgifter, laddaDokumentUppgifter } from "./DokumentUppgifter";
+import { huvudUppgifter } from "../../lib/dokumenttema";
 import { MedlemmarVy } from "./MedlemmarVy";
 import { LoggVy, Oversikt } from "./Oversikt";
 
@@ -416,7 +417,12 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
 
   // Utskrifternas huvud och fot: projektets dokumentuppgifter, status och datum.
   const dokVersion = (dokumentVersion.dokumenthuvud ?? 0) + (dokumentVersion.driftkortsidfot ?? 0);
-  useEffect(() => { void laddaDokumentUppgifter(projektId, projekt).catch(() => undefined); }, [projektId, projekt, dokVersion]);
+  /** Räknas upp när dokumentuppgifterna är lästa, så att ritningshuvudet (nytt utseende) visar dem. */
+  const [huvudLast, setHuvudLast] = useState(0);
+  useEffect(() => {
+    void laddaDokumentUppgifter(projektId, projekt).then(() => setHuvudLast((v) => v + 1)).catch(() => undefined);
+  }, [projektId, projekt, dokVersion]);
+  const huvud = useMemo(() => huvudUppgifter({ titel: "", projekt }), [projekt, huvudLast]);
 
   // Kraftberäkning och Mätplan: laster/mätare i Komponenter som saknas läggs till varje gång listan öppnas.
   const hamtarFran = listId ? (listId.startsWith("kraft-") ? "kraft" : listdefinitioner.find((d) => d.id === listId)?.hamtar ?? null) : null;
@@ -715,6 +721,13 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
             <b>{projekt?.namn ?? "…"}</b>
             <span>{[projekt?.nummer, projekt?.kund].filter(Boolean).join(" · ")}</span>
           </div>
+          {/* Ritningshuvud som på utskrifterna. Visas bara i det nya utseendet (stil.css). */}
+          <dl className="ritningshuvud" aria-label="Handlingsuppgifter">
+            <div><dt>Ansvarig</dt><dd>{huvud.ansvarig || "–"}</dd></div>
+            <div><dt>Datum</dt><dd>{huvud.datum || "–"}</dd></div>
+            <div><dt>Senast reviderad</dt><dd>{huvud.revidering || "–"}</dd></div>
+            {huvud.status && <div className="rh-statusruta"><dd>{huvud.status}</dd></div>}
+          </dl>
           <div className="narvaro" aria-label="I projektet nu">
             {narvaro.map((n) => (
               <span key={n.id} className="avatar" style={{ background: fargFor(n.id) }} title={`${n.namn}${n.id === mig.id ? " (du)" : ""}`}>

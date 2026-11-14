@@ -6,7 +6,7 @@ import { Arbetsyta } from "./features/projekt/Arbetsyta";
 import { ProjektLista } from "./features/projekt/ProjektLista";
 import { AdminVy } from "./features/admin/AdminVy";
 import { rollNamn } from "./lib/typer";
-import { TEMAN, kommihagTema, tillampaTema } from "./shell/tema";
+import { TEMAN, UTSEENDEN, kommihagTema, kommihagUtseende, lasUtseende, tillampaTema, tillampaUtseende, type Utseende } from "./shell/tema";
 
 type Vag = { typ: "lista" } | { typ: "admin" } | { typ: "projekt"; id: string; flik: string };
 
@@ -26,6 +26,8 @@ export function App() {
   const [meddelande, setMeddelande] = useState<string | null>(null);
   /** Kontomenyn (bara på mobil, där användare, tema och logga ut ligger bakom en knapp). */
   const [kontoOppen, setKontoOppen] = useState(false);
+  const [utseende, setUtseende] = useState<Utseende>(lasUtseende);
+  const bytUtseende = (u: Utseende) => { tillampaUtseende(u); kommihagUtseende(u); setUtseende(u); };
   useEffect(() => {
     if (!kontoOppen) return;
     const stang = (e: PointerEvent) => { if (!(e.target as Element).closest(".toppmeny, .kontoknapp")) setKontoOppen(false); };
@@ -120,6 +122,12 @@ export function App() {
           Tema
           <select value={mig.tema} onChange={(e) => bytTema(e.target.value as TemaNamn)}>
             {TEMAN.map((t) => <option key={t.id} value={t.id}>{t.namn}</option>)}
+          </select>
+        </label>
+        <label className="kontroll" title="Typsnitt, meny, tabeller och knappar. Färgerna styrs av temat.">
+          Utseende
+          <select value={utseende} onChange={(e) => bytUtseende(e.target.value as Utseende)}>
+            {UTSEENDEN.map((u) => <option key={u.id} value={u.id}>{u.namn}</option>)}
           </select>
         </label>
         {!inloggning.utvecklingslage && <button className="knapp" onClick={inloggning.loggaUt}>Logga ut</button>}

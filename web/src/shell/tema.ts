@@ -24,11 +24,42 @@ export function tillfalligtTema() {
   } catch {
     tillampaTema("natt");
   }
+  tillampaUtseende(lasUtseende());
 }
 
 export function kommihagTema(tema: TemaNamn) {
   try {
     localStorage.setItem("pv-tema", tema);
+  } catch {
+    /* ignoreras */
+  }
+}
+
+/**
+ * Utseende (typsnitt, meny, tabeller, knappar, ritningshuvud) – oberoende av temat (färgerna).
+ * "nytt" provas parallellt med det nuvarande tills det blir standard. Sparas per webbläsare.
+ */
+export type Utseende = "nuvarande" | "nytt";
+export const UTSEENDEN: { id: Utseende; namn: string }[] = [
+  { id: "nuvarande", namn: "Nuvarande" },
+  { id: "nytt", namn: "Nytt (prov)" },
+];
+
+export function lasUtseende(): Utseende {
+  try {
+    return localStorage.getItem("pv-utseende") === "nytt" ? "nytt" : "nuvarande";
+  } catch {
+    return "nuvarande";
+  }
+}
+
+export function tillampaUtseende(u: Utseende) {
+  document.documentElement.dataset.utseende = u;
+}
+
+export function kommihagUtseende(u: Utseende) {
+  try {
+    localStorage.setItem("pv-utseende", u);
   } catch {
     /* ignoreras */
   }
