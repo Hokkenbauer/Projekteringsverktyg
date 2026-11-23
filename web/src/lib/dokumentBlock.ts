@@ -76,7 +76,7 @@ export function bredderFor(t: Pick<Tabell, "kolumner" | "bredder" | "rader">): n
     }).sort((a, b) => a - b);
     const typisk = langder.length ? langder[Math.floor(langder.length * 0.9)]! : 0;
     const rubrik = Math.max(...k.split(/\s+/).map((o) => o.length), Math.min(k.length, 12));
-    return Math.min(45, Math.max(3, rubrik, typisk));
+    return Math.min(45, Math.max(4, rubrik, typisk)); // minst 4 så att t.ex. Nr inte bryts i en smal tabell
   });
   const summa = vikt.reduce((s, v) => s + v, 0) || 1;
   return vikt.map((v) => (v * 100) / summa);

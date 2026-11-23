@@ -81,7 +81,7 @@ public static class ListEndpoints
     {
         app.MapGet("/api/listdefinitioner", () => Listdefinitioner.Alla.Append(Listdefinitioner.Kontroll).Append(Listdefinitioner.Kraft).Select(d => new
         {
-            d.Id, d.Namn, d.Grupp, d.Ingress, d.Kopplad, d.KomponenttypInnehaller, d.Bindestreck, d.Hamtar,
+            d.Id, d.Namn, d.Grupp, d.Ingress, d.Kopplad, d.KomponenttypInnehaller, d.Bindestreck, d.Hamtar, d.BaraPdf,
             kolumner = d.Kolumner.Select(k => new { k.Nyckel, k.Rubrik, k.Typ, k.Val, k.KomponentFalt, k.Standard, k.Mono, k.Bredd, k.Redigerbar, k.Fyll, k.Faktorer, k.Forslag, k.KopplingSignaltyp }),
         }));
 

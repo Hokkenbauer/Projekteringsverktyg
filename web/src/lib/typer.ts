@@ -155,6 +155,8 @@ export type ListDef = {
   bindestreck: boolean;
   /** Fri lista som själv hämtar rader från Komponenter ("kraft" eller "matare"). */
   hamtar?: string | null;
+  /** Listan skrivs bara ut som helhet till PDF (ingen Excel/Word), t.ex. Kontaktlista. */
+  baraPdf?: boolean;
   kolumner: ListKolumn[];
 };
 

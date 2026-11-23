@@ -121,7 +121,9 @@ public sealed record ListDef(
     /// <summary>Visa och exportera komponentens fält med - i stället för _ (skyltar).</summary>
     bool Bindestreck = false,
     /// <summary>Fri lista som själv hämtar rader från Komponenter: "kraft" (laster i skåpet) eller "matare" (se AutoRader).</summary>
-    string? Hamtar = null)
+    string? Hamtar = null,
+    /// <summary>Listan skrivs bara ut som helhet till PDF (ingen Excel- eller Word-export), t.ex. Kontaktlista.</summary>
+    bool BaraPdf = false)
 {
     public KolumnDef? Kolumn(string nyckel) => Kolumner.FirstOrDefault(k => k.Nyckel == nyckel);
 }
@@ -363,6 +365,20 @@ public static class Listdefinitioner
                 new("kostnad", "Kostnad (kr exkl. moms)", Mono: true, Bredd: 110),
                 new("svarSenast", "Svar senast", "datum"),
                 new("datum", "Datum", "datum"),
+            ]),
+
+        // Kontaktlista (Stöd/Övrigt): personer man behöver nå i projektet. Skrivs bara ut som helhet, som PDF.
+        new("kontaktlista", "Kontaktlista", "Projektering",
+            "Personer du behöver ha kontakt med i projektet. Fyll i namn, telefon, e-post, företag och ansvarsområde. Listan skrivs ut som helhet till PDF.",
+            Kopplad: false,
+            BaraPdf: true,
+            Kolumner:
+            [
+                new("namn", "Namn", Bredd: 180),
+                new("telefon", "Telefon", Mono: true, Bredd: 130),
+                new("epost", "E-post", Bredd: 220),
+                new("foretag", "Företag", Bredd: 170),
+                new("ansvar", "Ansvarsområde", Bredd: 260, Fyll: true),
             ]),
 
         // Hinder (Stöd/Övrigt): en rad per dokument. Fliken Hinder visar raderna som formulär och skriver ut dem.

@@ -93,6 +93,7 @@ export const NAVIGERING: Grupp[] = [
       { id: "kalkylmangder", namn: "Kalkylmängder", fas: 5, klar: true, lista: "kalkylmangder", undergrupp: "Stöd/Övrigt" },
       { id: "ata", namn: "ÄTA-lista", fas: 5, klar: true, lista: "ata", undergrupp: "Stöd/Övrigt" },
       { id: "hinder", namn: "Hinder", fas: 5, klar: true, undergrupp: "Stöd/Övrigt" },
+      { id: "kontaktlista", namn: "Kontaktlista", fas: 5, klar: true, lista: "kontaktlista", undergrupp: "Stöd/Övrigt" },
     ],
   },
   {

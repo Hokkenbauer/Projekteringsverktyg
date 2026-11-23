@@ -266,7 +266,7 @@ export function ListVy({ def, grupp, rader, komponenter, projekt, blinkar, lasl�
         <div className="knappar">
           {extraKnappar}
           {def.kopplad && <button className="knapp" onClick={() => onFlik("komponenter")}>Till Komponenter</button>}
-          <button className="knapp" onClick={onExcel}>Exportera till Excel</button>
+          {!def.baraPdf && <button className="knapp" onClick={onExcel}>Exportera till Excel</button>}
           {!utanUtskrift && <button className="knapp" onClick={utskrift}>{ata ? "Skriv ut hela listan / PDF" : "Skriv ut / PDF"}</button>}
           {ata && <button className="knapp" disabled={visade.length === 0}
             title="En färdig underrättelse om ÄTA-arbete per rad (ikryssade rader, eller alla om inga är ikryssade)"

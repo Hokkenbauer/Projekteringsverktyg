@@ -95,7 +95,7 @@ const LISTOR: [string, keyof typeof MAPP][] = [
   ["egenkontroll", "driftsattning"], ["anmarkningar", "driftsattning"], ["iplista", "driftsattning"], ["matplan", "driftsattning"],
   ["byggvarubedomning", "miljo"], ["sundahus", "miljo"],
   ["kravstallning", "krav"],
-  ["kalkylmangder", "stod"], ["ata", "stod"],
+  ["kalkylmangder", "stod"], ["ata", "stod"], ["kontaktlista", "stod"],
   ["signaturlista", "dokumentation"], ["anlaggningsinstallningar", "dokumentation"],
 ];
 
@@ -196,7 +196,7 @@ export function handlingar(u: Underlag): Handling[] {
     const visade = byggRader(d, rader(id), u.komponenter);
     const titel = namn ?? d.namn;
     return {
-      id: `lista:${id}`, mapp, namn: titel, format: ["pdf", "word", "excel"], tom: !visade.length,
+      id: `lista:${id}`, mapp, namn: titel, format: d.baraPdf ? ["pdf"] : ["pdf", "word", "excel"], tom: !visade.length,
       info: visade.length ? st(visade.length, "rad", "rader") : "tom",
       skapa: async (format) => [
         ...await blockFiler(listDokument(d, visade, u.projekt, { efter }), `${mapp}/${rentNamn(titel)}`, format),
