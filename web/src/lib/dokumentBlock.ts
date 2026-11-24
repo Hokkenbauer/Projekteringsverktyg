@@ -55,6 +55,8 @@ export type BlockDokument = {
   block: Block[];
   /** Eget huvud utan handlingsstatus (se dokumenttema). */
   egetHuvud?: { rader: [string, string][]; status: string };
+  /** Fast text i statusrutan oavsett projektets handlingsstatus (se dokumenttema). */
+  fastStatus?: string;
 };
 
 export const cellText = (c: Cell | undefined) => (typeof c === "string" ? c : c?.text ?? "");
@@ -135,6 +137,7 @@ function tabellHtmlBlock(b: Tabell): string {
 export function skrivUtBlock(d: BlockDokument, fonster?: Window | null) {
   return oppnaDokument({ titel: d.titel, kategori: d.kategori, liggande: d.liggande, projekt: d.projekt,
     egetHuvud: d.egetHuvud,
+    fastStatus: d.fastStatus,
     css: `h2+table.data,h2+table.form{margin-top:0}table.data+h2,table.data+p{margin-top:5mm}p+table.data{margin-top:1.5mm}
 table.rutor{border-collapse:collapse;width:100%;table-layout:fixed}
 table.rutor+table.rutor{margin-top:-1px}

@@ -96,10 +96,12 @@ type Sida = {
    * Huvudet visar då dokumentets egna uppgifter (t.ex. Nr och Datum) och kategorin i statusrutan.
    */
   egetHuvud?: { rader: [string, string][]; status: string };
+  /** Fast text i statusrutan oavsett projektets handlingsstatus, t.ex. "PROJEKTÄTA" för ÄTA-listan. */
+  fastStatus?: string;
 };
 
 /** Uppgifterna i ritningshuvudet och fotraden. Samma för utskrift/PDF och Word. */
-export function huvudUppgifter(s: Pick<Sida, "titel" | "kategori" | "projekt" | "egetHuvud">) {
+export function huvudUppgifter(s: Pick<Sida, "titel" | "kategori" | "projekt" | "egetHuvud" | "fastStatus">) {
   const projekt = s.projekt ?? aktuellt.projekt;
   const status = aktuellt.status.trim();
   const fotVanster = [uppgift("foretag"), [uppgift("adress"), uppgift("postadress")].filter(Boolean).join(", "),
@@ -121,7 +123,7 @@ export function huvudUppgifter(s: Pick<Sida, "titel" | "kategori" | "projekt" | 
     ansvarig: uppgift("ansvarig") || projekt?.ansvarig || "",
     datum: aktuellt.datum.trim() || new Date().toLocaleDateString("sv-SE"),
     revidering: uppgift("revidering"),
-    status: s.egetHuvud ? s.egetHuvud.status : status || s.kategori || "",
+    status: s.egetHuvud ? s.egetHuvud.status : s.fastStatus || status || s.kategori || "",
     foretag: uppgift("foretag"),
     fotVanster,
     loggaUrl: loggaUrl(),
@@ -129,7 +131,7 @@ export function huvudUppgifter(s: Pick<Sida, "titel" | "kategori" | "projekt" | 
 }
 
 /** Huvud och fot som HTML/CSS (används av oppnaDokument, och kan bäddas in i egna utskrifter). */
-export function temaDelar(s: Pick<Sida, "titel" | "kategori" | "liggande" | "projekt" | "egetHuvud">) {
+export function temaDelar(s: Pick<Sida, "titel" | "kategori" | "liggande" | "projekt" | "egetHuvud" | "fastStatus">) {
   const h = huvudUppgifter(s);
   const css = `@page{size:A4 ${s.liggande ? "landscape" : "portrait"};margin:10mm 12mm 14mm;
   @bottom-left{content:"${h.fotVanster.replace(/"/g, "'")}";font-family:Calibri,Carlito,Arial,sans-serif;font-size:7pt;color:#000;border-top:.6pt solid #000;vertical-align:top;padding-top:1.2mm}

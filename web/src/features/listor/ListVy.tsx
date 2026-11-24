@@ -130,6 +130,7 @@ export function listDokument(def: ListDef, rader: VisadRad[], projekt: Projekt |
     liggande: anm || ata || undefined,
     kategori: anm ? "Anmärkningsbilaga" : ata ? "ÄTA-lista" : def.id === "egenkontroll" || def.id.startsWith("kontroll-") ? "Egenkontroll/checklista" : undefined,
   });
+  if (ata) d.fastStatus = "PROJEKTÄTA"; // ÄTA-listan ärver inte projektets handlingsstatus
   if (extra?.efter) d.block.push({ typ: "text", text: extra.efter, fet: true });
   return d;
 }
