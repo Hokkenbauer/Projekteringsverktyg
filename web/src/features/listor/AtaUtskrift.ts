@@ -49,7 +49,7 @@ function ataBlock(r: VisadRad, projekt: Projekt | null): Block[] {
 
 /** En ÄTA-underrättelse som eget dokument (filexporten gör en fil per ÄTA). */
 export function ataDokument(r: VisadRad, projekt: Projekt | null): BlockDokument {
-  return { titel: `ÄTA ${r.nr ?? ""}`.trim(), kategori: "ÄTA", projekt, block: ataBlock(r, projekt) };
+  return { titel: `ÄTA ${r.nr ?? ""}`.trim(), kategori: "ÄTA", fastStatus: "PROJEKTÄTA", projekt, block: ataBlock(r, projekt) };
 }
 
 /**
@@ -58,5 +58,5 @@ export function ataDokument(r: VisadRad, projekt: Projekt | null): BlockDokument
  */
 export function ataStyckvis(rader: VisadRad[], projekt: Projekt | null) {
   const titel = rader.length === 1 ? `ÄTA ${rader[0]!.nr}` : "ÄTA – underrättelser";
-  skrivUtBlock({ titel, kategori: "ÄTA", projekt, block: rader.flatMap((r, i) => [...(i ? [{ typ: "sidbrytning" as const }] : []), ...ataBlock(r, projekt)]) });
+  skrivUtBlock({ titel, kategori: "ÄTA", fastStatus: "PROJEKTÄTA", projekt, block: rader.flatMap((r, i) => [...(i ? [{ typ: "sidbrytning" as const }] : []), ...ataBlock(r, projekt)]) });
 }
