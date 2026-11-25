@@ -104,7 +104,7 @@ export function planDokument(plan: PlanData, valda: Post[], projekt: BlockDokume
   while (rader.length < 25) rader.push(["", "", "", ""]);
   return {
     titel: "Förteckning egenkontroller", kategori: "Egenkontroller", projekt,
-    block: [{ typ: "tabell", kolumner: ["Dokumentnamn", "Status", "Benämning", "Datum"], bredder: [31, 9, 46, 14], centrera: [1], rader }],
+    block: [{ typ: "tabell", kolumner: ["Dokumentnamn", "Status", "Benämning", "Datum"], bredder: [31, 9, 46, 14], centrera: [1], radhojd: 6.5, rader }],
   };
 }
 
