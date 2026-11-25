@@ -25,6 +25,9 @@ type Aktuellt = { projekt: Projekt | null; uppgifter: Partial<DokUppgifter>; sta
 let aktuellt: Aktuellt = { projekt: null, uppgifter: {}, status: "", datum: "" };
 
 /** Arbetsytan håller detta aktuellt när projektet öppnas och när någon ändrar uppgifterna. */
+/** Projektets handlingsstatus som förkortning (AK, GH, BH, RH) och handlingsdatum, som de står i uppgiftsrutan. */
+export const handlingsstatus = () => FORKORTNING[aktuellt.status.trim()] ?? aktuellt.status.trim();
+export const handlingsdatum = () => aktuellt.datum.trim();
 export function sattDokumentUppgifter(a: Partial<Aktuellt>) { aktuellt = { ...aktuellt, ...a }; }
 
 /** Uppgift med standardvärde när den inte är ifylld i projektet. */

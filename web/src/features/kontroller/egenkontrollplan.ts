@@ -1,174 +1,90 @@
-import { api } from "../../lib/api";
-import type { Block, BlockDokument, TabellRad } from "../../lib/dokumentBlock";
-import type { Anteckningar, Komponent, ListDef, ListRad, Projekt } from "../../lib/typer";
+import { hamtaBinar } from "../../lib/api";
+import type { BlockDokument, TabellRad } from "../../lib/dokumentBlock";
+import { handlingsdatum, handlingsstatus } from "../../lib/dokumenttema";
 import { zip } from "../../lib/zip";
-import { blockFiler, rentNamn, type Fil, type Format } from "../export/handlingar";
-import { byggRader, listDokument, valtDatum } from "../listor/ListVy";
-import { intygDokument } from "../projektering/ProjekteringsintygVy";
-import { riskDokument } from "../risk/RiskVy";
-import type { Kontroll } from "./KontrollerVy";
-import { pekDokument } from "./ProjekteringsegenkontrollVy";
+import { blockFiler, formatFor, handlingar, rentNamn, type Fil, type Format, type Handling, type Underlag } from "../export/handlingar";
+import { valtDatum } from "../listor/ListVy";
+import { forhinderDokument, hinderDokument } from "../projektering/HinderVy";
 
 /**
- * Egenkontrollplanen: alla projektets egenkontroller på ett ställe, med ansvarig, skede, metod och kommentar.
- * Egenkontrollerna själva finns i sina flikar (Projekteringsegenkontroll, Riskanalyser, Projekteringsintyg,
- * Egenkontroll, Projektspecifika kontroller, Anmärkningsbilaga). Planen sparar bara sina egna uppgifter per
- * egenkontroll (nyckel = egenkontrollens id) plus egna rader för kontroller som görs utanför verktyget.
+ * Egenkontrollplan = Förteckning egenkontroller: en numrerad förteckning över projektets egenkontrollhandlingar
+ * (01_Kontaktlista, 02_Riskanalys projektering …) med status, benämning och datum, som i HECO:s förlaga
+ * (Tönsberg 5). Handlingarna själva finns i sina flikar; förteckningen sparar bara ordning, status, benämning,
+ * datum och egna rader. Exporten ger en ZIP med förteckningen och de ikryssade handlingarna numrerade i samma ordning.
  * Sparas som JSON i projektets text "egenkontrollplan".
  */
 
-export type Uppgift = { skede?: string; ansvarig?: string; metod?: string; kommentar?: string };
-export type EgenRad = { id: string; namn: string; skede: string; ansvarig: string; metod: string; kommentar: string };
-export type PlanData = { upprattadAv: string; datum: string; uppgifter: Record<string, Uppgift>; egna: EgenRad[] };
+export type Uppgift = { status?: string; benamning?: string; datum?: string };
+export type EgenRad = { id: string; namn: string; status: string; benamning: string; datum: string };
+export type PlanData = { version: 2; ordning: string[]; uppgifter: Record<string, Uppgift>; egna: EgenRad[] };
 
-export const SKEDEN = ["Projektering", "Konstruktion", "Installation", "Driftsättning", "Slutbesiktning", "Garantitid"];
+export const STATUSAR = ["AK", "GH", "BH", "RH"];
+
+/** Standardhandlingarna i förteckningen, i standardordning. handling = id i filexportens handlingar (null = finns inte i verktyget). */
+export const STANDARD: { id: string; namn: string; benamning: string; handling: string | null; flik: string; tomBlankett?: "forhinder" | "hinder" }[] = [
+  { id: "kontaktlista", namn: "Kontaktlista", benamning: "Adressförteckning inklusive ICE-kontakter", handling: "lista:kontaktlista", flik: "Projektering → Stöd/Övrigt" },
+  { id: "risk-projektering", namn: "Riskanalys projektering", benamning: "Riskanalys, underlag till kontrollplan", handling: "risk-projektering", flik: "Projektering → Kontroller" },
+  { id: "risk-produktion", namn: "Riskanalys produktion", benamning: "Riskanalys, underlag till kontrollplan", handling: "risk-produktion", flik: "Projektering → Kontroller" },
+  { id: "projekteringsegenkontroll", namn: "Projekteringsegenkontroll", benamning: "Signeras löpande under projekteringen", handling: "projekteringsegenkontroll", flik: "Projektering → Kontroller" },
+  { id: "projekteringsintyg", namn: "Projekteringsintyg", benamning: "Signeras vid färdigställd projektering", handling: "projekteringsintyg", flik: "Projektering → Kontroller" },
+  { id: "signaturlista", namn: "Signaturlista", benamning: "Signaturlista", handling: "lista:signaturlista", flik: "Dokumentation" },
+  { id: "anmarkningar", namn: "Anmärkningsbilaga", benamning: "Beskriver gränsöverskridande anmärkningar i anläggning", handling: "lista:anmarkningar", flik: "Driftsättning" },
+  { id: "installationslista", namn: "Installationslista", benamning: "Checklista installation. Signeras löpande vid färdigställda installationsmoment", handling: "lista:installationslista", flik: "Komponenter & Listor" },
+  { id: "installationsintyg", namn: "Installationsintyg", benamning: "Signeras vid färdigställd installation", handling: null, flik: "Finns inte i verktyget" },
+  { id: "brandfunktionsintyg", namn: "Brandfunktionsintyg", benamning: "Signeras vid färdiginstallerad och avprovad funktion", handling: null, flik: "Finns inte i verktyget" },
+  { id: "egenkontroll", namn: "Egenkontroll driftsättning", benamning: "Checklista driftsättning. Signeras vid färdigställande", handling: "lista:egenkontroll", flik: "Driftsättning" },
+  { id: "forhinder", namn: "Förhindersanmälan", benamning: "Används vid eventuellt förhinder", handling: "forhinder", flik: "Projektering → Stöd/Övrigt", tomBlankett: "forhinder" },
+  { id: "hinder", namn: "Underrättelse om hinder", benamning: "Används vid hindersanmälan", handling: "hinder", flik: "Projektering → Stöd/Övrigt", tomBlankett: "hinder" },
+  { id: "modulbelaggning", namn: "Modulbeläggning", benamning: "Signalhanteringslista, signeras", handling: "modulbelaggning", flik: "Konstruktion" },
+  { id: "driftkort", namn: "Driftkort", benamning: "Funktionsbeskrivning som avsigneras", handling: "funktionstexter", flik: "Projektering → Funktionstexter" },
+];
 
 export function lasPlan(text: string | undefined): PlanData {
-  const grund: PlanData = { upprattadAv: "", datum: "", uppgifter: {}, egna: [] };
+  const grund: PlanData = { version: 2, ordning: [], uppgifter: {}, egna: [] };
   try {
-    if (text) {
-      const d = JSON.parse(text) as Partial<PlanData>;
-      return { ...grund, ...d, uppgifter: d.uppgifter ?? {}, egna: Array.isArray(d.egna) ? d.egna : [] };
-    }
+    const d = text ? JSON.parse(text) as Partial<PlanData> & { version?: number } : null;
+    if (d && d.version === 2)
+      return { ...grund, ...d, version: 2, uppgifter: d.uppgifter ?? {}, egna: Array.isArray(d.egna) ? d.egna : [], ordning: Array.isArray(d.ordning) ? d.ordning : [] };
+    // Första versionen (skede/ansvarig/metod) läses inte vidare; dess egna rader behålls med namn.
+    if (d && Array.isArray(d.egna)) return { ...grund, egna: d.egna.map((e) => ({ id: e.id, namn: e.namn, status: "", benamning: "", datum: "" })) };
   } catch { /* börja om */ }
   return grund;
 }
 
-/** Det planen behöver av projektet (en del av filexportens underlag). */
-export type KontrollUnderlag = {
-  projektId: string;
-  projekt: Projekt;
-  komponenter: Komponent[];
-  defs: ListDef[];
-  listor: Record<string, ListRad[]>;
-  kontroller: Kontroll[];
-  pek: Kontroll[];
-  texter: Record<string, string | undefined>;
-};
-
-const TEXTER = ["projekteringsintyg", "risk-projektering", "risk-produktion", "egenkontrollplan"];
-
-/** Hämtar projektets egenkontroller på nytt (fliken och exporten). */
-export async function hamtaKontrollUnderlag(projektId: string): Promise<KontrollUnderlag> {
-  const P = `/api/projekt/${projektId}`;
-  const [projekt, komponenter, defs, kontroller, pek] = await Promise.all([
-    api<Projekt>(P),
-    api<Komponent[]>(`${P}/komponenter`),
-    api<ListDef[]>("/api/listdefinitioner"),
-    api<Kontroll[]>(`${P}/kontroller?typ=projekt`),
-    api<Kontroll[]>(`${P}/kontroller?typ=projektering`),
-  ]);
-  const listIds = ["egenkontroll", "anmarkningar", "risk-projektering", "risk-produktion", ...[...kontroller, ...pek].map((k) => `kontroll-${k.id}`)];
-  const [listor, texter] = await Promise.all([
-    Promise.all(listIds.map(async (id) => [id, await api<ListRad[]>(`${P}/listor/${id}`).catch(() => [] as ListRad[])] as const)),
-    Promise.all(TEXTER.map(async (n) => [n, await api<Anteckningar>(`${P}/texter/${n}`).then((t) => t.text).catch(() => undefined)] as const)),
-  ]);
-  return {
-    projektId, projekt, komponenter, defs, kontroller: [...kontroller].sort((a, b) => a.ordning - b.ordning), pek: [...pek].sort((a, b) => a.ordning - b.ordning),
-    listor: Object.fromEntries(listor), texter: Object.fromEntries(texter),
-  };
-}
-
-/** En egenkontroll i planen. Egna rader har inget att exportera (skapa saknas). */
+/** En rad i förteckningen. Egna rader och handlingar som inte finns i verktyget har inget att exportera. */
 export type Post = {
   id: string;
   namn: string;
-  /** Var i menyn egenkontrollen finns. */
   flik: string;
-  /** Förslag när inget är ifyllt i planen. */
-  skede: string;
-  metod: string;
-  status: string;
-  klar: boolean;
+  /** Förslag när inget är ifyllt. */
+  benamning: string;
+  /** Kort upplysning om innehållet (från filexporten), t.ex. "12 rader" eller "Finns inte i verktyget". */
+  info: string;
   tom: boolean;
   egen?: boolean;
-  skapa?: (format: Format[], sokvag: string) => Promise<Fil[]>;
+  handling?: Handling;
+  tomBlankett?: "forhinder" | "hinder";
 };
 
-const st = (n: number, en: string, flera: string) => `${n} ${n === 1 ? en : flera}`;
-const sant = (v: string | undefined) => v === "true";
-const kontrollStatus = (k: Kontroll) => (!k.antal ? "Inga kontrollpunkter" : k.klara >= k.antal ? `Klar (${st(k.antal, "punkt", "punkter")})` : `${k.klara} av ${k.antal} klara`);
-
-/** Alla egenkontroller i projektet, i projektets arbetsordning, följt av planens egna rader. */
-export function poster(u: KontrollUnderlag, plan: PlanData, medEa: boolean): Post[] {
-  const ut: Post[] = [];
-  const rader = (id: string) => [...(u.listor[id] ?? [])].sort((a, b) => a.ordning - b.ordning);
-  const def = (id: string) => u.defs.find((d) => d.id === id);
-
-  // ---- Projektering
-  for (const k of u.pek) {
-    ut.push({
-      id: `pek:${k.id}`, namn: u.pek.length > 1 ? `Projekteringsegenkontroll ${k.namn}` : "Projekteringsegenkontroll",
-      flik: "Projektering → Kontroller", skede: "Projektering", metod: "Checklista, signerad per punkt",
-      status: kontrollStatus(k), klar: !!k.antal && k.klara >= k.antal, tom: !k.antal,
-      skapa: (f, s) => blockFiler(pekDokument(k.namn, rader(`kontroll-${k.id}`), u.projekt, u.texter.projekteringsintyg, medEa), s, f),
-    });
-  }
-  for (const variant of ["projektering", "produktion"] as const) {
-    const id = `risk-${variant}`;
-    const namn = variant === "projektering" ? "Riskanalys projektering" : "Riskanalys produktion";
-    const n = rader(id).length;
-    ut.push({
-      id, namn, flik: "Projektering → Kontroller", skede: variant === "projektering" ? "Projektering" : "Installation",
-      metod: "Riskanalys med åtgärder", status: n ? st(n, "risk", "risker") : "Inga risker", klar: n > 0, tom: !n && !u.texter[id],
-      skapa: (f, s) => blockFiler(riskDokument(namn, variant, u.texter[id], rader(id), u.projekt), s, f),
-    });
-  }
-  let signerat = false;
-  try { signerat = !!String((JSON.parse(u.texter.projekteringsintyg || "{}") as { signatur?: string }).signatur ?? "").trim(); } catch { /* tomt */ }
-  ut.push({
-    id: "projekteringsintyg", namn: "Projekteringsintyg", flik: "Projektering → Kontroller", skede: "Projektering",
-    metod: "Intyg signerat av projekteringsledare", status: !u.texter.projekteringsintyg ? "Inte påbörjat" : signerat ? "Signerat" : "Ej signerat",
-    klar: signerat, tom: !u.texter.projekteringsintyg,
-    skapa: (f, s) => {
-      const egen = u.pek.map((k) => ({ namn: k.namn, rader: rader(`kontroll-${k.id}`) }));
-      return blockFiler(intygDokument(u.texter.projekteringsintyg, u.projekt, egen, medEa), s, f);
-    },
+/** Förteckningens rader i sparad ordning (nya standardhandlingar och egna rader läggs sist). */
+export function poster(u: Underlag, plan: PlanData, alla: Handling[] = handlingar(u)): Post[] {
+  const ut: Post[] = STANDARD.map((s) => {
+    const h = s.handling ? alla.find((x) => x.id === s.handling) : undefined;
+    const drift = s.id === "driftkort" ? u.filer.filter((f) => f.mapp === "Driftkort").length : 0;
+    return {
+      id: s.id, namn: s.namn, flik: s.flik, benamning: s.benamning, handling: h, tomBlankett: s.tomBlankett,
+      info: !s.handling ? "Finns inte i verktyget – bifogas separat"
+        : drift ? `${drift} driftkort i Projektfiler`
+        : h ? (h.tom && s.tomBlankett ? "blank blankett" : h.info || (h.tom ? "tom" : "")) : "",
+      tom: !s.handling || (!!h?.tom && !s.tomBlankett && !drift),
+    };
   });
-
-  // ---- Driftsättning
-  const ekDef = def("egenkontroll");
-  if (ekDef) {
-    const r = rader("egenkontroll");
-    const klara = r.filter((x) => sant(x.data.kontrollerad)).length;
-    ut.push({
-      id: "lista:egenkontroll", namn: "Egenkontroll (komponenter)", flik: "Driftsättning", skede: "Driftsättning",
-      metod: "Kontroll per komponent, signerad", status: !r.length ? "Inga kontrollpunkter" : klara >= r.length ? `Klar (${st(r.length, "komponent", "komponenter")})` : `${klara} av ${r.length} kontrollerade`,
-      klar: !!r.length && klara >= r.length, tom: !r.length,
-      skapa: (f, s) => blockFiler(listDokument(ekDef, byggRader(ekDef, r, u.komponenter), u.projekt), s, f),
-    });
-  }
-  const kDef = def("kontroll");
-  for (const k of u.kontroller) {
-    if (!kDef) break;
-    const id = `kontroll-${k.id}`;
-    const d = { ...kDef, id, namn: k.namn };
-    ut.push({
-      id: `kontroll:${k.id}`, namn: k.namn, flik: "Driftsättning → Projektspecifika kontroller", skede: "Driftsättning",
-      metod: "Checklista, signerad per punkt", status: kontrollStatus(k), klar: !!k.antal && k.klara >= k.antal, tom: !k.antal,
-      skapa: (f, s) => blockFiler(listDokument(d, byggRader(d, rader(id), u.komponenter), u.projekt), s, f),
-    });
-  }
-  const anmDef = def("anmarkningar");
-  if (anmDef) {
-    const r = rader("anmarkningar");
-    const klara = r.filter((x) => sant(x.data.atgardad)).length;
-    ut.push({
-      id: "lista:anmarkningar", namn: "Anmärkningsbilaga", flik: "Driftsättning", skede: "Slutbesiktning",
-      metod: "Anmärkningar åtgärdade och signerade", status: !r.length ? "Inga anmärkningar" : `${klara} av ${r.length} åtgärdade`,
-      klar: klara >= r.length, tom: !r.length,
-      skapa: (f, s) => blockFiler(listDokument(anmDef, byggRader(anmDef, r, u.komponenter), u.projekt), s, f),
-    });
-  }
-
-  // ---- Planens egna rader (kontroller som görs utanför verktyget, t.ex. injustering eller leverantörens provning)
-  for (const e of plan.egna) {
-    ut.push({ id: e.id, namn: e.namn, flik: "Egen rad", skede: "", metod: "", status: "", klar: false, tom: false, egen: true });
-  }
-  return ut;
+  for (const e of plan.egna) ut.push({ id: e.id, namn: e.namn, flik: "Egen rad", benamning: "", info: "Bara i förteckningen", tom: false, egen: true });
+  const plats = (id: string) => { const i = plan.ordning.indexOf(id); return i < 0 ? 1000 : i; };
+  return ut.map((p, i) => ({ p, i })).sort((a, b) => plats(a.p.id) - plats(b.p.id) || a.i - b.i).map((x) => x.p);
 }
 
-/** Värdet som visas för ett fält: det som skrivits i planen, annars förslaget. Ett tömt fält är tomt. */
+/** Värdet som visas: det som skrivits i förteckningen, annars förslaget (status och datum från projektets handlingsuppgifter). */
 export function varde(plan: PlanData, p: Post, falt: keyof Uppgift): string {
   if (p.egen) {
     const e = plan.egna.find((x) => x.id === p.id);
@@ -176,75 +92,74 @@ export function varde(plan: PlanData, p: Post, falt: keyof Uppgift): string {
   }
   const u = plan.uppgifter[p.id];
   if (u && falt in u) return u[falt] ?? "";
-  return falt === "skede" ? p.skede : falt === "metod" ? p.metod : "";
+  return falt === "benamning" ? p.benamning : falt === "status" ? handlingsstatus() : handlingsdatum();
 }
 
-/**
- * Egenkontrollplanen som dokument: projektuppgifter, förteckning över de valda egenkontrollerna och rutor för
- * signatur. bilagor = filnamnet per egenkontroll som följer med som bilaga (bara i planens egen export).
- */
-export function planDokument(plan: PlanData, valda: Post[], projekt: Projekt | null, bilagor?: Map<string, string>): BlockDokument {
-  const medBilaga = !!bilagor;
-  const kolumner = ["Nr", "Egenkontroll", "Skede", "Ansvarig", "Metod / verifikat", "Status", ...(medBilaga ? ["Bilaga"] : []), "Kommentar"];
-  const bredder = medBilaga ? [4, 21, 10, 14, 18, 12, 6, 15] : [4, 22, 10, 15, 19, 13, 17];
-  const rader: TabellRad[] = valda.map((p, i) => [
-    String(i + 1), p.namn, varde(plan, p, "skede"), varde(plan, p, "ansvarig"), varde(plan, p, "metod"), p.status,
-    ...(medBilaga ? [bilagor!.get(p.id) ?? ""] : []), varde(plan, p, "kommentar"),
-  ]);
-  const block: Block[] = [
-    { typ: "form", bredd: 60, etikettBredd: 32, rader: [
-      ["Objekt:", projekt?.namn ?? ""], ["Projektnummer:", projekt?.nummer ?? ""], ["Kund:", projekt?.kund ?? ""],
-      ["Upprättad av:", plan.upprattadAv], ["Datum:", valtDatum(plan.datum)],
-    ] },
-    { typ: "text", kursiv: true, text: medBilaga
-      ? "Egenkontrollplanen visar vilka egenkontroller som görs i projektet, i vilket skede, vem som är ansvarig och hur kontrollen dokumenteras. Egenkontrollerna bifogas som bilagor med numret i kolumnen Bilaga."
-      : "Egenkontrollplanen visar vilka egenkontroller som görs i projektet, i vilket skede, vem som är ansvarig och hur kontrollen dokumenteras." },
-    { typ: "tabell", kolumner, bredder, rader: rader.length ? rader : [kolumner.map(() => "")] },
-    { typ: "luft", mm: 4 },
-    { typ: "rutor", rader: [[{ etikett: "Ort och datum:", varde: "", hojd: 12 }, { etikett: "Signatur ansvarig:", varde: "", hojd: 12 }]] },
-  ];
-  return { titel: "Egenkontrollplan", kategori: "Egenkontrollplan", projekt, liggande: true, block };
+/** Dokumentnamnet med nummer, som i förlagan: 01_Kontaktlista. */
+export const nummerNamn = (nr: number, namn: string) => `${String(nr).padStart(2, "0")}_${namn}`;
+
+/** Förteckning egenkontroller som dokument: Dokumentnamn, Status, Benämning, Datum och tomma rader att fylla i för hand. */
+export function planDokument(plan: PlanData, valda: Post[], projekt: BlockDokument["projekt"]): BlockDokument {
+  const rader: TabellRad[] = valda.map((p, i) => [nummerNamn(i + 1, p.namn), varde(plan, p, "status"), varde(plan, p, "benamning"), valtDatum(varde(plan, p, "datum"))]);
+  while (rader.length < 25) rader.push(["", "", "", ""]);
+  return {
+    titel: "Förteckning egenkontroller", kategori: "Egenkontroller", projekt,
+    block: [{ typ: "tabell", kolumner: ["Dokumentnamn", "Status", "Benämning", "Datum"], bredder: [31, 9, 46, 14], centrera: [1], rader }],
+  };
 }
 
-export type ExportResultat = { filer: number; byte: number; fel: string[] };
+export type ExportResultat = { filer: number; byte: number; fel: string[]; utanFil: string[] };
 
-/** ZIP: Egenkontrollplan (PDF/Word) och en fil per vald egenkontroll i mappen Bilagor. */
-export async function exporteraPlan(u: KontrollUnderlag, plan: PlanData, valda: Post[], format: Format[],
+/** Filerna för en post, med sökvägen ersatt av förteckningens nummer och namn. */
+async function filerFor(u: Underlag, p: Post, nr: number, format: Format[]): Promise<Fil[]> {
+  const bas = nummerNamn(nr, rentNamn(p.namn));
+  // Driftkorten i Projektfiler → Driftkort är de som lämnas över; finns inga tas funktionstexterna.
+  if (p.id === "driftkort") {
+    const drift = u.filer.filter((f) => f.mapp === "Driftkort");
+    if (drift.length)
+      return Promise.all(drift.map(async (f) => ({ namn: `${bas}/${rentNamn(f.namn)}`, data: new Uint8Array(await hamtaBinar(`/api/projekt/${u.projektId}/filer/${f.id}/innehall`)) })));
+  }
+  if (p.tomBlankett && p.handling?.tom) {
+    const d = p.tomBlankett === "forhinder" ? forhinderDokument({}, u.projekt) : hinderDokument({}, u.projekt);
+    return blockFiler(d, bas, format);
+  }
+  if (!p.handling) return [];
+  const filer = await p.handling.skapa(formatFor(p.handling, format), { avbrutet: () => false, notera: () => undefined });
+  const typ = (n: string) => n.slice(n.lastIndexOf(".") + 1).toLowerCase();
+  const enPerTyp = new Set(filer.map((f) => typ(f.namn))).size === filer.length;
+  // En fil per format = 01_Namn.pdf. Flera (en per skåp, driftkort, hinder …) = mappen 01_Namn/ med filernas egna namn.
+  return filer.map((f) => ({ namn: enPerTyp ? `${bas}.${typ(f.namn)}` : `${bas}/${f.namn.slice(f.namn.lastIndexOf("/") + 1)}`, data: f.data }));
+}
+
+/** ZIP: 00_Förteckning egenkontroller (PDF/Word) och de valda handlingarna numrerade i förteckningens ordning. */
+export async function exporteraPlan(u: Underlag, plan: PlanData, valda: Post[], format: Format[],
   forlopp: (text: string) => void, avbrutet: () => boolean): Promise<ExportResultat | null> {
-  const bilagor = new Map<string, string>();
   const filer: Fil[] = [];
   const fel: string[] = [];
-  let nr = 0;
-  for (const p of valda) {
+  const utanFil: string[] = [];
+  for (let i = 0; i < valda.length; i++) {
     if (avbrutet()) return null;
-    if (!p.skapa) continue;
-    nr++;
-    const namn = `Bilaga ${String(nr).padStart(2, "0")} ${rentNamn(p.namn)}`;
+    const p = valda[i]!;
     forlopp(`Skapar ${p.namn}…`);
     try {
-      filer.push(...await p.skapa(format, `Bilagor/${namn}`));
-      bilagor.set(p.id, String(nr));
-    } catch (e) {
-      fel.push(`${p.namn}: ${(e as Error).message}`);
-      nr--;
-    }
+      const f = await filerFor(u, p, i + 1, format);
+      if (!f.length) utanFil.push(nummerNamn(i + 1, p.namn));
+      filer.push(...f);
+    } catch (e) { fel.push(`${p.namn}: ${(e as Error).message}`); }
     await new Promise((ok) => window.setTimeout(ok, 0));
   }
   if (avbrutet()) return null;
-  forlopp("Skapar egenkontrollplanen…");
-  const titel = rentNamn(`Egenkontrollplan ${u.projekt.nummer ?? ""} ${u.projekt.namn}`);
-  filer.unshift(...await blockFiler(planDokument(plan, valda, u.projekt, bilagor), titel, format));
+  forlopp("Skapar förteckningen…");
+  filer.unshift(...await blockFiler(planDokument(plan, valda, u.projekt), "00_Förteckning egenkontroller", format));
 
   forlopp("Packar ZIP-filen…");
   const rad = "\r\n";
   const innehall = [
-    `Egenkontrollplan – ${[u.projekt.nummer, u.projekt.namn].filter(Boolean).join(" ")}`,
+    `Förteckning egenkontroller – ${[u.projekt.nummer, u.projekt.namn].filter(Boolean).join(" ")}`,
     `Skapad ${new Date().toLocaleString("sv-SE")} i Projekteringsverktyget.`,
     "",
     ...(fel.length ? ["KUNDE INTE SKAPAS:", ...fel.map((t) => `  - ${t}`), ""] : []),
-    `EGENKONTROLLER I PLANEN (${valda.length}):`,
-    ...valda.map((p, i) => `  ${i + 1}. ${p.namn}${bilagor.has(p.id) ? ` – bilaga ${bilagor.get(p.id)}` : p.egen ? " – görs utanför verktyget" : ""}`),
-    "",
+    ...(utanFil.length ? ["I FÖRTECKNINGEN MEN UTAN FIL (bifogas separat):", ...utanFil.map((t) => `  - ${t}`), ""] : []),
     `FILER (${filer.length}):`,
     ...filer.map((f) => `  ${f.namn}`),
   ].join(rad);
@@ -253,12 +168,12 @@ export async function exporteraPlan(u: KontrollUnderlag, plan: PlanData, valda: 
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `${rentNamn(`${titel} ${new Date().toLocaleDateString("sv-SE")}`)}.zip`;
+  a.download = `${rentNamn(`Egenkontroller ${u.projekt.nummer ?? ""} ${u.projekt.namn} ${new Date().toLocaleDateString("sv-SE")}`)}.zip`;
   document.body.appendChild(a);
   a.click();
   a.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
-  return { filer: filer.length, byte: data.length, fel };
+  return { filer: filer.length, byte: data.length, fel, utanFil };
 }
 
 // ---- Senaste valet i exportdialogen (per projekt och webbläsare)
@@ -273,3 +188,8 @@ export function lasExportVal(projektId: string): ExportVal | null {
 export function sparaExportVal(projektId: string, v: ExportVal) {
   try { localStorage.setItem(nyckel(projektId), JSON.stringify(v)); } catch { /* bara bekvämlighet */ }
 }
+/** Med i förteckningen: senaste valet i exporten, annars alla rader. */
+export const valdaPoster = (projektId: string, lista: Post[]) => {
+  const v = lasExportVal(projektId);
+  return v ? lista.filter((x) => v.valda.includes(x.id)) : lista;
+};

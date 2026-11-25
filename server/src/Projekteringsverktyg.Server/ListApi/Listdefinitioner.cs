@@ -223,7 +223,7 @@ public static class Listdefinitioner
             ]),
 
         // ---------------- Driftsättning ----------------
-        new("egenkontroll", "Egenkontroll", "Driftsättning",
+        new("egenkontroll", "Egenkontroll driftsättning", "Driftsättning",
             "En kontrollpunkt per komponent. Bocka i Kontrollerad så fylls datum och signatur i.",
             Kopplad: true,
             Kolumner:

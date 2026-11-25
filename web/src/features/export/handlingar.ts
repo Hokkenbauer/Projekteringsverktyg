@@ -20,7 +20,7 @@ import { forhinderDokument, hinderDokument } from "../projektering/HinderVy";
 import { intygDokument } from "../projektering/ProjekteringsintygVy";
 import { tekniskBlad, tekniskDokument, type TekniskKatalog } from "../projektering/TekniskBeskrivningVy";
 import { riskDokument } from "../risk/RiskVy";
-import { lasExportVal, lasPlan, planDokument, poster } from "../kontroller/egenkontrollplan";
+import { lasPlan, planDokument, poster, valdaPoster } from "../kontroller/egenkontrollplan";
 import { antalPlan, placeringsritningarPdf, ritbordPdf, type RitbordBild } from "./ritningar";
 
 /**
@@ -425,16 +425,14 @@ export function handlingar(u: Underlag): Handling[] {
     },
   });
 
-  // Egenkontrollplanen: bara förteckningen (egenkontrollerna kommer som egna filer i filexporten).
-  // Med kommer de som senast valdes i planens egen export, annars alla som har innehåll och planens egna rader.
+  // Förteckning egenkontroller (Egenkontrollplan): bara förteckningen – handlingarna kommer som egna filer i filexporten.
+  // Med kommer de som senast valdes i planens egen export, annars alla rader. Raderna byggs först när filen skapas,
+  // när listan med handlingar är komplett.
   const ekPlan = lasPlan(u.texter.egenkontrollplan);
-  const allaPoster = poster(u, ekPlan, medEa);
-  const senast = lasExportVal(u.projektId);
-  const planPoster = senast ? allaPoster.filter((x) => senast.valda.includes(x.id)) : allaPoster.filter((x) => !x.tom);
   ut.push({
-    id: "egenkontrollplan", mapp: MAPP.kontroller, namn: "Egenkontrollplan", format: ["pdf", "word"],
-    tom: !planPoster.length, info: planPoster.length ? `${st(planPoster.length, "egenkontroll", "egenkontroller")} i förteckningen` : "inga egenkontroller",
-    skapa: (f) => blockFiler(planDokument(ekPlan, planPoster, u.projekt), `${MAPP.kontroller}/Egenkontrollplan`, f),
+    id: "egenkontrollplan", mapp: MAPP.kontroller, namn: "Förteckning egenkontroller", format: ["pdf", "word"], tom: false,
+    info: "egenkontrollplanens förteckning",
+    skapa: (f) => blockFiler(planDokument(ekPlan, valdaPoster(u.projektId, poster(u, ekPlan, ut)), u.projekt), `${MAPP.kontroller}/Förteckning egenkontroller`, f),
   });
 
   // ---- Projektering: miljö, kravställningar, stöd och övrigt
