@@ -171,7 +171,7 @@ export function ListVy({ def, grupp, rader, komponenter, projekt, blinkar, lasl�
   const visade = useMemo(() => byggRader(def, rader ?? [], komponenter), [def, rader, komponenter]);
   // Anmärkningsbilagan: bara ikryssade rader skrivs ut (inga ikryssade = alla).
   const valForUtskrift = def.id === "anmarkningar";
-  // ÄTA-listan: hela listan skrivs alltid ut; ikryssade rader styr bara "Skriv ut styckvis".
+  // ÄTA-listan: ikryssade rader (Styckvis) styr både hela listan och "Skriv ut styckvis" (inga ikryssade = alla).
   const ata = def.id === "ata";
   const [markerade, setMarkerade] = useState<string[]>([]);
 
@@ -252,7 +252,7 @@ export function ListVy({ def, grupp, rader, komponenter, projekt, blinkar, lasl�
 
   // Alla listor har löpnummer. Har listan ett eget (t.ex. Pos.) visas inte DataGridens Nr.
   const egetLopnr = def.kolumner.some((k) => k.typ === "lopnr");
-  const utskrift = () => skrivUtBlock(listDokument(def, valForUtskrift && markerade.length ? visade.filter((r) => markerade.includes(r.id)) : visade, projekt));
+  const utskrift = () => skrivUtBlock(listDokument(def, (valForUtskrift || ata) && markerade.length ? visade.filter((r) => markerade.includes(r.id)) : visade, projekt));
   const tomText = def.kopplad
     ? komponenter.length === 0
       ? "Inga komponenter i projektet än. Lägg till dem under Komponenter."
@@ -268,14 +268,14 @@ export function ListVy({ def, grupp, rader, komponenter, projekt, blinkar, lasl�
           {extraKnappar}
           {def.kopplad && <button className="knapp" onClick={() => onFlik("komponenter")}>Till Komponenter</button>}
           {!def.baraPdf && <button className="knapp" onClick={onExcel}>Exportera till Excel</button>}
-          {!utanUtskrift && <button className="knapp" onClick={utskrift}>{ata ? "Skriv ut hela listan / PDF" : "Skriv ut / PDF"}</button>}
+          {!utanUtskrift && <button className="knapp" onClick={utskrift}>{ata ? (markerade.length ? `Skriv ut listan (${markerade.length} ÄTA) / PDF` : "Skriv ut hela listan / PDF") : "Skriv ut / PDF"}</button>}
           {ata && <button className="knapp" disabled={visade.length === 0}
             title="En färdig underrättelse om ÄTA-arbete per rad (ikryssade rader, eller alla om inga är ikryssade)"
             onClick={() => ataStyckvis(markerade.length ? visade.filter((r) => markerade.includes(r.id)) : visade, projekt)}>Skriv ut styckvis / PDF</button>}
         </div>
       </div>
       <p className="ingress">{def.ingress}{valForUtskrift && " Bocka i rutan För utskrift på de rader som ska med i utskriften (inga ikryssade = alla). Utskriften blir liggande A4."}
-        {ata && " Bocka i Styckvis på de ÄTA som ska skrivas ut som egna underrättelser (inga ikryssade = alla). Bara ett av Ej beställd, Beställd och Utreds kan vara ikryssat."}</p>
+        {ata && " Bocka i Styckvis på de ÄTA som ska med i utskriften – både i hela listan och som egna underrättelser (inga ikryssade = alla). Bara ett av Ej beställd, Beställd och Utreds kan vara ikryssat."}</p>
       {summering && summering.length > 0 && (
         <div className="summering" aria-label="Antal per signaltyp">
           <span className="chip">Totalt <b>{visade.length}</b></span>
