@@ -20,6 +20,7 @@ import { forhinderDokument, hinderDokument } from "../projektering/HinderVy";
 import { intygDokument } from "../projektering/ProjekteringsintygVy";
 import { tekniskBlad, tekniskDokument, type TekniskKatalog } from "../projektering/TekniskBeskrivningVy";
 import { riskDokument } from "../risk/RiskVy";
+import { lasExportVal, lasPlan, planDokument, poster } from "../kontroller/egenkontrollplan";
 import { antalPlan, placeringsritningarPdf, ritbordPdf, type RitbordBild } from "./ritningar";
 
 /**
@@ -99,7 +100,7 @@ const LISTOR: [string, keyof typeof MAPP][] = [
   ["signaturlista", "dokumentation"], ["anlaggningsinstallningar", "dokumentation"],
 ];
 
-const TEXTER = ["projektinformation", "risk-projektering", "risk-produktion", "teknisk-beskrivning", "projekteringsintyg"];
+const TEXTER = ["projektinformation", "risk-projektering", "risk-produktion", "teknisk-beskrivning", "projekteringsintyg", "egenkontrollplan"];
 
 export async function hamtaUnderlag(projektId: string): Promise<Underlag> {
   const P = `/api/projekt/${projektId}`;
@@ -139,7 +140,7 @@ export const rentNamn = (s: string) => s.replace(/[\\/:*?"<>|]+/g, "-").replace(
 const ext = (f: Format) => FORMAT.find((x) => x.id === f)!.filtyp;
 
 /** PDF och/eller Word av ett blockdokument. */
-async function blockFiler(d: BlockDokument, sokvag: string, format: Format[]): Promise<Fil[]> {
+export async function blockFiler(d: BlockDokument, sokvag: string, format: Format[]): Promise<Fil[]> {
   const ut: Fil[] = [];
   if (format.includes("pdf")) ut.push({ namn: `${sokvag}.pdf`, data: await pdfAv(d) });
   if (format.includes("word")) {
@@ -422,6 +423,18 @@ export function handlingar(u: Underlag): Handling[] {
       const egen = u.pek.map((k) => ({ namn: k.namn, rader: [...rader(`kontroll-${k.id}`)].sort((a, b) => a.ordning - b.ordning) }));
       return blockFiler(intygDokument(u.texter.projekteringsintyg, u.projekt, egen, medEa), `${MAPP.kontroller}/Projekteringsintyg`, f);
     },
+  });
+
+  // Egenkontrollplanen: bara förteckningen (egenkontrollerna kommer som egna filer i filexporten).
+  // Med kommer de som senast valdes i planens egen export, annars alla som har innehåll och planens egna rader.
+  const ekPlan = lasPlan(u.texter.egenkontrollplan);
+  const allaPoster = poster(u, ekPlan, medEa);
+  const senast = lasExportVal(u.projektId);
+  const planPoster = senast ? allaPoster.filter((x) => senast.valda.includes(x.id)) : allaPoster.filter((x) => !x.tom);
+  ut.push({
+    id: "egenkontrollplan", mapp: MAPP.kontroller, namn: "Egenkontrollplan", format: ["pdf", "word"],
+    tom: !planPoster.length, info: planPoster.length ? `${st(planPoster.length, "egenkontroll", "egenkontroller")} i förteckningen` : "inga egenkontroller",
+    skapa: (f) => blockFiler(planDokument(ekPlan, planPoster, u.projekt), `${MAPP.kontroller}/Egenkontrollplan`, f),
   });
 
   // ---- Projektering: miljö, kravställningar, stöd och övrigt

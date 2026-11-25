@@ -21,6 +21,7 @@ public static class TextEndpoints
         // Formulär sparade som JSON.
         ["projekteringsintyg"] = "Projekteringsintyg",
         ["teknisk-beskrivning"] = "Teknisk beskrivning",
+        ["egenkontrollplan"] = "Egenkontrollplan",
     };
 
     public static IEndpointRouteBuilder MapTextEndpoints(this IEndpointRouteBuilder app)

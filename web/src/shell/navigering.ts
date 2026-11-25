@@ -85,6 +85,7 @@ export const NAVIGERING: Grupp[] = [
       { id: "riskanalys-projektering", namn: "Riskanalys projektering", fas: 5, klar: true, risk: "projektering", undergrupp: "Kontroller" },
       { id: "riskanalys-produktion", namn: "Riskanalys produktion", fas: 5, klar: true, risk: "produktion", undergrupp: "Kontroller" },
       { id: "projekteringsintyg", namn: "Projekteringsintyg", fas: 5, klar: true, undergrupp: "Kontroller" },
+      { id: "egenkontrollplan", namn: "Egenkontrollplan", fas: 5, klar: true, undergrupp: "Kontroller" },
       { id: "byggvarubedomning", namn: "Byggvarubedömning", fas: 5, klar: true, lista: "byggvarubedomning", undergrupp: "Miljö" },
       { id: "sunda-hus", namn: "Sunda Hus", fas: 5, klar: true, lista: "sundahus", undergrupp: "Miljö" },
       { id: "teknisk-beskrivning", namn: "Teknisk beskrivning", fas: 5, klar: true, undergrupp: "Kravställningar" },

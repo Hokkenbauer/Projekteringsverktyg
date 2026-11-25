@@ -36,6 +36,7 @@ import { ProjekteringsegenkontrollVy } from "../kontroller/Projekteringsegenkont
 import { HinderVy } from "../projektering/HinderVy";
 import { ByggvaruKnappar } from "../projektering/Byggvaror";
 import { ProjekteringsintygVy } from "../projektering/ProjekteringsintygVy";
+import { EgenkontrollplanVy } from "../kontroller/EgenkontrollplanVy";
 import { TekniskBeskrivningVy } from "../projektering/TekniskBeskrivningVy";
 import { TextKatalogVy } from "../projektering/TextKatalogVy";
 import { RiskVy } from "../risk/RiskVy";
@@ -397,7 +398,7 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
     : aktivKontroll ? `kontroll-${aktivKontroll.id}`
     : flik === "kraftberakning" && valtSkap ? `kraft-${valtSkap}` : undefined);
   const textNyckel = vald?.flik.text ?? (vald?.flik.risk ? `risk-${vald.flik.risk}`
-    : flik === "teknisk-beskrivning" || flik === "projekteringsintyg" ? flik
+    : flik === "teknisk-beskrivning" || flik === "projekteringsintyg" || flik === "egenkontrollplan" ? flik
     // Projekteringsegenkontrollen visar projekteringsledare och projektör från projekteringsintyget.
     : flik === "projekteringsegenkontroll" ? "projekteringsintyg" : undefined);
 
@@ -947,6 +948,13 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
           <ProjekteringsintygVy
             key={projektId} projektId={projektId} projekt={projekt} grupp={vald.grupp.namn} rubrik={vald.flik.namn}
             text={texter.projekteringsintyg} onSparaText={(t) => sparaText("projekteringsintyg", t)}
+            lasläge={!skrivbar} visaMeddelande={visaMeddelande}
+          />
+        ) : <p className="dampad">Hämtar…</p>)}
+        {flik === "egenkontrollplan" && vald && (texter.egenkontrollplan ? (
+          <EgenkontrollplanVy
+            key={projektId} projektId={projektId} projekt={projekt} grupp={vald.grupp.namn} rubrik={vald.flik.namn}
+            text={texter.egenkontrollplan} onSparaText={(t) => sparaText("egenkontrollplan", t)}
             lasläge={!skrivbar} visaMeddelande={visaMeddelande}
           />
         ) : <p className="dampad">Hämtar…</p>)}
