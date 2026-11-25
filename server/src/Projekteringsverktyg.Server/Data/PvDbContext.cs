@@ -5,6 +5,8 @@ namespace Projekteringsverktyg.Server.Data;
 public class PvDbContext(DbContextOptions<PvDbContext> options) : DbContext(options)
 {
     public DbSet<Projekt> Projekt => Set<Projekt>();
+    public DbSet<ProjektKategori> ProjektKategorier => Set<ProjektKategori>();
+    public DbSet<ProjektKategoriPlats> KategoriPlatser => Set<ProjektKategoriPlats>();
     public DbSet<Komponent> Komponenter => Set<Komponent>();
     public DbSet<AndringsloggPost> Andringslogg => Set<AndringsloggPost>();
     public DbSet<AnvandarInstallning> AnvandarInstallningar => Set<AnvandarInstallning>();
@@ -40,6 +42,18 @@ public class PvDbContext(DbContextOptions<PvDbContext> options) : DbContext(opti
             e.Property(p => p.Namn).HasMaxLength(200);
             e.Property(p => p.Nummer).HasMaxLength(50);
             e.HasMany(p => p.Komponenter).WithOne(k => k.Projekt!).HasForeignKey(k => k.ProjektId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<ProjektKategori>(e =>
+        {
+            e.ToTable("projektkategori");
+            e.HasKey(k => k.Id);
+            e.Property(k => k.Namn).HasMaxLength(100);
+        });
+        b.Entity<ProjektKategoriPlats>(e =>
+        {
+            e.ToTable("projekt_kategoriplats");
+            e.HasKey(k => new { k.ProjektId, k.AgareId });
         });
 
         b.Entity<Komponent>(e =>

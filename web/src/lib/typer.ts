@@ -55,7 +55,16 @@ export type Projekt = {
   skapad: string;
   skapadAv: string;
   antalKomponenter: number;
+  /** Tidpunkt då projektet arkiverades (null = aktivt). */
+  arkiverad?: string | null;
+  /** Kategori på startsidan (null = Utan kategori). */
+  kategoriId?: string | null;
+  /** Användaren är projektledare (eller Admin) och får ändra namn och arkivera. */
+  kanLeda?: boolean;
 };
+
+/** Kategori (mapp) på startsidan. foralderId = överordnad kategori (null = översta nivån). */
+export type ProjektKategori = { id: string; foralderId: string | null; namn: string; ordning: number };
 
 export type Komponent = {
   id: string;
@@ -118,7 +127,7 @@ export type AttGora = {
 export type Anteckningar = { text: string; andrad: string | null; andradAv: string };
 
 export type ListaHandelse = {
-  /** attGora, anteckningar, projektStatus, filer, lista:<id> eller text:<nyckel>. */
+  /** attGora, anteckningar, projektStatus, filer, projekt (namn/arkivering), lista:<id> eller text:<nyckel>. */
   lista: string;
   typ: "skapad" | "andrad" | "borttagen";
   rad: unknown;

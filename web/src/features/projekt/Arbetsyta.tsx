@@ -229,6 +229,8 @@ export function Arbetsyta({ projektId, flik, mig, hamtaToken, onFlik, onTillbaka
   }, []);
 
   const listaAndrad = useCallback((h: ListaHandelse) => {
+    // Projektets namn, nummer eller kund har ändrats (eller projektet arkiverats) av någon.
+    if (h.lista === "projekt") { const p = h.rad as Projekt; setProjekt((f) => (f ? { ...f, ...p } : p)); return; }
     if (h.lista.startsWith("lista:")) {
       const id = h.lista.slice(6);
       if (id.startsWith("kontroll-")) setKontrollVersion((v) => v + 1);

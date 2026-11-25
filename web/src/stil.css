@@ -92,6 +92,38 @@ h2 { font-size: 15px; font-weight: 600; margin: 0 0 10px; }
 .projektlista button:hover { border-color: var(--accent); }
 .projektlista span { font-size: 12.5px; }
 
+/* Startsidan: kategorier (mappar), arkiv och ⋯-meny per rad */
+.projektverktyg { flex-wrap: wrap; }
+.projektverktyg h2 { margin-right: auto !important; }
+.projektsok { flex: 1 1 220px; max-width: 360px; background: var(--yta-2); border: 1px solid var(--linje); border-radius: var(--r); padding: 6px 9px; color: var(--text); }
+.projektlista li.projektrad { display: flex; align-items: stretch; gap: 6px; }
+.projektlista li.projektrad > .projektknapp { flex: 1; min-width: 0; }
+.projektlista li.projektrad[draggable="true"] > .projektknapp { cursor: pointer; }
+.projektlista li.projektrad > .projektknapp b { overflow-wrap: anywhere; }
+.kategoritrad, .kategoriinnehall { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.kategoriinnehall { padding-left: 18px; margin: 6px 0 4px; border-left: 2px solid var(--linje); margin-left: 7px; }
+.kategorihuvud { display: flex; align-items: center; gap: 6px; border-radius: var(--r); }
+.kategorihuvud.slapp { outline: 2px dashed var(--accent); outline-offset: 2px; background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.projektlista .kategoriknapp, .arkiv .kategoriknapp { flex: 1; display: flex; align-items: center; gap: 8px; background: none; border: 1px solid transparent; padding: 6px 4px; text-align: left; width: 100%; border-radius: var(--r); }
+.projektlista .kategoriknapp:hover, .arkiv .kategoriknapp:hover { border-color: var(--linje); }
+.kategoriknapp .pil { width: 12px; color: var(--dampad); }
+.kategoriknapp .mappnamn { font-weight: 600; font-size: 14px; }
+.kategoriknapp .antal { margin-left: auto; font-size: 12px; color: var(--dampad); background: var(--yta-2); border: 1px solid var(--linje); border-radius: 999px; padding: 0 8px; }
+.tomkategori { padding: 4px 2px; }
+.arkiv { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--linje); }
+.arkiv .projektlista button.projektknapp { opacity: .85; }
+.radmeny { position: relative; display: flex; align-items: flex-start; }
+.radmeny-knapp { min-width: 36px; font-size: 16px; line-height: 1; padding: 4px 8px; }
+.radmeny-lista { position: absolute; right: 0; top: calc(100% + 4px); z-index: 20; min-width: 200px; display: grid; background: var(--yta); border: 1px solid var(--linje); border-radius: var(--r); box-shadow: 0 6px 20px rgb(0 0 0 / .25); padding: 4px; }
+.projektlista .radmeny-lista button, .radmeny-lista button { display: block; width: 100%; text-align: left; background: none; border: 0; padding: 8px 10px; border-radius: var(--r); font-size: 13px; }
+.radmeny-lista button:hover { background: var(--yta-2); }
+.radmeny-lista button.fara { color: var(--fara); }
+.dialogformular { display: grid; gap: 10px; }
+.dialogformular label { display: grid; gap: 4px; font-size: 12.5px; color: var(--dampad); }
+.dialogformular label b { color: var(--text); }
+.dialogformular input, .dialogformular select { background: var(--yta-2); border: 1px solid var(--linje); border-radius: var(--r); padding: 7px 9px; color: var(--text); }
+.namnforslag { font-weight: 600; padding: 8px 10px; background: var(--yta-2); border: 1px solid var(--linje); border-radius: var(--r); overflow-wrap: anywhere; }
+
 /* Arbetsyta */
 .arbetsyta { display: grid; grid-template-columns: 250px minmax(0, 1fr); min-height: 0; }
 .sidnav { background: var(--yta); border-right: 1px solid var(--linje); overflow-y: auto; padding-block: 8px 24px; }
@@ -660,6 +692,9 @@ td.egen .kommkat { padding: 6px 8px; }
   .knapp.liten { padding: 5px 9px; }
   .panel { padding: 12px; }
   .startsida { padding: 14px 12px; }
+  .projektsok { max-width: none; flex-basis: 100%; order: 3; }
+  .kategoriinnehall { padding-left: 10px; margin-left: 4px; }
+  .radmeny-knapp { min-width: 44px; }
   .logg li { grid-template-columns: 1fr; gap: 2px; }
   .foreefter { grid-column: 1; }
   .nyckeltal { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }

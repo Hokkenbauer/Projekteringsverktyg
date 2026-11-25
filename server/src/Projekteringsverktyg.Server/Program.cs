@@ -155,6 +155,7 @@ app.MapGet("/api/config", () => Results.Ok(new
 
 app.MapAnvandarEndpoints();
 app.MapProjektEndpoints();
+app.MapProjektKategoriEndpoints();
 app.MapKomponentEndpoints();
 app.MapAttGoraEndpoints();
 app.MapRollEndpoints();

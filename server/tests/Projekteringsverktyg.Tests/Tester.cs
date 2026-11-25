@@ -1215,3 +1215,71 @@ public class ProduktTester
     public void Grundregistret_finns() =>
         Assert.True(Produkter.Las(Projekteringsverktyg.Server.DokumentApi.GemensamKatalogEndpoints.Grund(Produkter.Katalog)).Count >= 40);
 }
+
+public class ProjektNamnTester
+{
+    private static readonly DateOnly Dag = new(2026, 11, 25);
+
+    [Fact]
+    public void Arkiverat_far_datum_i_namnet()
+    {
+        Assert.Equal("Kv. Lärkan – Arkiverat 2026-11-25",
+            Projekteringsverktyg.Server.ProjektApi.ProjektNamn.Arkiverat("Kv. Lärkan", Dag, []));
+    }
+
+    [Fact]
+    public void Tva_arkiveringar_samma_dag_far_lopnummer()
+    {
+        var n = Projekteringsverktyg.Server.ProjektApi.ProjektNamn.Arkiverat("Kv. Lärkan", Dag, ["kv. lärkan – Arkiverat 2026-11-25"]);
+        Assert.Equal("Kv. Lärkan – Arkiverat 2026-11-25 (2)", n);
+    }
+
+    [Fact]
+    public void Tidigare_arkivtillagg_byts_ut_och_tas_bort_vid_aterstallning()
+    {
+        Assert.Equal("Kv. Lärkan – Arkiverat 2026-11-25",
+            Projekteringsverktyg.Server.ProjektApi.ProjektNamn.Arkiverat("Kv. Lärkan – Arkiverat 2025-01-02 (3)", Dag, []));
+        Assert.Equal("Kv. Lärkan", Projekteringsverktyg.Server.ProjektApi.ProjektNamn.UtanArkiv("Kv. Lärkan – Arkiverat 2026-11-25 (2)"));
+        Assert.Equal("Arkiverat projekt", Projekteringsverktyg.Server.ProjektApi.ProjektNamn.UtanArkiv("Arkiverat projekt"));
+    }
+
+    [Fact]
+    public void Langt_namn_kortas_sa_att_datumet_ryms()
+    {
+        var n = Projekteringsverktyg.Server.ProjektApi.ProjektNamn.Arkiverat(new string('a', 200), Dag, []);
+        Assert.True(n.Length <= Projekteringsverktyg.Server.ProjektApi.ProjektNamn.MaxLangd);
+        Assert.EndsWith("– Arkiverat 2026-11-25", n);
+    }
+
+    [Fact]
+    public void Namnkrock_ignorerar_skiftlage_och_mellanslag()
+    {
+        Assert.True(Projekteringsverktyg.Server.ProjektApi.ProjektNamn.Krockar(" sjötorp  ligghallar", ["Sjötorp Ligghallar"]));
+        Assert.False(Projekteringsverktyg.Server.ProjektApi.ProjektNamn.Krockar("Sjötorp", ["Sjötorp Ligghallar"]));
+    }
+}
+
+public class ProjektKategoriTester
+{
+    [Fact]
+    public void Kategori_kan_inte_laggas_i_sin_egen_underkategori()
+    {
+        Guid bravida = Guid.NewGuid(), orebro = Guid.NewGuid(), heco = Guid.NewGuid();
+        var foraldrar = new Dictionary<Guid, Guid?> { [bravida] = null, [orebro] = bravida, [heco] = null };
+        Assert.False(Projekteringsverktyg.Server.ProjektApi.ProjektKategorier.KanFlyttas(bravida, orebro, foraldrar));
+        Assert.False(Projekteringsverktyg.Server.ProjektApi.ProjektKategorier.KanFlyttas(bravida, bravida, foraldrar));
+        Assert.True(Projekteringsverktyg.Server.ProjektApi.ProjektKategorier.KanFlyttas(orebro, heco, foraldrar));
+        Assert.True(Projekteringsverktyg.Server.ProjektApi.ProjektKategorier.KanFlyttas(orebro, null, foraldrar));
+        Assert.Equal(1, Projekteringsverktyg.Server.ProjektApi.ProjektKategorier.DjupUnder(bravida, foraldrar));
+    }
+
+    [Fact]
+    public void Kategorierna_ar_gemensamma_och_skots_av_den_som_far_skapa_projekt()
+    {
+        var intern = new AnvandarPost { Id = "a", Roll = Roller.Intern };
+        var extern_ = new AnvandarPost { Id = "b", Roll = Roller.Extern };
+        Assert.Equal("", Projekteringsverktyg.Server.ProjektApi.ProjektKategorier.Omfang(intern));
+        Assert.True(Projekteringsverktyg.Server.ProjektApi.ProjektKategorier.KanOrdna(intern));
+        Assert.False(Projekteringsverktyg.Server.ProjektApi.ProjektKategorier.KanOrdna(extern_));
+    }
+}

@@ -11,12 +11,39 @@ public class Projekt
     public DateTimeOffset Skapad { get; set; } = DateTimeOffset.UtcNow;
     public string SkapadAv { get; set; } = "";
 
+    /// <summary>När projektet arkiverades (null = aktivt). Arkiverade projekt visas under Arkiv på startsidan.</summary>
+    public DateTimeOffset? Arkiverad { get; set; }
+    public string ArkiveradAv { get; set; } = "";
+
     /// <summary>Fritt textfält (Att göra → Anteckningar).</summary>
     public string Anteckningar { get; set; } = "";
     public DateTimeOffset? AnteckningarAndrad { get; set; }
     public string AnteckningarAndradAv { get; set; } = "";
 
     public List<Komponent> Komponenter { get; set; } = new();
+}
+
+/// <summary>
+/// Kategori (mapp) på startsidan, t.ex. Bravida eller HECO. Kan ha underkategorier.
+/// AgareId "" = gemensam för alla; ett användar-Id = användarens egen (förberett, se ProjektKategorier.Omfang).
+/// </summary>
+public class ProjektKategori
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid? ForalderId { get; set; }
+    public string AgareId { get; set; } = "";
+    public string Namn { get; set; } = "";
+    public int Ordning { get; set; }
+    public DateTimeOffset Skapad { get; set; } = DateTimeOffset.UtcNow;
+    public string SkapadAv { get; set; } = "";
+}
+
+/// <summary>Vilken kategori ett projekt ligger i, per ägare ("" = gemensam struktur).</summary>
+public class ProjektKategoriPlats
+{
+    public Guid ProjektId { get; set; }
+    public string AgareId { get; set; } = "";
+    public Guid KategoriId { get; set; }
 }
 
 /// <summary>En rad i projektets Att göra-lista.</summary>
