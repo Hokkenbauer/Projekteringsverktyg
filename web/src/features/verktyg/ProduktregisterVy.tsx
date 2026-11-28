@@ -3,7 +3,7 @@ import { useFordrojdSparning } from "../../lib/sparning";
 import { DataGrid, type Kolumn } from "../../grid/DataGrid";
 import { api } from "../../lib/api";
 import { lasExcel, skrivExcel, tolkaRubriker } from "../../lib/excelFil";
-import { franNamn, produktNamn, tomProdukt, useProduktregister, type Produkt, type Produktregister } from "../../lib/produkter";
+import { franNamn, kategoriDelar, produktNamn, tomProdukt, useProduktregister, type Produkt, type Produktregister } from "../../lib/produkter";
 import type { Kataloger } from "../../lib/typer";
 
 /** En rad i tabellen: produktens fält som text (Utgången som "true"/""), plus det räknade namnet. */
@@ -50,8 +50,48 @@ export function ProduktregisterVy({ kanHantera, visaMeddelande }: Props) {
   const produkter = lokal?.produkter ?? [];
   const rader: Rad[] = useMemo(() => produkter.map((p) => ({
     ...Object.fromEntries(Object.entries(p).map(([k, v]) => [k, typeof v === "boolean" ? (v ? "true" : "") : String(v ?? "")])),
+    kategori: p.kategori ?? "",
     namn: produktNamn(p),
   }) as Rad), [produkter]);
+
+  /** Trädet: kategorins delar (Givare → Produal). Valt läge filtrerar tabellen på början av sökvägen. */
+  const [valdKat, setValdKat] = useState<string>("");
+  const trad = useMemo(() => {
+    type Nod = { namn: string; sokvag: string; antal: number; barn: Map<string, Nod> };
+    const rot: Nod = { namn: "", sokvag: "", antal: 0, barn: new Map() };
+    for (const p of produkter) {
+      let n = rot; n.antal++;
+      const delar = kategoriDelar(p.kategori);
+      delar.forEach((d, i) => {
+        const sv = delar.slice(0, i + 1).join("/");
+        if (!n.barn.has(d)) n.barn.set(d, { namn: d, sokvag: sv, antal: 0, barn: new Map() });
+        n = n.barn.get(d)!; n.antal++;
+      });
+    }
+    return rot;
+  }, [produkter]);
+  const synliga = useMemo(() => (valdKat ? rader.filter((r) => {
+    const sv = kategoriDelar(r.kategori).join("/");
+    return sv === valdKat || sv.startsWith(valdKat + "/");
+  }) : rader), [rader, valdKat]);
+  const [oppna, setOppna] = useState<Set<string>>(new Set());
+  const vaxla = (sv: string) => setOppna((o) => { const n = new Set(o); if (n.has(sv)) n.delete(sv); else n.add(sv); return n; });
+  type TradNod = typeof trad;
+  const ritaNod = (n: TradNod, niva: number): React.ReactNode => [...n.barn.values()]
+    .sort((a, b) => (a.namn === "Utan kategori" ? 1 : b.namn === "Utan kategori" ? -1 : a.namn.localeCompare(b.namn, "sv")))
+    .map((b) => (
+      <li key={b.sokvag}>
+        <div className={"produkttrad-rad" + (valdKat === b.sokvag ? " vald" : "")} style={{ paddingLeft: 4 + niva * 14 }}>
+          {b.barn.size > 0
+            ? <button className="produkttrad-pil" aria-label={oppna.has(b.sokvag) ? "Fäll ihop" : "Fäll ut"} onClick={() => vaxla(b.sokvag)}>{oppna.has(b.sokvag) ? "▾" : "▸"}</button>
+            : <span className="produkttrad-pil" />}
+          <button className="produkttrad-namn" onClick={() => { setValdKat(valdKat === b.sokvag ? "" : b.sokvag); if (b.barn.size) setOppna((o) => new Set(o).add(b.sokvag)); }}>
+            {b.namn} <span className="dampad">{b.antal}</span>
+          </button>
+        </div>
+        {b.barn.size > 0 && oppna.has(b.sokvag) && <ul>{ritaNod(b, niva + 1)}</ul>}
+      </li>
+    ));
 
   const sattFalt = (rad: Rad, nyckel: keyof Rad, varde: string) => {
     if (nyckel === "namn") return;
@@ -66,8 +106,9 @@ export function ProduktregisterVy({ kanHantera, visaMeddelande }: Props) {
   const laggTill = (namn: string[]) => andra({ produkter: [...produkter, ...namn.map(franNamn)] });
 
   const kolumner: Kolumn<Rad>[] = [
+    { nyckel: "kategori", rubrik: "Kategori", typ: "text", bredd: 150, forslag: [...new Set(produkter.map((p) => p.kategori ?? "").filter(Boolean))].sort((a, b) => a.localeCompare(b, "sv")) },
     { nyckel: "fabrikat", rubrik: "Fabrikat", typ: "text", bredd: 120, forslag: [...new Set(produkter.map((p) => p.fabrikat).filter(Boolean))] },
-    { nyckel: "modell", rubrik: "Modell", typ: "text", mono: true, bredd: 150 },
+    { nyckel: "modell", rubrik: "Modell (kort namn)", typ: "text", mono: true, bredd: 150 },
     { nyckel: "komponenttyp", rubrik: "Komponenttyp", typ: "text", bredd: 150, forslag: [...new Set(produkter.map((p) => p.komponenttyp).filter(Boolean))] },
     { nyckel: "io", rubrik: "I/O", typ: "text", mono: true, bredd: 100 },
     { nyckel: "stromA", rubrik: "Ström (A)", typ: "text", mono: true, bredd: 80 },
@@ -83,7 +124,7 @@ export function ProduktregisterVy({ kanHantera, visaMeddelande }: Props) {
 
   const excel = () => void skrivExcel("Produktregister", [{
     namn: "Produkter",
-    bredder: [16, 22, 20, 12, 10, 8, 16, 16, 18, 10, 30, 30, 10],
+    bredder: [22, 16, 22, 20, 12, 10, 8, 16, 16, 18, 10, 30, 30, 10],
     rader: [kolumner.map((k) => k.rubrik), ...rader.map((r) => kolumner.map((k) => (k.nyckel === "utgatt" ? (r.utgatt ? "Ja" : "") : r[k.nyckel])))],
   }]).catch((e) => visaMeddelande((e as Error).message));
 
@@ -96,7 +137,7 @@ export function ProduktregisterVy({ kanHantera, visaMeddelande }: Props) {
     try {
       const xr = await lasExcel(fil);
       const t = tolkaRubriker(xr, {
-        fabrikat: /^fabrikat/, modell: /^modell/, komponenttyp: /^komponenttyp/, io: /^i\/?o$/, stromA: /^str[öo]m/, fas: /^fas/,
+        kategori: /^kategori/, fabrikat: /^fabrikat/, modell: /^modell/, komponenttyp: /^komponenttyp/, io: /^i\/?o$/, stromA: /^str[öo]m/, fas: /^fas/,
         artikelnummer: /^artikel|e-nr/, leverantor: /^leverant/, bedomning: /^byggvaru|bedömning/, sundaHus: /^sunda/,
         datablad: /^datablad/, kommentar: /^kommentar/, utgatt: /^utg[åa]ng/,
       });
@@ -108,8 +149,8 @@ export function ProduktregisterVy({ kanHantera, visaMeddelande }: Props) {
         if (!cell("fabrikat") && !cell("modell")) continue;
         const namn = `${cell("fabrikat")} ${cell("modell")}`.trim().toLowerCase();
         const i = lista.findIndex((p) => produktNamn(p).toLowerCase() === namn);
-        const bas: Produkt = i >= 0 ? { ...lista[i]! } : tomProdukt();
-        for (const f of ["fabrikat", "modell", "komponenttyp", "io", "stromA", "fas", "artikelnummer", "leverantor", "bedomning", "sundaHus", "datablad", "kommentar"] as const) {
+        const bas: Produkt = i >= 0 ? { ...lista[i]!, kategori: lista[i]!.kategori ?? "" } : tomProdukt();
+        for (const f of ["kategori", "fabrikat", "modell", "komponenttyp", "io", "stromA", "fas", "artikelnummer", "leverantor", "bedomning", "sundaHus", "datablad", "kommentar"] as const) {
           const v = cell(f); if (v) bas[f] = v;
         }
         const u = cell("utgatt"); if (u) bas.utgatt = /^(ja|x|true|1)$/i.test(u);
@@ -135,7 +176,8 @@ export function ProduktregisterVy({ kanHantera, visaMeddelande }: Props) {
         Gemensamt för alla projekt. Produkterna föreslås i komponentens fält <b>Produkt</b> (fabrikat + modell). Väljs en produkt fylls
         komponenttyp och I/O i om de är tomma, och Kraftberäkningen hämtar strömmen (3 faser = samma ström på L1–L3).
         Utgångna produkter föreslås inte men finns kvar i gamla projekt. <b>Importera från Excel</b> läser samma kolumner som exporten;
-        produkter med samma fabrikat och modell uppdateras, övriga läggs till.
+        produkter med samma fabrikat och modell uppdateras, övriga läggs till. <b>Kategori</b> bygger trädet till vänster
+        (t.ex. Givare/Produal) och <b>Modell</b> är ett kort namn som går att härleda till produkten (t.ex. TEU_PT1000).
         {!kanHantera && " Bara Admin och de som får ändra mallar och kataloger kan ändra registret."}
         {status === "sparar" ? " Sparar…" : status === "osparat" ? " Osparade ändringar…" : ""}
         {reg.info.andradAv && status === "sparat" && <span className="dampad"> Senast ändrat av {reg.info.andradAv}.</span>}
@@ -154,18 +196,29 @@ export function ProduktregisterVy({ kanHantera, visaMeddelande }: Props) {
       {dubbletter > 0 && <p className="dampad liten">{dubbletter} produkter har samma fabrikat och modell som en annan. Ta bort dubbletterna.</p>}
 
       {lokal === null ? <p className="dampad">Hämtar…</p> : (
+        <div className="produktregister">
+        <nav className="produkttrad" aria-label="Kategorier">
+          <div className={"produkttrad-rad" + (valdKat === "" ? " vald" : "")}>
+            <span className="produkttrad-pil" />
+            <button className="produkttrad-namn" onClick={() => setValdKat("")}>Alla <span className="dampad">{trad.antal}</span></button>
+          </div>
+          <ul>{ritaNod(trad, 0)}</ul>
+        </nav>
+        <div className="produktregister-tabell">
         <DataGrid
-          rader={rader}
+          rader={synliga}
           kolumner={kolumner}
           sokPlatshallare="Sök produkt, fabrikat, komponenttyp …"
           lasläge={!kanHantera}
           onAndra={sattFalt}
-          onNy={() => andra({ produkter: [...produkter, tomProdukt()] })}
+          onNy={() => andra({ produkter: [...produkter, { ...tomProdukt(), kategori: valdKat === "Utan kategori" ? "" : valdKat }] })}
           onTaBort={(ids) => {
             if (window.confirm(`Ta bort ${ids.length} produkter ur registret? Komponenter som redan har produkten behåller namnet.`))
               andra({ produkter: produkter.filter((p) => !ids.includes(p.id)) });
           }}
         />
+        </div>
+        </div>
       )}
     </>
   );

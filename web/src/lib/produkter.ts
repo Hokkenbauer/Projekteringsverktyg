@@ -7,7 +7,12 @@ import { useKatalog } from "./katalog";
  * och Kraftberäkningen hämtar strömmen. Samma regler finns i KomponentApi/Produkter.cs.
  */
 export type Produkt = {
-  id: string; fabrikat: string; modell: string; komponenttyp: string;
+  id: string;
+  /** Plats i registrets träd, t.ex. "Givare/Produal" (delar skiljs med /). Tomt = Utan kategori. */
+  kategori: string;
+  fabrikat: string;
+  /** Kort namn som går att härleda till produkten, t.ex. TEU_PT1000 eller LUX34. */
+  modell: string; komponenttyp: string;
   /** Standard-I/O i kortform, t.ex. "AI" eller "DI DU AU". */
   io: string;
   /** Ström per fas (A) och antal faser ("1" eller "3"), till Kraftberäkningen. */
@@ -26,7 +31,7 @@ export const TOMT_REGISTER: Produktregister = { produkter: [] };
 export const produktNamn = (p: Pick<Produkt, "fabrikat" | "modell">) => `${p.fabrikat.trim()} ${p.modell.trim()}`.trim();
 
 export const tomProdukt = (): Produkt => ({
-  id: crypto.randomUUID().replace(/-/g, ""), fabrikat: "", modell: "", komponenttyp: "", io: "", stromA: "", fas: "",
+  id: crypto.randomUUID().replace(/-/g, ""), kategori: "", fabrikat: "", modell: "", komponenttyp: "", io: "", stromA: "", fas: "",
   artikelnummer: "", leverantor: "", bedomning: "", sundaHus: "", datablad: "", kommentar: "", utgatt: false,
 });
 
@@ -51,3 +56,9 @@ export function produktForslag(register: Produktregister | null, iProjektet: str
   const ovriga = iProjektet.map((v) => v.trim()).filter((v) => v && !sett.has(v.toLowerCase()));
   return [...aktiva.sort((a, b) => a.localeCompare(b, "sv", { numeric: true })), ...new Set(ovriga)];
 }
+
+/** Kategorins delar, t.ex. "Givare/Produal" → ["Givare", "Produal"]. Tom kategori → ["Utan kategori"]. */
+export const kategoriDelar = (k: string | undefined) => {
+  const d = (k ?? "").split("/").map((x) => x.trim()).filter(Boolean);
+  return d.length ? d : ["Utan kategori"];
+};
