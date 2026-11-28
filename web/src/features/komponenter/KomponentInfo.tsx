@@ -6,6 +6,7 @@ import { omfattar } from "../listor/ListVy";
 import { Anslutningar, arGateway, lasGateway, portNamn } from "../../lib/gateway";
 import { GatewayRedigerare } from "../konstruktion/GatewayVy";
 import { produktNamn, type Produkt } from "../../lib/produkter";
+import { LEVERANTORER, levererasAv, medLevererasAv } from "../../lib/leverans";
 
 type Plats = { byggnad: string; plan: string; rum: string; placerad: boolean };
 
@@ -209,6 +210,16 @@ export function KomponentInfo({ projektId, komponent, listdefinitioner, onStang,
           </p>
         )}
         {(k.produkttyp || k.produkt) && !produkt && <p className="dampad liten">Produkten finns inte i produktregistret (Verktyg → Produktregister).</p>}
+        {!gateway && (
+          <label className="falt levererasav">
+            <span>Levereras av</span>
+            <select value={levererasAv(k)} disabled={lasläge} onChange={(e) => onAndra(k, "installningar", medLevererasAv(k, e.target.value))}>
+              {LEVERANTORER.map((l) => <option key={l.kod} value={l.kod}>{l.namn}</option>)}
+              {levererasAv(k) && !LEVERANTORER.some((l) => l.kod === levererasAv(k)) && <option value={levererasAv(k)}>{levererasAv(k)}</option>}
+            </select>
+            <span className="dampad liten">Bara det SÖE levererar kommer med i Beställningslistan.</span>
+          </label>
+        )}
       </section>
 
       <section>

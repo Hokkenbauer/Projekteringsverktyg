@@ -6,6 +6,7 @@ import { skrivUtBlock, type BlockDokument } from "../../lib/dokumentBlock";
 import { utskriftDokument } from "../../lib/utskrift";
 import type { Blad } from "../../lib/excelFil";
 import { arGateway, lasGateway } from "../../lib/gateway";
+import { levererasAvSoe } from "../../lib/leverans";
 
 /** Komponenttyper i Apparatskåp som ska beställas när de är ibockade (samma som dagens program). */
 const SKAP_BESTALLS = ["Dupline", "DIN-PC", "M-busgateway", "SIOX-Axccess", "Panel-PC / HMI i front"];
@@ -26,7 +27,7 @@ type Props = {
  * Beställningslistans rader: räknas fram ur Komponenter (per produkttyp och fabrikat), Modulbeläggning (I/O-kort),
  * gatewaykomponenterna, äldre Modbus RTU-slingor och Apparatskåp (vissa ibockade komponenter).
  */
-export function bestallningsRader(komponenter: Komponent[], skap: Skap[] | null, gateways: ListRad[] | undefined): { rader: Rad[]; utanProdukttyp: number } {
+export function bestallningsRader(komponenter: Komponent[], skap: Skap[] | null, gateways: ListRad[] | undefined): { rader: Rad[]; utanProdukttyp: number; andraLevererar: number } {
     const ut: Rad[] = [];
     const rakna = (kalla: string, nycklar: [string, string][]) => {
       const m = new Map<string, { beskrivning: string; fabrikat: string; antal: number }>();
@@ -42,7 +43,9 @@ export function bestallningsRader(komponenter: Komponent[], skap: Skap[] | null,
 
     // Produkt (fabrikat och modell) per komponenttyp. Äldre komponenter med bara Fabrikat räknas på det.
     const produkt = (k: Komponent) => (k.produkttyp || k.produkt).trim();
-    const medTyp = komponenter.filter((k) => produkt(k) && !arGateway(k));
+    // Bara det SÖE levererar (fältet Levereras av i Komponentinformation). VE:s spjäll, prefab-delar m.m. räknas inte.
+    const egna = komponenter.filter(levererasAvSoe);
+    const medTyp = egna.filter((k) => produkt(k) && !arGateway(k));
     rakna("Komponenter", medTyp.map((k) => [k.komponenttyp.trim() || "Övrigt", produkt(k)]));
     rakna("Gateways", komponenter.filter(arGateway).map((k) => [`Gateway ${lasGateway(k).typ} (${lasGateway(k).portar.length} portar)`, produkt(k)]));
 
@@ -62,7 +65,7 @@ export function bestallningsRader(komponenter: Komponent[], skap: Skap[] | null,
     rakna("Modbus RTU (äldre slingor)", (gateways ?? []).filter((g) => (g.data.namn ?? g.data.fabrikat ?? "").trim())
       .map((g) => [(g.data.fabrikat || "Modbus RTU-gateway").trim(), ""]));
     rakna("Apparatskåp", skapKomp);
-    return { rader: ut, utanProdukttyp: komponenter.filter((k) => !arGateway(k)).length - medTyp.length };
+    return { rader: ut, utanProdukttyp: egna.filter((k) => !arGateway(k)).length - medTyp.length, andraLevererar: komponenter.length - egna.length };
 }
 
 const KOLUMNER = ["Nr", "Källa", "Beskrivning", "Produkt / information", "Antal"];
@@ -82,7 +85,7 @@ export function bestallningBlad(rader: Rad[]): Blad[] {
  * Modbus RTU (gateways) och Apparatskåp (vissa ibockade komponenter). Inget sparas här.
  */
 export function BestallningslistaVy(p: Props) {
-  const { rader, utanProdukttyp } = useMemo(() => bestallningsRader(p.komponenter, p.skap, p.gateways), [p.komponenter, p.skap, p.gateways]);
+  const { rader, utanProdukttyp, andraLevererar } = useMemo(() => bestallningsRader(p.komponenter, p.skap, p.gateways), [p.komponenter, p.skap, p.gateways]);
 
   const kolumner: Kolumn<Rad>[] = [
     { nyckel: "kalla", rubrik: "Källa", typ: "ro", bredd: 150 },
@@ -108,6 +111,7 @@ export function BestallningslistaVy(p: Props) {
         Räknas fram ur Komponenter (per komponenttyp och produkt), gatewaykomponenterna, I/O-korten i Modulbeläggning och
         ibockade {SKAP_BESTALLS.join(", ")} i Apparatskåp. Ändra i de flikarna, så uppdateras listan.
         {utanProdukttyp > 0 && ` ${utanProdukttyp} komponenter saknar produkt och är inte med.`}
+        {andraLevererar > 0 && ` ${andraLevererar} komponenter levereras av andra (Levereras av) och är inte med.`}
       </p>
       {p.skap === null ? <p className="dampad">Hämtar…</p> : (
         <DataGrid rader={rader} kolumner={kolumner} sokPlatshallare="Sök i beställningslistan" onAndra={() => undefined} lasläge tomText="Inget att beställa än." />

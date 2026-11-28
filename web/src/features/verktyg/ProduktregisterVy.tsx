@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useFordrojdSparning } from "../../lib/sparning";
 import { DataGrid, type Kolumn } from "../../grid/DataGrid";
 import { api } from "../../lib/api";
-import { skrivExcel } from "../../lib/excelFil";
+import { lasExcel, skrivExcel, tolkaRubriker } from "../../lib/excelFil";
 import { franNamn, produktNamn, tomProdukt, useProduktregister, type Produkt, type Produktregister } from "../../lib/produkter";
 import type { Kataloger } from "../../lib/typer";
 
@@ -87,17 +87,55 @@ export function ProduktregisterVy({ kanHantera, visaMeddelande }: Props) {
     rader: [kolumner.map((k) => k.rubrik), ...rader.map((r) => kolumner.map((k) => (k.nyckel === "utgatt" ? (r.utgatt ? "Ja" : "") : r[k.nyckel])))],
   }]).catch((e) => visaMeddelande((e as Error).message));
 
+  /**
+   * Importera från Excel: samma kolumner som exporten (rubrikerna tolkas, ordningen spelar ingen roll).
+   * Produkt med samma fabrikat + modell uppdateras (bara ifyllda celler skrivs), annars läggs den till.
+   */
+  const filval = useRef<HTMLInputElement>(null);
+  const importera = async (fil: File) => {
+    try {
+      const xr = await lasExcel(fil);
+      const t = tolkaRubriker(xr, {
+        fabrikat: /^fabrikat/, modell: /^modell/, komponenttyp: /^komponenttyp/, io: /^i\/?o$/, stromA: /^str[öo]m/, fas: /^fas/,
+        artikelnummer: /^artikel|e-nr/, leverantor: /^leverant/, bedomning: /^byggvaru|bedömning/, sundaHus: /^sunda/,
+        datablad: /^datablad/, kommentar: /^kommentar/, utgatt: /^utg[åa]ng/,
+      });
+      if (!t || t.kolumn.fabrikat === undefined || t.kolumn.modell === undefined) { visaMeddelande("Hittar inte kolumnerna Fabrikat och Modell i filen."); return; }
+      const lista = [...produkter];
+      let nya = 0, uppd = 0;
+      for (const r of xr.slice(t.rubrikrad + 1)) {
+        const cell = (f: string) => (t.kolumn[f] === undefined ? "" : (r[t.kolumn[f]!] ?? "").trim());
+        if (!cell("fabrikat") && !cell("modell")) continue;
+        const namn = `${cell("fabrikat")} ${cell("modell")}`.trim().toLowerCase();
+        const i = lista.findIndex((p) => produktNamn(p).toLowerCase() === namn);
+        const bas: Produkt = i >= 0 ? { ...lista[i]! } : tomProdukt();
+        for (const f of ["fabrikat", "modell", "komponenttyp", "io", "stromA", "fas", "artikelnummer", "leverantor", "bedomning", "sundaHus", "datablad", "kommentar"] as const) {
+          const v = cell(f); if (v) bas[f] = v;
+        }
+        const u = cell("utgatt"); if (u) bas.utgatt = /^(ja|x|true|1)$/i.test(u);
+        if (i >= 0) { lista[i] = bas; uppd++; } else { lista.push(bas); nya++; }
+      }
+      andra({ produkter: lista });
+      visaMeddelande(`Import klar: ${nya} nya och ${uppd} uppdaterade produkter.`);
+    } catch (e) { visaMeddelande((e as Error).message); }
+  };
+
   return (
     <>
       <div className="brodsmula">Verktyg</div>
       <div className="rubrikrad">
         <h1>Produktregister</h1>
-        <div className="knappar"><button className="knapp" onClick={excel}>Exportera till Excel</button></div>
+        <div className="knappar">
+          {kanHantera && <button className="knapp" onClick={() => filval.current?.click()}>Importera från Excel…</button>}
+          <button className="knapp" onClick={excel}>Exportera till Excel</button>
+          <input ref={filval} type="file" accept=".xlsx,.xls,.csv" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void importera(f); }} />
+        </div>
       </div>
       <p className="ingress">
         Gemensamt för alla projekt. Produkterna föreslås i komponentens fält <b>Produkt</b> (fabrikat + modell). Väljs en produkt fylls
         komponenttyp och I/O i om de är tomma, och Kraftberäkningen hämtar strömmen (3 faser = samma ström på L1–L3).
-        Utgångna produkter föreslås inte men finns kvar i gamla projekt.
+        Utgångna produkter föreslås inte men finns kvar i gamla projekt. <b>Importera från Excel</b> läser samma kolumner som exporten;
+        produkter med samma fabrikat och modell uppdateras, övriga läggs till.
         {!kanHantera && " Bara Admin och de som får ändra mallar och kataloger kan ändra registret."}
         {status === "sparar" ? " Sparar…" : status === "osparat" ? " Osparade ändringar…" : ""}
         {reg.info.andradAv && status === "sparat" && <span className="dampad"> Senast ändrat av {reg.info.andradAv}.</span>}
